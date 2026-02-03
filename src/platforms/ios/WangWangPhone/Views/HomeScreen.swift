@@ -31,21 +31,6 @@ struct HomeScreen: View {
             Color.black.ignoresSafeArea()
             
             VStack {
-                // 虚拟状态栏
-                HStack {
-                    Text("09:41")
-                        .fontWeight(.bold)
-                    Spacer()
-                    HStack(spacing: 5) {
-                        Text("📶")
-                        Text("5G")
-                        Text("🔋")
-                    }
-                }
-                .foregroundColor(.white)
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-
                 // 应用网格
                 LazyVGrid(columns: columns, spacing: 25) {
                     ForEach(apps) { app in
@@ -69,6 +54,7 @@ struct HomeScreen: View {
 
                 // Dock 栏
                 ZStack {
+                    // 磨砂玻璃背景层
                     RoundedRectangle(cornerRadius: 30)
                         .fill(Color.white.opacity(0.3))
                         .background(.ultraThinMaterial)
@@ -76,6 +62,7 @@ struct HomeScreen: View {
                         .frame(height: 90)
                         .padding(.horizontal, 15)
                     
+                    // 应用图标层 (确保在蒙版之上)
                     HStack(spacing: 25) {
                         ForEach(apps.prefix(4)) { app in
                             ZStack {

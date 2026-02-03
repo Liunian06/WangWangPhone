@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Path to the global version.properties
-VERSION_FILE="../../version.properties"
+VERSION_FILE="../../../version.properties"
 
 if [ -f "$VERSION_FILE" ]; then
     VERSION_CODE=$(grep 'VERSION_CODE=' "$VERSION_FILE" | cut -d'=' -f2)

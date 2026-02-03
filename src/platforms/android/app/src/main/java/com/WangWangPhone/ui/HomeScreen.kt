@@ -38,17 +38,6 @@ fun HomeScreen() {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black))
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            // 虚拟状态栏
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("09:41", color = Color.White, fontWeight = FontWeight.Bold)
-                Row {
-                    Text("📶 5G 🔋", color = Color.White)
-                }
-            }
-
             // 应用网格
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),
@@ -70,9 +59,16 @@ fun HomeScreen() {
                 .fillMaxWidth()
                 .height(90.dp)
                 .clip(RoundedCornerShape(30.dp))
-                .background(Color.White.copy(alpha = 0.3f))
-                .blur(20.dp)
         ) {
+            // 磨砂玻璃背景层
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.White.copy(alpha = 0.3f))
+                    .blur(20.dp)
+            )
+
+            // 应用图标层 (在背景层之上)
             Row(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.SpaceAround,

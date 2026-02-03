@@ -1,9 +1,13 @@
 package com.WangWangPhone.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.FractionalThreshold
+import androidx.compose.material.rememberSwipeableState
+import androidx.compose.material.swipeable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +19,7 @@ import androidx.compose.ui.unit.sp
 import java.text.SimpleDateFormat
 import java.util.*
 
+@OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun LockScreen(onUnlock: () -> Unit) {
     var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
@@ -26,6 +31,21 @@ fun LockScreen(onUnlock: () -> Unit) {
         }
     }
 
+    val swipeableState = rememberSwipeableState(initialValue = 0)
+    // 使用 BoxWithConstraints 获取高度以动态计算滑动锚点
+    // 或者直接增加像素值。1000f 可能在某些高分屏上太短。
+    // targetValue 为 1 时立即触发，但 swipeableState.currentValue
+    // 可能在动画完成后才更新。
+    
+    val anchors = mapOf(0f to 0, -2500f to 1) // 增加滑动距离到 2500 像素
+
+    // 使用 snapshotFlow 监听 offset 的实时变化，或者监听 targetValue 以实现更快的响应
+    LaunchedEffect(swipeableState.targetValue) {
+        if (swipeableState.targetValue == 1) {
+            onUnlock()
+        }
+    }
+
     val timeFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
     val dateFormat = SimpleDateFormat("M月d日 EEEE", Locale.getDefault())
 
@@ -33,7 +53,13 @@ fun LockScreen(onUnlock: () -> Unit) {
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
-            .clickable { onUnlock() }
+            .swipeable(
+                state = swipeableState,
+                anchors = anchors,
+                thresholds = { _, _ -> FractionalThreshold(0.3f) },
+                orientation = Orientation.Vertical
+            )
+            .offset(y = (swipeableState.offset.value / 3).dp) // Visual feedback
     ) {
         Column(
             modifier = Modifier
@@ -55,7 +81,7 @@ fun LockScreen(onUnlock: () -> Unit) {
         }
 
         Text(
-            text = "点击屏幕解锁",
+            text = "向上滑动解锁",
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 50.dp),

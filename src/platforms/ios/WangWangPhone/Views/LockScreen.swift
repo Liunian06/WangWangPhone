@@ -3,6 +3,7 @@ import SwiftUI
 struct LockScreen: View {
     var onUnlock: () -> Void
     @State private var currentTime = Date()
+    @State private var dragOffset: CGFloat = 0
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -19,24 +20,36 @@ struct LockScreen: View {
                     .font(.title3)
                     .foregroundColor(.white)
             }
+            .offset(y: dragOffset / 3) // 视觉反馈
             
             VStack {
                 Spacer()
-                Text("点击屏幕解锁")
+                Text("向上滑动解锁")
                     .font(.headline)
                     .foregroundColor(.white.opacity(0.6))
                     .padding(.bottom, 50)
-                    .onTapGesture {
-                        onUnlock()
-                    }
             }
         }
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if value.translation.height < 0 {
+                        dragOffset = value.translation.height
+                    }
+                }
+                .onEnded { value in
+                    if value.translation.height < -150 { // 滑动超过一定距离解锁
+                        onUnlock()
+                    } else {
+                        withAnimation(.spring()) {
+                            dragOffset = 0
+                        }
+                    }
+                }
+        )
         .onReceive(timer) { input in
             currentTime = input
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onUnlock()
         }
     }
     

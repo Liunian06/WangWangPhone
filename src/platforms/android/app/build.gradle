@@ -5,9 +5,15 @@ plugins {
 
 // Load version properties from root directory
 def versionProps = new Properties()
-def versionFile = file("../../../version.properties")
+def versionFile = rootProject.file("../../../../version.properties")
 if (versionFile.exists()) {
     versionFile.withInputStream { versionProps.load(it) }
+} else {
+    // Try absolute path or project relative if file() failed
+    versionFile = file("../../../../version.properties")
+    if (versionFile.exists()) {
+        versionFile.withInputStream { versionProps.load(it) }
+    }
 }
 
 android {
@@ -68,6 +74,7 @@ dependencies {
     implementation 'androidx.compose.ui:ui-graphics'
     implementation 'androidx.compose.ui:ui-tooling-preview'
     implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material'
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:core:3.5.1'
