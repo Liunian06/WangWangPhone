@@ -1,0 +1,17 @@
+name: Build All Platforms (Manual)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call-android-build:
+    uses: ./.github/workflows/android-build.yml
+  
+  call-ios-build:
+    uses: ./.github/workflows/ios-build.yml
+  
+  call-windows-build:
+    uses: ./.github/workflows/windows-build.yml
+  
+  call-web-build:
+    uses: ./.github/workflows/web-build.yml

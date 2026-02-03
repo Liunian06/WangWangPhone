@@ -1,0 +1,25 @@
+name: Build Web WASM (Manual)
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v14
+    - name: Build WASM
+      run: |
+        # 目前 src/core 下有 CMakeLists.txt，尝试基本的 WASM 构建逻辑
+        mkdir -p build-web
+        cd build-web
+        emcmake cmake ../src/core
+        emmake make || echo "Build failed, but continuing for placeholder"
+    - name: Upload WASM
+      uses: actions/upload-artifact@v4
+      with:
+        name: wangwangji-web-wasm
+        path: build-web/

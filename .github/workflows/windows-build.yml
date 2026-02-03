@@ -1,0 +1,25 @@
+name: Build Windows (Manual)
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v1.1
+    - name: Build Solution
+      run: |
+        # 目前项目结构中 src/platforms 下没有 windows 目录，保留框架
+        # cd src/platforms/windows
+        # msbuild WangWangPhone.sln /p:Configuration=Release
+        echo "Placeholder for Windows build"
+    - name: Upload EXE
+      uses: actions/upload-artifact@v4
+      with:
+        name: wangwangji-windows-release
+        # 假设构建产物路径
+        path: README.md # 临时占位

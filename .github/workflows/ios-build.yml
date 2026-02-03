@@ -1,0 +1,23 @@
+name: Build iOS (Manual)
+
+on:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build Unsigned .app
+      run: |
+        # 由于目前没有完整的工程文件，这里先保留构建逻辑框架
+        # cd src/platforms/ios
+        # xcodebuild -project WangWangPhone.xcodeproj -scheme WangWangPhone -configuration Debug -sdk iphoneos CODE_SIGNING_ALLOWED=NO
+        echo "Placeholder for iOS build"
+    - name: Upload .app
+      uses: actions/upload-artifact@v4
+      with:
+        name: wangwangji-ios-unsigned
+        # 假设构建产物路径
+        path: README.md # 临时占位，待 iOS 工程完善后修改为 src/platforms/ios/build/Debug-iphoneos/WangWangPhone.app
