@@ -3,6 +3,13 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+// Load version properties from root directory
+def versionProps = new Properties()
+def versionFile = file("../../../version.properties")
+if (versionFile.exists()) {
+    versionFile.withInputStream { versionProps.load(it) }
+}
+
 android {
     namespace 'com.WangWangPhone'
     compileSdk 34
@@ -11,8 +18,8 @@ android {
         applicationId "com.WangWangPhone"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.0"
+        versionCode versionProps['VERSION_CODE']?.toInteger() ?: 1
+        versionName versionProps['VERSION_NAME'] ?: "1.0.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
