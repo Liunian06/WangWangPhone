@@ -12,12 +12,12 @@ if (versionFile.exists()) {
 
 android {
     namespace 'com.WangWangPhone'
-    compileSdk 34
+    compileSdk 35
 
     defaultConfig {
         applicationId "com.WangWangPhone"
-        minSdk 24
-        targetSdk 34
+        minSdk 31
+        targetSdk 35
         versionCode versionProps['VERSION_CODE']?.toInteger() ?: 1
         versionName versionProps['VERSION_NAME'] ?: "1.0.0"
 
