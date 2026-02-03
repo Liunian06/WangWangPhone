@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="assets/logo.png" width="120" height="120" alt="WangWangJi Logo">
+  <img src="assets/icons/logo.jpg" width="120" height="120" alt="WangWangJi Logo">
   <h1>汪汪机 (WangWangJi)</h1>
   <p><b>手机里的手机 —— 极致流畅的“递归操作系统” AI 伴侣</b></p>
 
@@ -12,11 +12,11 @@
   </p>
 
   <p>
-    <a href="#-核心特性">核心特性</a> •
-    <a href="#-技术架构">技术架构</a> •
-    <a href="#-快速开始">快速开始</a> •
-    <a href="#-路线图">路线图</a> •
-    <a href="#-许可证">许可证</a>
+    <a href="#核心特性">核心特性</a> •
+    <a href="#技术架构">技术架构</a> •
+    <a href="#快速开始">快速开始</a> •
+    <a href="#路线图-roadmap">路线图</a> •
+    <a href="#许可证">许可证</a>
   </p>
 </div>
 
