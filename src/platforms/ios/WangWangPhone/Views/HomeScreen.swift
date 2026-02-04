@@ -244,6 +244,7 @@ struct SettingsView: View {
                         Text("未激活")
                             .foregroundColor(.gray)
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                     .onTapGesture {
                         showActivation = true

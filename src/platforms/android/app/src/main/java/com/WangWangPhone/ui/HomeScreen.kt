@@ -227,8 +227,8 @@ fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
                 .background(cardColor)
-                .clickable { onNavigateToActivation() }
                 .padding(16.dp)
+                .clickable { onNavigateToActivation() }
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
