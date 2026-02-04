@@ -349,10 +349,8 @@ fun HomeScreen() {
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (showActivation) {
-            ActivationScreen(onBack = { showActivation = false })
-        }
-        
+        HomeScreenContent(onSettingsClick = { showSettings = true })
+
         if (showSettings) {
             SettingsScreen(
                 onBack = { showSettings = false },
@@ -360,8 +358,10 @@ fun HomeScreen() {
                     showActivation = true
                 }
             )
-        } else {
-            HomeScreenContent(onSettingsClick = { showSettings = true })
+        }
+
+        if (showActivation) {
+            ActivationScreen(onBack = { showActivation = false })
         }
     }
 }
