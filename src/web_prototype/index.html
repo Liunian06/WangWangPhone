@@ -329,8 +329,11 @@
     </div>
 </div>
 
-<script>
-    function unlock() {
+<script type="module">
+    import { getLocation } from './js/location.js';
+    import { getWeather } from './js/weather.js';
+
+    window.unlock = function() {
         document.getElementById('lock-screen').classList.add('unlocked');
     }
 
@@ -360,6 +363,57 @@
     }
     setInterval(updateTime, 1000);
     updateTime();
+
+    // 初始化天气组件
+    async function initWeatherWidget() {
+        try {
+            console.log("Initializing Weather Widget...");
+            // 1. 获取城市
+            const city = await getLocation();
+            console.log('当前定位城市:', city);
+
+            // 更新 UI 城市显示
+            document.querySelectorAll('.widget-city').forEach(el => el.textContent = city);
+            // 天气组件里通常也有个城市名显示
+            // 注意：原有HTML结构里 Weather Widget 的城市名是硬编码的 "北京"
+            // 我们需要找到它并更新.
+            // 结构: <div class="widget weather-widget"> -> <div> -> <div style="font-weight: bold;">北京</div>
+            const weatherWidget = document.querySelector('.weather-widget');
+            if (weatherWidget) {
+                const cityEl = weatherWidget.querySelector('div > div:first-child');
+                if (cityEl) cityEl.textContent = city;
+            }
+
+            // 2. 获取天气
+            if (city) {
+                const weather = await getWeather(city);
+                console.log(`天气：${weather.description}, 温度：${weather.temperature}`);
+                
+                // 更新 UI
+                if (weatherWidget) {
+                    const tempEl = weatherWidget.querySelector('.widget-temp');
+                    const statusEl = weatherWidget.querySelector('.widget-status');
+                    const rangeEl = weatherWidget.querySelector('.widget-range');
+                    
+                    if (tempEl) tempEl.textContent = weather.temperature.replace(' ', ''); // "+5 °C" -> "+5°C"
+                    if (statusEl) statusEl.textContent = weather.description;
+                    
+                    // Forecast data is array, we might pick first day for range or just use description
+                    if (weather.forecast && weather.forecast.length > 0) {
+                        // API might not give high/low directly in main object, sometimes it's in description or not available simply
+                        // For this prototype, we just show forecast[0] temp as "Future: ..." or keep it simple
+                        // Let's assume we want to show wind as range/extra info since API returns wind
+                        rangeEl.textContent = `Wind: ${weather.wind}`;
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('获取环境信息失败:', error);
+        }
+    }
+
+    // 启动初始化
+    initWeatherWidget();
 </script>
 
 </body>

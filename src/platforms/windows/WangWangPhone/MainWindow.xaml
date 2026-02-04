@@ -30,7 +30,7 @@
                 <StackPanel VerticalAlignment="Center" Margin="15">
                     <TextBlock x:Name="DateText" Text="10月1日 星期一" Foreground="White" FontSize="12" FontWeight="Medium"/>
                     <TextBlock x:Name="TimeText" Text="09:41" Foreground="White" FontSize="40" FontWeight="Bold"/>
-                    <TextBlock Text="北京" Foreground="#CCFFFFFF" FontSize="12"/>
+                    <TextBlock x:Name="ClockCityText" Text="北京" Foreground="#CCFFFFFF" FontSize="12"/>
                 </StackPanel>
             </Border>
 
@@ -44,13 +44,13 @@
                 </Border.Background>
                 <Grid Margin="15">
                     <StackPanel VerticalAlignment="Top" HorizontalAlignment="Left">
-                        <TextBlock Text="北京" Foreground="White" FontSize="16" FontWeight="Bold"/>
-                        <TextBlock Text="24°" Foreground="White" FontSize="40" FontWeight="Light"/>
+                        <TextBlock x:Name="WeatherCityText" Text="北京" Foreground="White" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock x:Name="WeatherTempText" Text="24°" Foreground="White" FontSize="40" FontWeight="Light"/>
                     </StackPanel>
                     <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Right">
-                        <TextBlock Text="☀️" FontSize="24"/>
-                        <TextBlock Text="晴朗" Foreground="White" FontSize="14"/>
-                        <TextBlock Text="H:28° L:18°" Foreground="#CCFFFFFF" FontSize="10"/>
+                        <TextBlock x:Name="WeatherIconText" Text="☀️" FontSize="24"/>
+                        <TextBlock x:Name="WeatherDescText" Text="晴朗" Foreground="White" FontSize="14"/>
+                        <TextBlock x:Name="WeatherRangeText" Text="H:28° L:18°" Foreground="#CCFFFFFF" FontSize="10"/>
                     </StackPanel>
                 </Grid>
             </Border>

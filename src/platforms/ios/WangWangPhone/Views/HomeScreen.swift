@@ -10,6 +10,7 @@ struct AppIconData: Identifiable {
 struct ClockWidget: View {
     @State private var currentTime = Date()
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    var city: String
     
     var body: some View {
         ZStack {
@@ -27,7 +28,7 @@ struct ClockWidget: View {
                     .font(.system(size: 40, weight: .bold))
                     .foregroundColor(.white)
                 
-                Text("北京")
+                Text(city)
                     .font(.caption2)
                     .foregroundColor(.white.opacity(0.8))
             }
@@ -53,7 +54,17 @@ struct ClockWidget: View {
     }
 }
 
+struct WeatherInfo {
+    var temp: String
+    var description: String
+    var icon: String
+    var range: String
+}
+
 struct WeatherWidget: View {
+    var city: String
+    var weather: WeatherInfo?
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 20)
@@ -62,12 +73,12 @@ struct WeatherWidget: View {
             
             HStack {
                 VStack(alignment: .leading) {
-                    Text("北京")
+                    Text(city)
                         .font(.headline)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                     
-                    Text("24°")
+                    Text(weather?.temp ?? "--")
                         .font(.system(size: 40, weight: .light))
                         .foregroundColor(.white)
                 }
@@ -75,12 +86,12 @@ struct WeatherWidget: View {
                 Spacer()
                 
                 VStack(alignment: .trailing) {
-                    Text("☀️")
+                    Text(weather?.icon ?? "❓")
                         .font(.title)
-                    Text("晴朗")
+                    Text(weather?.description ?? "Loading...")
                         .font(.caption)
                         .foregroundColor(.white)
-                    Text("H:28° L:18°")
+                    Text(weather?.range ?? "")
                         .font(.caption2)
                         .foregroundColor(.white.opacity(0.8))
                 }
@@ -109,6 +120,9 @@ struct HomeScreen: View {
         GridItem(.flexible())
     ]
 
+    @State private var city: String = "..."
+    @State private var weather: WeatherInfo? = nil
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -116,11 +130,14 @@ struct HomeScreen: View {
             VStack {
                 // 小组件区域
                 HStack(spacing: 15) {
-                    ClockWidget()
-                    WeatherWidget()
+                    ClockWidget(city: city)
+                    WeatherWidget(city: city, weather: weather)
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
+                .onAppear {
+                    loadData()
+                }
 
                 // 应用网格
                 LazyVGrid(columns: columns, spacing: 25) {
@@ -177,6 +194,19 @@ struct HomeScreen: View {
                     .frame(width: 120, height: 5)
                     .padding(.bottom, 8)
             }
+        }
+    }
+    
+    func loadData() {
+        // Mock Async Data Loading
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.city = "广州"
+            self.weather = WeatherInfo(
+                temp: "25°",
+                description: "多云",
+                icon: "⛅",
+                range: "H:29° L:21°"
+            )
         }
     }
 }

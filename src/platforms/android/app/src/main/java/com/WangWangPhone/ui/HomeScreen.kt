@@ -24,8 +24,41 @@ import java.util.Locale
 
 data class AppIcon(val name: String, val icon: String, val color: Brush)
 
+// Mock Location & Weather Logic (In real app this would be in Repository/ViewModel)
+suspend fun fetchLocation(): String {
+    // In a real Android app, you would use LocationManager or FusedLocationProviderClient
+    // For this prototype, we simulate an API call or logic similar to the JS version
+    // Mocking an async operation:
+    delay(500)
+    return "广州" // Mock result
+}
+
+data class WeatherInfo(
+    val temp: String,
+    val description: String,
+    val icon: String,
+    val range: String
+)
+
+suspend fun fetchWeather(city: String): WeatherInfo {
+    delay(500) // Mock API
+    // Real app would use Retrofit to call goweather.herokuapp.com
+    return WeatherInfo("25°", "多云", "⛅", "最高 29° 最低 21°")
+}
+
 @Composable
 fun WidgetsSection() {
+    // State for location and weather
+    var city by remember { mutableStateOf("...") }
+    var weather by remember { mutableStateOf<WeatherInfo?>(null) }
+    
+    LaunchedEffect(Unit) {
+        city = fetchLocation()
+        if (city.isNotEmpty()) {
+            weather = fetchWeather(city)
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -33,15 +66,15 @@ fun WidgetsSection() {
         horizontalArrangement = Arrangement.spacedBy(15.dp)
     ) {
         // Clock Widget
-        ClockWidget(modifier = Modifier.weight(1f))
+        ClockWidget(city = city, modifier = Modifier.weight(1f))
         
         // Weather Widget
-        WeatherWidget(modifier = Modifier.weight(1f))
+        WeatherWidget(city = city, weather = weather, modifier = Modifier.weight(1f))
     }
 }
 
 @Composable
-fun ClockWidget(modifier: Modifier = Modifier) {
+fun ClockWidget(city: String, modifier: Modifier = Modifier) {
     var currentTime by remember { mutableStateOf(LocalDateTime.now()) }
 
     LaunchedEffect(Unit) {
@@ -79,7 +112,7 @@ fun ClockWidget(modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "北京",
+                text = city,
                 color = Color.White.copy(alpha = 0.8f),
                 fontSize = 12.sp
             )
@@ -88,7 +121,7 @@ fun ClockWidget(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun WeatherWidget(modifier: Modifier = Modifier) {
+fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .height(150.dp)
@@ -102,13 +135,13 @@ fun WeatherWidget(modifier: Modifier = Modifier) {
         ) {
             Column {
                 Text(
-                    text = "北京",
+                    text = city,
                     color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "24°",
+                    text = weather?.temp ?: "--",
                     color = Color.White,
                     fontSize = 40.sp,
                     fontWeight = FontWeight.Light
@@ -116,17 +149,17 @@ fun WeatherWidget(modifier: Modifier = Modifier) {
             }
             Column {
                 Text(
-                    text = "☀️",
+                    text = weather?.icon ?: "❓",
                     fontSize = 24.sp
                 )
                 Spacer(modifier = Modifier.height(5.dp))
                 Text(
-                    text = "晴朗",
+                    text = weather?.description ?: "加载中...",
                     color = Color.White,
                     fontSize = 14.sp
                 )
                 Text(
-                    text = "最高 28° 最低 18°",
+                    text = weather?.range ?: "",
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 10.sp
                 )
