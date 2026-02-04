@@ -486,18 +486,14 @@
         </div>
         <div class="overlay-content">
             <div class="input-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <div class="input-label" style="margin-bottom: 0;">机器码</div>
-                    <div style="color: #007AFF; font-size: 14px; cursor: pointer;" onclick="copyMachineId()">复制</div>
-                </div>
-                <div id="web-machine-id" class="input-box">WEB-ID-FETCHING...</div>
+                <div class="input-label">机器码</div>
+                <div id="web-machine-id" class="input-box" style="margin-bottom: 10px;">WEB-ID-FETCHING...</div>
+                <button class="btn-primary" style="background: #34C759; margin-bottom: 20px; padding: 10px; font-size: 14px;" onclick="copyMachineId()">复制机器码</button>
             </div>
             <div class="input-group">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <div class="input-label" style="margin-bottom: 0;">激活码</div>
-                    <div style="color: #007AFF; font-size: 14px; cursor: pointer;" onclick="pasteLicenseKey()">粘贴</div>
-                </div>
-                <textarea id="license-key-input" class="input-box" placeholder="请输入激活码..."></textarea>
+                <div class="input-label">激活码</div>
+                <textarea id="license-key-input" class="input-box" style="margin-bottom: 10px;" placeholder="请输入激活码..."></textarea>
+                <button class="btn-primary" style="background: #5856D6; margin-bottom: 20px; padding: 10px; font-size: 14px;" onclick="pasteLicenseKey()">粘贴激活码</button>
             </div>
             <button class="btn-primary" onclick="submitActivation()">激活</button>
         </div>
@@ -566,8 +562,14 @@
     history.pushState(null, null, null);
 
     window.submitActivation = function() {
-        alert('激活码校验中...');
-        hideActivation();
+        const license = document.getElementById('license-key-input').value;
+        if (license && license.startsWith("WANGWANG-")) {
+            alert('软件激活成功！');
+            document.querySelector('.status-val').textContent = "已激活 >";
+            hideActivation();
+        } else {
+            alert('激活码无效，请检查后重试。');
+        }
     }
 
     // 更新时间

@@ -274,40 +274,41 @@ struct ActivationView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header:
-                    HStack {
-                        Text("机器码")
-                        Spacer()
-                        Button("复制") {
-                            UIPasteboard.general.string = deviceId
-                        }
-                        .font(.caption)
-                    }
-                ) {
+                Section(header: Text("机器码")) {
                     Text(deviceId)
                         .foregroundColor(.gray)
+                    
+                    Button(action: {
+                        UIPasteboard.general.string = deviceId
+                    }) {
+                        Text("复制机器码")
+                            .frame(maxWidth: .infinity)
+                            .foregroundColor(.white)
+                    }
+                    .listRowBackground(Color.green)
                 }
                 
-                Section(header:
-                    HStack {
-                        Text("激活码")
-                        Spacer()
-                        Button("粘贴") {
-                            if let string = UIPasteboard.general.string {
-                                licenseKey = string
-                            }
-                        }
-                        .font(.caption)
-                    }
-                ) {
+                Section(header: Text("激活码")) {
                     TextEditor(text: $licenseKey)
                         .frame(height: 100)
+                    
+                    Button(action: {
+                        if let string = UIPasteboard.general.string {
+                            licenseKey = string
+                        }
+                    }) {
+                        Text("粘贴激活码")
+                            .frame(maxWidth: .infinity)
+                            .foregroundColor(.white)
+                    }
+                    .listRowBackground(Color.purple)
                 }
                 
                 Section {
                     Button(action: {
-                        // Handle Activation
-                        showActivation = false
+                        if licenseKey.hasPrefix("WANGWANG-") {
+                            showActivation = false
+                        }
                     }) {
                         Text("激活")
                             .frame(maxWidth: .infinity)

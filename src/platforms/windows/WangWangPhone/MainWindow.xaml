@@ -131,18 +131,29 @@
                 </Grid>
 
                 <StackPanel Grid.Row="1" Margin="20">
-                    <Grid Margin="0,0,0,5">
-                        <TextBlock Text="机器码" FontSize="14" Foreground="#8E8E93" VerticalAlignment="Center"/>
-                        <Button Content="复制" HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Foreground="#007AFF" Click="OnCopyMachineId"/>
-                    </Grid>
-                    <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,20">
+                    <TextBlock Text="机器码" FontSize="14" Foreground="#8E8E93" Margin="0,0,0,5"/>
+                    <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,10">
                         <TextBox x:Name="MachineIdTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" Text="WIN-ID-FETCHING..." Foreground="{DynamicResource SystemTextBrush}"/>
                     </Border>
+                    <Button Content="复制机器码" Background="#34C759" Foreground="White" Padding="10" BorderThickness="0" Margin="0,0,0,20" Click="OnCopyMachineId">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="10"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
 
-                    <Grid Margin="0,0,0,5">
-                        <TextBlock Text="激活码" FontSize="14" Foreground="#8E8E93" VerticalAlignment="Center"/>
-                        <Button Content="粘贴" HorizontalAlignment="Right" Background="Transparent" BorderThickness="0" Foreground="#007AFF" Click="OnPasteLicenseKey"/>
-                    </Grid>
+                    <TextBlock Text="激活码" FontSize="14" Foreground="#8E8E93" Margin="0,0,0,5"/>
+                    <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,10">
+                        <TextBox x:Name="LicenseKeyTextBox" Height="100" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" AcceptsReturn="True" Foreground="{DynamicResource SystemTextBrush}"/>
+                    </Border>
+                    <Button Content="粘贴激活码" Background="#5856D6" Foreground="White" Padding="10" BorderThickness="0" Margin="0,0,0,20" Click="OnPasteLicenseKey">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="10"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
                     <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,20">
                         <TextBox x:Name="LicenseKeyTextBox" Height="100" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" AcceptsReturn="True" Foreground="{DynamicResource SystemTextBrush}"/>
                     </Border>

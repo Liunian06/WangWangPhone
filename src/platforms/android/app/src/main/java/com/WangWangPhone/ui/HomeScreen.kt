@@ -286,21 +286,8 @@ fun ActivationScreen(onBack: () -> Unit) {
         val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
 
         Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("机器码", fontSize = 14.sp, color = Color.Gray)
-                Text(
-                    "复制",
-                    fontSize = 14.sp,
-                    color = Color(0xFF007AFF),
-                    modifier = Modifier.clickable {
-                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(androidId))
-                    }
-                )
-            }
+            Text("机器码", fontSize = 14.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(5.dp))
             Spacer(modifier = Modifier.height(5.dp))
             Box(
                 modifier = Modifier
@@ -312,23 +299,20 @@ fun ActivationScreen(onBack: () -> Unit) {
                 Text(androidId, color = textColor)
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            androidx.compose.material3.Button(
+                onClick = { clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(androidId)) },
+                modifier = Modifier.fillMaxWidth().height(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))
+            ) {
+                Text("复制机器码", color = Color.White, fontSize = 14.sp)
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("激活码", fontSize = 14.sp, color = Color.Gray)
-                Text(
-                    "粘贴",
-                    fontSize = 14.sp,
-                    color = Color(0xFF007AFF),
-                    modifier = Modifier.clickable {
-                        clipboardManager.getText()?.let { licenseKey = it.text }
-                    }
-                )
-            }
+            Text("激活码", fontSize = 14.sp, color = Color.Gray)
             Spacer(modifier = Modifier.height(5.dp))
             androidx.compose.material3.TextField(
                 value = licenseKey,
@@ -347,10 +331,27 @@ fun ActivationScreen(onBack: () -> Unit) {
                 )
             )
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            androidx.compose.material3.Button(
+                onClick = { clipboardManager.getText()?.let { licenseKey = it.text } },
+                modifier = Modifier.fillMaxWidth().height(40.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF5856D6))
+            ) {
+                Text("粘贴激活码", color = Color.White, fontSize = 14.sp)
+            }
+
             Spacer(modifier = Modifier.height(30.dp))
 
             androidx.compose.material3.Button(
-                onClick = { /* Handle Activation */ },
+                onClick = {
+                    // 模拟激活逻辑
+                    if (licenseKey.startsWith("WANGWANG-")) {
+                        // 激活成功反馈 (这里由于是 UI 演示，不涉及底层 C++ 调用成功后的持久化)
+                        onBack()
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 shape = RoundedCornerShape(10.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF))
