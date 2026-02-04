@@ -52,5 +52,43 @@ namespace WangWangPhone
             WeatherDescText.Text = desc;
             WeatherRangeText.Text = range;
         }
+
+        private void OnSettingsClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            SettingsOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void OnBackClick(object sender, RoutedEventArgs e)
+        {
+            SettingsOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void OnActivationClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            ActivationOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void OnActivationBackClick(object sender, RoutedEventArgs e)
+        {
+            ActivationOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void OnActivateSubmit(object sender, RoutedEventArgs e)
+        {
+            string licenseKey = LicenseKeyTextBox.Text;
+            string mid = MachineIdTextBox.Text;
+
+            // 这里本应调用 C++ DLL 逻辑，目前通过模拟
+            if (!string.IsNullOrEmpty(licenseKey) && licenseKey.Length > 10)
+            {
+                ActivationStatusText.Text = "已激活 >";
+                MessageBox.Show("软件激活成功！", "授权管理", MessageBoxButton.OK, MessageBoxImage.Information);
+                ActivationOverlay.Visibility = Visibility.Collapsed;
+            }
+            else
+            {
+                MessageBox.Show("激活码无效，请检查后重试。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
     }
 }

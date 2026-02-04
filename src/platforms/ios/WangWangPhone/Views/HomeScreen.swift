@@ -124,6 +124,8 @@ struct HomeScreen: View {
 
     @State private var city: String = "..."
     @State private var weather: WeatherInfo? = nil
+    @State private var showSettings = false
+    @State private var showActivation = false
 
     var body: some View {
         ZStack {
@@ -155,6 +157,11 @@ struct HomeScreen: View {
                             Text(app.name)
                                 .font(.caption)
                                 .foregroundColor(.white)
+                        }
+                        .onTapGesture {
+                            if app.name == "设置" {
+                                showSettings = true
+                            }
                         }
                     }
                 }
@@ -196,6 +203,15 @@ struct HomeScreen: View {
                     .frame(width: 120, height: 5)
                     .padding(.bottom, 8)
             }
+            if showSettings {
+                SettingsView(showSettings: $showSettings, showActivation: $showActivation)
+                    .transition(.move(edge: .trailing))
+            }
+            
+            if showActivation {
+                ActivationView(showActivation: $showActivation)
+                    .transition(.move(edge: .trailing))
+            }
         }
     }
     
@@ -209,6 +225,72 @@ struct HomeScreen: View {
                 icon: "⛅",
                 range: "H:29° L:21°"
             )
+        }
+    }
+}
+
+struct SettingsView: View {
+    @Binding var showSettings: Bool
+    @Binding var showActivation: Bool
+    
+    var body: some View {
+        NavigationView {
+            List {
+                Section(header: Text("激活与授权")) {
+                    HStack {
+                        Text("软件激活")
+                        Spacer()
+                        Text("未激活")
+                            .foregroundColor(.gray)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        showActivation = true
+                    }
+                }
+            }
+            .listStyle(InsetGroupedListStyle())
+            .navigationTitle("设置")
+            .navigationBarItems(leading: Button("返回") {
+                showSettings = false
+            })
+        }
+    }
+}
+
+struct ActivationView: View {
+    @Binding var showActivation: Bool
+    @State private var licenseKey = ""
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("机器码")) {
+                    Text("MOCK_DEVICE_ID_12345")
+                        .foregroundColor(.gray)
+                }
+                
+                Section(header: Text("激活码")) {
+                    TextEditor(text: $licenseKey)
+                        .frame(height: 100)
+                }
+                
+                Section {
+                    Button(action: {
+                        // Handle Activation
+                        showActivation = false
+                    }) {
+                        Text("激活")
+                            .frame(maxWidth: .infinity)
+                            .foregroundColor(.white)
+                    }
+                    .listRowBackground(Color.blue)
+                }
+            }
+            .navigationTitle("激活授权")
+            .navigationBarItems(leading: Button("取消") {
+                showActivation = false
+            })
         }
     }
 }

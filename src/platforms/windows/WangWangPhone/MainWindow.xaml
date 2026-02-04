@@ -72,8 +72,80 @@
                  </Border>
                  <TextBlock Text="信息" Foreground="White" FontSize="12" HorizontalAlignment="Center" Margin="0,5,0,0"/>
             </StackPanel>
+            <StackPanel HorizontalAlignment="Center" Margin="5" MouseDown="OnSettingsClick">
+                 <Border Width="60" Height="60" CornerRadius="14" Background="Gray">
+                     <TextBlock Text="⚙️" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                 </Border>
+                 <TextBlock Text="设置" Foreground="White" FontSize="12" HorizontalAlignment="Center" Margin="0,5,0,0"/>
+            </StackPanel>
             <!-- More apps... -->
         </UniformGrid>
+
+        <!-- Settings Overlay -->
+        <Border x:Name="SettingsOverlay" Grid.Row="0" Grid.RowSpan="3" Background="#F2F2F7" Visibility="Collapsed" Panel.ZIndex="100">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <!-- Settings Header -->
+                <Grid Height="60" Background="White">
+                    <TextBlock Text="设置" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Button Content="返回" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="15,0" Background="Transparent" BorderThickness="0" Foreground="#007AFF" Click="OnBackClick"/>
+                </Grid>
+
+                <!-- Settings Content -->
+                <ScrollViewer Grid.Row="1">
+                    <StackPanel Margin="15">
+                        <TextBlock Text="激活与授权" FontSize="13" Foreground="#666666" Margin="10,0,10,5"/>
+                        <Border Background="White" CornerRadius="10" Padding="15">
+                            <StackPanel>
+                                <Grid MouseDown="OnActivationClick">
+                                    <TextBlock Text="软件激活" FontSize="16" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="ActivationStatusText" Text="未激活 >" Foreground="#8E8E93" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <!-- Activation Screen -->
+        <Border x:Name="ActivationOverlay" Grid.Row="0" Grid.RowSpan="3" Background="#F2F2F7" Visibility="Collapsed" Panel.ZIndex="110">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <Grid Height="60" Background="White">
+                    <TextBlock Text="激活授权" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    <Button Content="取消" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="15,0" Background="Transparent" BorderThickness="0" Foreground="#007AFF" Click="OnActivationBackClick"/>
+                </Grid>
+
+                <StackPanel Grid.Row="1" Margin="20">
+                    <TextBlock Text="机器码" FontSize="14" Foreground="#666666" Margin="0,0,0,5"/>
+                    <Border Background="White" CornerRadius="10" Padding="10" Margin="0,0,0,20">
+                        <TextBox x:Name="MachineIdTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" Text="MOCK_DEVICE_ID_12345"/>
+                    </Border>
+
+                    <TextBlock Text="激活码" FontSize="14" Foreground="#666666" Margin="0,0,0,5"/>
+                    <Border Background="White" CornerRadius="10" Padding="10" Margin="0,0,0,20">
+                        <TextBox x:Name="LicenseKeyTextBox" Height="100" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" AcceptsReturn="True"/>
+                    </Border>
+
+                    <Button Content="激活" Background="#007AFF" Foreground="White" Padding="15" BorderThickness="0" Click="OnActivateSubmit">
+                        <Button.Resources>
+                            <Style TargetType="Border">
+                                <Setter Property="CornerRadius" Value="10"/>
+                            </Style>
+                        </Button.Resources>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <!-- Dock (Placeholder) -->
         <Border Grid.Row="2" Height="90" Margin="15,0,15,20" CornerRadius="30" Background="#4DFFFFFF">

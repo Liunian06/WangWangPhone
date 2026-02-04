@@ -238,6 +238,117 @@
             transform: translateX(-50%);
             opacity: 0.8;
         }
+
+        /* 设置界面覆盖层 */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #F2F2F7;
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+        }
+
+        .overlay-header {
+            height: 60px;
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .back-btn {
+            position: absolute;
+            left: 15px;
+            color: #007AFF;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .overlay-content {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .settings-section {
+            margin-bottom: 20px;
+        }
+
+        .section-title {
+            font-size: 13px;
+            color: #666;
+            margin-left: 10px;
+            margin-bottom: 5px;
+        }
+
+        .settings-list {
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .settings-item {
+            padding: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #f0f0f0;
+            cursor: pointer;
+        }
+
+        .settings-item:last-child {
+            border-bottom: none;
+        }
+
+        .status-val {
+            color: #8E8E93;
+        }
+
+        /* 激活界面 */
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .input-box {
+            background: white;
+            border-radius: 10px;
+            padding: 12px;
+            word-break: break-all;
+            min-height: 20px;
+        }
+
+        textarea.input-box {
+            width: 100%;
+            border: none;
+            height: 100px;
+            box-sizing: border-box;
+            font-family: inherit;
+            resize: none;
+        }
+
+        .btn-primary {
+            background: #007AFF;
+            color: white;
+            border: none;
+            width: 100%;
+            padding: 15px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -309,7 +420,7 @@
                 <div class="app-icon" style="background: #fff;">📅</div>
                 <div class="app-name">日历</div>
             </div>
-            <div class="app-icon-wrapper">
+            <div class="app-icon-wrapper" onclick="showSettings()">
                 <div class="app-icon" style="background: #fff;">⚙️</div>
                 <div class="app-name">设置</div>
             </div>
@@ -329,6 +440,43 @@
 
         <div class="home-indicator"></div>
     </div>
+    <!-- 设置 Overlay -->
+    <div id="settings-overlay" class="overlay">
+        <div class="overlay-header">
+            <div class="back-btn" onclick="hideSettings()">返回</div>
+            <div style="font-weight: 600;">设置</div>
+        </div>
+        <div class="overlay-content">
+            <div class="settings-section">
+                <div class="section-title">激活与授权</div>
+                <div class="settings-list">
+                    <div class="settings-item" onclick="showActivation()">
+                        <span>软件激活</span>
+                        <span class="status-val">未激活 ></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 激活 Overlay -->
+    <div id="activation-overlay" class="overlay">
+        <div class="overlay-header">
+            <div class="back-btn" onclick="hideActivation()">取消</div>
+            <div style="font-weight: 600;">激活授权</div>
+        </div>
+        <div class="overlay-content">
+            <div class="input-group">
+                <div class="input-label">机器码</div>
+                <div class="input-box">MOCK_DEVICE_ID_12345</div>
+            </div>
+            <div class="input-group">
+                <div class="input-label">激活码</div>
+                <textarea class="input-box" placeholder="请输入激活码..."></textarea>
+            </div>
+            <button class="btn-primary" onclick="submitActivation()">激活</button>
+        </div>
+    </div>
 </div>
 
 <script type="module">
@@ -337,6 +485,27 @@
 
     window.unlock = function() {
         document.getElementById('lock-screen').classList.add('unlocked');
+    }
+
+    window.showSettings = function() {
+        document.getElementById('settings-overlay').style.display = 'flex';
+    }
+
+    window.hideSettings = function() {
+        document.getElementById('settings-overlay').style.display = 'none';
+    }
+
+    window.showActivation = function() {
+        document.getElementById('activation-overlay').style.display = 'flex';
+    }
+
+    window.hideActivation = function() {
+        document.getElementById('activation-overlay').style.display = 'none';
+    }
+
+    window.submitActivation = function() {
+        alert('激活码校验中...');
+        hideActivation();
     }
 
     // 更新时间

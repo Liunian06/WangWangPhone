@@ -1,6 +1,7 @@
 package com.WangWangPhone.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -172,7 +173,172 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 }
 
 @Composable
+fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF2F2F7))
+    ) {
+        // Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(Color.White)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                "返回",
+                color = Color(0xFF007AFF),
+                modifier = Modifier.clickable { onBack() }
+            )
+            Text(
+                "设置",
+                modifier = Modifier.align(Alignment.Center),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Section: Activation
+        Text(
+            "激活与授权",
+            modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp),
+            fontSize = 13.sp,
+            color = Color.Gray
+        )
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(Color.White)
+                .clickable { onNavigateToActivation() }
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("软件激活", fontSize = 16.sp)
+                Text("未激活 >", color = Color.Gray, fontSize = 16.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun ActivationScreen(onBack: () -> Unit) {
+    var licenseKey by remember { mutableStateOf("") }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF2F2F7))
+    ) {
+        // Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(Color.White)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                "取消",
+                color = Color(0xFF007AFF),
+                modifier = Modifier.clickable { onBack() }
+            )
+            Text(
+                "激活授权",
+                modifier = Modifier.align(Alignment.Center),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp
+            )
+        }
+
+        Column(modifier = Modifier.padding(20.dp)) {
+            Text("机器码", fontSize = 14.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(5.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Color.White)
+                    .padding(12.dp)
+            ) {
+                Text("MOCK_DEVICE_ID_12345", color = Color.Black)
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text("激活码", fontSize = 14.sp, color = Color.Gray)
+            Spacer(modifier = Modifier.height(5.dp))
+            androidx.compose.material3.TextField(
+                value = licenseKey,
+                onValueChange = { licenseKey = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(10.dp)),
+                colors = androidx.compose.material3.TextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent
+                )
+            )
+
+            Spacer(modifier = Modifier.height(30.dp))
+
+            androidx.compose.material3.Button(
+                onClick = { /* Handle Activation */ },
+                modifier = Modifier.fillMaxWidth().height(50.dp),
+                shape = RoundedCornerShape(10.dp),
+                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF))
+            ) {
+                Text("激活", color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
 fun HomeScreen() {
+    var showSettings by remember { mutableStateOf(false) }
+    var showActivation by remember { mutableStateOf(false) }
+
+    val apps = listOf(
+        AppIcon("电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
+        AppIcon("信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
+        AppIcon("Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
+        AppIcon("音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
+        AppIcon("相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+        AppIcon("日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+        AppIcon("设置", "⚙️", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+        AppIcon("汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (showSettings) {
+            SettingsScreen(
+                onBack = { showSettings = false },
+                onNavigateToActivation = { showActivation = true }
+            )
+        } else if (showActivation) {
+            ActivationScreen(onBack = { showActivation = false })
+        } else {
+            HomeScreenContent(onSettingsClick = { showSettings = true })
+        }
+    }
+}
+
+@Composable
+fun HomeScreenContent(onSettingsClick: () -> Unit) {
     val apps = listOf(
         AppIcon("电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
         AppIcon("信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
@@ -200,7 +366,9 @@ fun HomeScreen() {
                 verticalArrangement = Arrangement.spacedBy(20.dp)
             ) {
                 items(apps) { app ->
-                    AppIconItem(app)
+                    AppIconItem(app, onClick = {
+                        if (app.name == "设置") onSettingsClick()
+                    })
                 }
             }
         }
@@ -256,8 +424,11 @@ fun HomeScreen() {
 }
 
 @Composable
-fun AppIconItem(app: AppIcon) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun AppIconItem(app: AppIcon, onClick: () -> Unit = {}) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onClick() }
+    ) {
         Box(
             modifier = Modifier
                 .size(60.dp)
