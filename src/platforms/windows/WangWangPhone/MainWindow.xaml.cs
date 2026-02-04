@@ -101,6 +101,19 @@ namespace WangWangPhone
             ActivationOverlay.Visibility = Visibility.Collapsed;
         }
 
+        private void OnCopyMachineId(object sender, RoutedEventArgs e)
+        {
+            Clipboard.SetText(MachineIdTextBox.Text);
+        }
+
+        private void OnPasteLicenseKey(object sender, RoutedEventArgs e)
+        {
+            if (Clipboard.ContainsText())
+            {
+                LicenseKeyTextBox.Text = Clipboard.GetText();
+            }
+        }
+
         protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key == System.Windows.Input.Key.Escape)

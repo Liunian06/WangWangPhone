@@ -486,12 +486,18 @@
         </div>
         <div class="overlay-content">
             <div class="input-group">
-                <div class="input-label">机器码</div>
-                <div class="input-box">MOCK_DEVICE_ID_12345</div>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <div class="input-label" style="margin-bottom: 0;">机器码</div>
+                    <div style="color: #007AFF; font-size: 14px; cursor: pointer;" onclick="copyMachineId()">复制</div>
+                </div>
+                <div id="web-machine-id" class="input-box">WEB-ID-FETCHING...</div>
             </div>
             <div class="input-group">
-                <div class="input-label">激活码</div>
-                <textarea class="input-box" placeholder="请输入激活码..."></textarea>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                    <div class="input-label" style="margin-bottom: 0;">激活码</div>
+                    <div style="color: #007AFF; font-size: 14px; cursor: pointer;" onclick="pasteLicenseKey()">粘贴</div>
+                </div>
+                <textarea id="license-key-input" class="input-box" placeholder="请输入激活码..."></textarea>
             </div>
             <button class="btn-primary" onclick="submitActivation()">激活</button>
         </div>
@@ -526,7 +532,20 @@
         ctx.font = "14px 'Arial'";
         ctx.fillText("WWJ-WEB-PROTOTYPE", 2, 2);
         const webId = btoa(canvas.toDataURL()).substring(100, 116);
-        document.querySelector('#activation-overlay .input-box').textContent = "WEB-" + webId;
+        document.getElementById('web-machine-id').textContent = "WEB-" + webId;
+    }
+
+    window.copyMachineId = function() {
+        const text = document.getElementById('web-machine-id').textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            alert('机器码已复制');
+        });
+    }
+
+    window.pasteLicenseKey = function() {
+        navigator.clipboard.readText().then(text => {
+            document.getElementById('license-key-input').value = text;
+        });
     }
 
     window.hideActivation = function() {

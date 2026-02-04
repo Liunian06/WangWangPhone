@@ -283,9 +283,24 @@ fun ActivationScreen(onBack: () -> Unit) {
         val androidId = remember {
             Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "UNKNOWN_DEVICE"
         }
+        val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
 
         Column(modifier = Modifier.padding(20.dp)) {
-            Text("机器码", fontSize = 14.sp, color = Color.Gray)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("机器码", fontSize = 14.sp, color = Color.Gray)
+                Text(
+                    "复制",
+                    fontSize = 14.sp,
+                    color = Color(0xFF007AFF),
+                    modifier = Modifier.clickable {
+                        clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(androidId))
+                    }
+                )
+            }
             Spacer(modifier = Modifier.height(5.dp))
             Box(
                 modifier = Modifier
@@ -299,7 +314,21 @@ fun ActivationScreen(onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            Text("激活码", fontSize = 14.sp, color = Color.Gray)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("激活码", fontSize = 14.sp, color = Color.Gray)
+                Text(
+                    "粘贴",
+                    fontSize = 14.sp,
+                    color = Color(0xFF007AFF),
+                    modifier = Modifier.clickable {
+                        clipboardManager.getText()?.let { licenseKey = it.text }
+                    }
+                )
+            }
             Spacer(modifier = Modifier.height(5.dp))
             androidx.compose.material3.TextField(
                 value = licenseKey,

@@ -274,12 +274,32 @@ struct ActivationView: View {
     var body: some View {
         NavigationView {
             Form {
-                Section(header: Text("机器码")) {
+                Section(header:
+                    HStack {
+                        Text("机器码")
+                        Spacer()
+                        Button("复制") {
+                            UIPasteboard.general.string = deviceId
+                        }
+                        .font(.caption)
+                    }
+                ) {
                     Text(deviceId)
                         .foregroundColor(.gray)
                 }
                 
-                Section(header: Text("激活码")) {
+                Section(header:
+                    HStack {
+                        Text("激活码")
+                        Spacer()
+                        Button("粘贴") {
+                            if let string = UIPasteboard.general.string {
+                                licenseKey = string
+                            }
+                        }
+                        .font(.caption)
+                    }
+                ) {
                     TextEditor(text: $licenseKey)
                         .frame(height: 100)
                 }
