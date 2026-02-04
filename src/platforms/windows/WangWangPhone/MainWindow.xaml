@@ -104,13 +104,13 @@
                 <ScrollViewer Grid.Row="1">
                     <StackPanel Margin="15">
                         <TextBlock Text="激活与授权" FontSize="13" Foreground="#8E8E93" Margin="10,0,10,5"/>
-                        <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="15" MouseDown="OnActivationClick">
-                            <StackPanel>
-                                <Grid Background="Transparent">
-                                    <TextBlock Text="软件激活" FontSize="16" VerticalAlignment="Center" Foreground="{DynamicResource SystemTextBrush}" IsHitTestVisible="False"/>
-                                    <TextBlock x:Name="ActivationStatusText" Text="未激活 >" Foreground="#8E8E93" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                        <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="0">
+                            <Button HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Click="OnActivationClickUI">
+                                <Grid Padding="15">
+                                    <TextBlock Text="软件激活" FontSize="16" VerticalAlignment="Center" Foreground="{DynamicResource SystemTextBrush}"/>
+                                    <TextBlock x:Name="ActivationStatusText" Text="未激活 >" Foreground="#8E8E93" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
-                            </StackPanel>
+                            </Button>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>

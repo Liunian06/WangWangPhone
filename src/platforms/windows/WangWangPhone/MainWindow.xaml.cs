@@ -91,6 +91,11 @@ namespace WangWangPhone
             ActivationOverlay.Visibility = Visibility.Visible;
         }
 
+        private void OnActivationClickUI(object sender, RoutedEventArgs e)
+        {
+            ActivationOverlay.Visibility = Visibility.Visible;
+        }
+
         private void OnActivationBackClick(object sender, RoutedEventArgs e)
         {
             ActivationOverlay.Visibility = Visibility.Collapsed;
