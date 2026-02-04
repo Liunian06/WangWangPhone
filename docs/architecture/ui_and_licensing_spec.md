@@ -30,6 +30,17 @@
 - **一致性检查**：校验 Payload 中的 `machine_id` 是否与当前设备匹配。
 - **有效期检查**：对比系统当前时间戳与 Payload 中的过期时间，确保授权未过期。
 
+## 3. 密钥管理与签发工具
+
+### 3.1 签发脚本 (Node.js)
+位于 [`tools/license_tool.js`](../../tools/license_tool.js)，支持以下功能：
+1. **生成密钥对**: `node license_tool.js gen` 会在 `tools/keys` 下生成 RSA 2048 位的公私钥。
+2. **签发激活码**: `node license_tool.js sign <机器码>` 使用私钥对包含机器码的 Payload 进行签名。
+
+### 3.2 集成流程
+- **开发者**: 妥善保存 `private.pem`。
+- **App**: 将 `public.pem` 或是生成的公钥字符串硬编码到 C++ 核心层的 `LicenseManager` 中用于离线验签。
+
 ## 3. 待完善项
 - [ ] 集成真正的 OpenSSL 或 mbedTLS 库以替换模拟的解密逻辑。
 - [ ] 在 Android/iOS 原生端实现更稳定的硬件 ID 获取方法（如 KeyStore/Keychain 存储 UUID）。

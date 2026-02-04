@@ -351,11 +351,12 @@ fun HomeScreen() {
     Box(modifier = Modifier.fillMaxSize()) {
         if (showActivation) {
             ActivationScreen(onBack = { showActivation = false })
-        } else if (showSettings) {
+        }
+        
+        if (showSettings) {
             SettingsScreen(
                 onBack = { showSettings = false },
                 onNavigateToActivation = {
-                    showSettings = false // 先关闭设置，再显示激活，或者确保激活层级更高
                     showActivation = true
                 }
             )

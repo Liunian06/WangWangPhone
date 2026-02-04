@@ -537,6 +537,7 @@
     window.addEventListener('popstate', function(event) {
         if (document.getElementById('activation-overlay').style.display === 'flex') {
             hideActivation();
+            // 注意：不调用 hideSettings，这样激活界面关闭后，设置界面仍然可见
             history.pushState(null, null, null);
         } else if (document.getElementById('settings-overlay').style.display === 'flex') {
             hideSettings();
