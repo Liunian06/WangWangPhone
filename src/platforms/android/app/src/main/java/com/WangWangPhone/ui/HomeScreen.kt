@@ -1,5 +1,7 @@
 package com.WangWangPhone.ui
 
+import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -175,6 +177,7 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
+    BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     val cardColor = if (isDark) Color(0xFF2C2C2E) else Color.White
@@ -240,6 +243,7 @@ fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
 
 @Composable
 fun ActivationScreen(onBack: () -> Unit) {
+    BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     val cardColor = if (isDark) Color(0xFF2C2C2E) else Color.White
@@ -275,6 +279,11 @@ fun ActivationScreen(onBack: () -> Unit) {
             )
         }
 
+        val context = androidx.compose.ui.platform.LocalContext.current
+        val androidId = remember {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "UNKNOWN_DEVICE"
+        }
+
         Column(modifier = Modifier.padding(20.dp)) {
             Text("机器码", fontSize = 14.sp, color = Color.Gray)
             Spacer(modifier = Modifier.height(5.dp))
@@ -285,7 +294,7 @@ fun ActivationScreen(onBack: () -> Unit) {
                     .background(cardColor)
                     .padding(12.dp)
             ) {
-                Text("MOCK_DEVICE_ID_12345", color = textColor)
+                Text(androidId, color = textColor)
             }
 
             Spacer(modifier = Modifier.height(20.dp))

@@ -264,11 +264,15 @@ struct ActivationView: View {
     @State private var licenseKey = ""
     @Environment(\.colorScheme) var colorScheme
     
+    private var deviceId: String {
+        UIDevice.current.identifierForVendor?.uuidString ?? "UNKNOWN_DEVICE"
+    }
+    
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("机器码")) {
-                    Text("MOCK_DEVICE_ID_12345")
+                    Text(deviceId)
                         .foregroundColor(.gray)
                 }
                 

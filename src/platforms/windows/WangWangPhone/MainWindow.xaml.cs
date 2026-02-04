@@ -1,4 +1,5 @@
 using System;
+using System.Management;
 using System.Windows;
 using System.Windows.Threading;
 using System.Threading.Tasks;
@@ -15,6 +16,28 @@ namespace WangWangPhone
             SetupTimer();
             UpdateDateTime();
             _ = LoadWeatherData();
+            LoadMachineId();
+        }
+
+        private void LoadMachineId()
+        {
+            try
+            {
+                string cpuId = string.Empty;
+                using (var mc = new ManagementClass("win32_processor"))
+                {
+                    foreach (var mo in mc.GetInstances())
+                    {
+                        cpuId = mo.Properties["ProcessorId"].Value.ToString();
+                        break;
+                    }
+                }
+                MachineIdTextBox.Text = string.IsNullOrEmpty(cpuId) ? "WIN-UNKNOWN-ID" : cpuId;
+            }
+            catch
+            {
+                MachineIdTextBox.Text = "WIN-ACCESS-DENIED";
+            }
         }
 
         private void SetupTimer()
@@ -71,6 +94,24 @@ namespace WangWangPhone
         private void OnActivationBackClick(object sender, RoutedEventArgs e)
         {
             ActivationOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Escape)
+            {
+                if (ActivationOverlay.Visibility == Visibility.Visible)
+                {
+                    ActivationOverlay.Visibility = Visibility.Collapsed;
+                    e.Handled = true;
+                }
+                else if (SettingsOverlay.Visibility == Visibility.Visible)
+                {
+                    SettingsOverlay.Visibility = Visibility.Collapsed;
+                    e.Handled = true;
+                }
+            }
+            base.OnKeyDown(e);
         }
 
         private void OnActivateSubmit(object sender, RoutedEventArgs e)

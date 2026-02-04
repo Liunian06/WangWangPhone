@@ -516,11 +516,31 @@
 
     window.showActivation = function() {
         document.getElementById('activation-overlay').style.display = 'flex';
+        // 模拟 Web 端获取 Machine ID (使用简单的浏览器指纹)
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        ctx.textBaseline = "top";
+        ctx.font = "14px 'Arial'";
+        ctx.fillText("WWJ-WEB-PROTOTYPE", 2, 2);
+        const webId = btoa(canvas.toDataURL()).substring(100, 116);
+        document.querySelector('#activation-overlay .input-box').textContent = "WEB-" + webId;
     }
 
     window.hideActivation = function() {
         document.getElementById('activation-overlay').style.display = 'none';
     }
+
+    // 监听原生返回 (浏览器后退)
+    window.addEventListener('popstate', function(event) {
+        if (document.getElementById('activation-overlay').style.display === 'flex') {
+            hideActivation();
+            history.pushState(null, null, null);
+        } else if (document.getElementById('settings-overlay').style.display === 'flex') {
+            hideSettings();
+            history.pushState(null, null, null);
+        }
+    });
+    history.pushState(null, null, null);
 
     window.submitActivation = function() {
         alert('激活码校验中...');
