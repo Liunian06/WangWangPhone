@@ -148,16 +148,19 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
                 )
             }
             Column {
-                Text(
-                    text = weather?.icon ?: "❓",
-                    fontSize = 24.sp
-                )
-                Spacer(modifier = Modifier.height(5.dp))
-                Text(
-                    text = weather?.description ?: "加载中...",
-                    color = Color.White,
-                    fontSize = 14.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = weather?.icon ?: "❓",
+                        fontSize = 24.sp
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = weather?.description ?: "加载中...",
+                        color = Color.White,
+                        fontSize = 14.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = weather?.range ?: "",
                     color = Color.White.copy(alpha = 0.8f),

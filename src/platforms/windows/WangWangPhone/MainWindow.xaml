@@ -48,9 +48,11 @@
                         <TextBlock x:Name="WeatherTempText" Text="24°" Foreground="White" FontSize="40" FontWeight="Light"/>
                     </StackPanel>
                     <StackPanel VerticalAlignment="Bottom" HorizontalAlignment="Right">
-                        <TextBlock x:Name="WeatherIconText" Text="☀️" FontSize="24"/>
-                        <TextBlock x:Name="WeatherDescText" Text="晴朗" Foreground="White" FontSize="14"/>
-                        <TextBlock x:Name="WeatherRangeText" Text="H:28° L:18°" Foreground="#CCFFFFFF" FontSize="10"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                             <TextBlock x:Name="WeatherIconText" Text="☀️" FontSize="24" Margin="0,0,5,0"/>
+                             <TextBlock x:Name="WeatherDescText" Text="晴朗" Foreground="White" FontSize="14" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <TextBlock x:Name="WeatherRangeText" Text="H:28° L:18°" Foreground="#CCFFFFFF" FontSize="10" HorizontalAlignment="Right"/>
                     </StackPanel>
                 </Grid>
             </Border>

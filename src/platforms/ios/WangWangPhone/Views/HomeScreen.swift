@@ -86,11 +86,13 @@ struct WeatherWidget: View {
                 Spacer()
                 
                 VStack(alignment: .trailing) {
-                    Text(weather?.icon ?? "❓")
-                        .font(.title)
-                    Text(weather?.description ?? "Loading...")
-                        .font(.caption)
-                        .foregroundColor(.white)
+                    HStack(spacing: 5) {
+                        Text(weather?.icon ?? "❓")
+                            .font(.title)
+                        Text(weather?.description ?? "Loading...")
+                            .font(.caption)
+                            .foregroundColor(.white)
+                    }
                     Text(weather?.range ?? "")
                         .font(.caption2)
                         .foregroundColor(.white.opacity(0.8))
