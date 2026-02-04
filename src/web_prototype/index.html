@@ -515,6 +515,9 @@
     }
 
     window.showActivation = function() {
+        // 先隐藏设置界面，或者确保激活界面层级更高
+        // document.getElementById('settings-overlay').style.display = 'none';
+        document.getElementById('activation-overlay').style.zIndex = 300;
         document.getElementById('activation-overlay').style.display = 'flex';
         // 模拟 Web 端获取 Machine ID (使用简单的浏览器指纹)
         const canvas = document.createElement('canvas');

@@ -349,13 +349,16 @@ fun HomeScreen() {
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (showSettings) {
+        if (showActivation) {
+            ActivationScreen(onBack = { showActivation = false })
+        } else if (showSettings) {
             SettingsScreen(
                 onBack = { showSettings = false },
-                onNavigateToActivation = { showActivation = true }
+                onNavigateToActivation = {
+                    showSettings = false // 先关闭设置，再显示激活，或者确保激活层级更高
+                    showActivation = true
+                }
             )
-        } else if (showActivation) {
-            ActivationScreen(onBack = { showActivation = false })
         } else {
             HomeScreenContent(onSettingsClick = { showSettings = true })
         }

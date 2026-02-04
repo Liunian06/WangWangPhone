@@ -206,11 +206,13 @@ struct HomeScreen: View {
             if showSettings {
                 SettingsView(showSettings: $showSettings, showActivation: $showActivation)
                     .transition(.move(edge: .trailing))
+                    .zIndex(1)
             }
             
             if showActivation {
                 ActivationView(showActivation: $showActivation)
                     .transition(.move(edge: .trailing))
+                    .zIndex(2)
             }
         }
     }
