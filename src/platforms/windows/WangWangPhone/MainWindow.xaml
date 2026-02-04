@@ -6,7 +6,12 @@
         xmlns:local="clr-namespace:WangWangPhone"
         mc:Ignorable="d"
         Title="WangWangPhone" Height="800" Width="400"
-        Background="Black">
+        Background="{DynamicResource SystemBackgroundBrush}">
+    <Window.Resources>
+        <Style x:Key="SystemTextStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource SystemTextBrush}"/>
+        </Style>
+    </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -82,7 +87,7 @@
         </UniformGrid>
 
         <!-- Settings Overlay -->
-        <Border x:Name="SettingsOverlay" Grid.Row="0" Grid.RowSpan="3" Background="#F2F2F7" Visibility="Collapsed" Panel.ZIndex="100">
+        <Border x:Name="SettingsOverlay" Grid.Row="0" Grid.RowSpan="3" Background="{DynamicResource SettingsBackgroundBrush}" Visibility="Collapsed" Panel.ZIndex="100">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -90,19 +95,19 @@
                 </Grid.RowDefinitions>
                 
                 <!-- Settings Header -->
-                <Grid Height="60" Background="White">
-                    <TextBlock Text="设置" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Grid Height="60" Background="{DynamicResource HeaderBackgroundBrush}">
+                    <TextBlock Text="设置" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource SystemTextBrush}"/>
                     <Button Content="返回" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="15,0" Background="Transparent" BorderThickness="0" Foreground="#007AFF" Click="OnBackClick"/>
                 </Grid>
 
                 <!-- Settings Content -->
                 <ScrollViewer Grid.Row="1">
                     <StackPanel Margin="15">
-                        <TextBlock Text="激活与授权" FontSize="13" Foreground="#666666" Margin="10,0,10,5"/>
-                        <Border Background="White" CornerRadius="10" Padding="15">
+                        <TextBlock Text="激活与授权" FontSize="13" Foreground="#8E8E93" Margin="10,0,10,5"/>
+                        <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="15">
                             <StackPanel>
                                 <Grid MouseDown="OnActivationClick">
-                                    <TextBlock Text="软件激活" FontSize="16" VerticalAlignment="Center"/>
+                                    <TextBlock Text="软件激活" FontSize="16" VerticalAlignment="Center" Foreground="{DynamicResource SystemTextBrush}"/>
                                     <TextBlock x:Name="ActivationStatusText" Text="未激活 >" Foreground="#8E8E93" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
                             </StackPanel>
@@ -113,27 +118,27 @@
         </Border>
 
         <!-- Activation Screen -->
-        <Border x:Name="ActivationOverlay" Grid.Row="0" Grid.RowSpan="3" Background="#F2F2F7" Visibility="Collapsed" Panel.ZIndex="110">
+        <Border x:Name="ActivationOverlay" Grid.Row="0" Grid.RowSpan="3" Background="{DynamicResource SettingsBackgroundBrush}" Visibility="Collapsed" Panel.ZIndex="110">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
                 
-                <Grid Height="60" Background="White">
-                    <TextBlock Text="激活授权" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Grid Height="60" Background="{DynamicResource HeaderBackgroundBrush}">
+                    <TextBlock Text="激活授权" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource SystemTextBrush}"/>
                     <Button Content="取消" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="15,0" Background="Transparent" BorderThickness="0" Foreground="#007AFF" Click="OnActivationBackClick"/>
                 </Grid>
 
                 <StackPanel Grid.Row="1" Margin="20">
-                    <TextBlock Text="机器码" FontSize="14" Foreground="#666666" Margin="0,0,0,5"/>
-                    <Border Background="White" CornerRadius="10" Padding="10" Margin="0,0,0,20">
-                        <TextBox x:Name="MachineIdTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" Text="MOCK_DEVICE_ID_12345"/>
+                    <TextBlock Text="机器码" FontSize="14" Foreground="#8E8E93" Margin="0,0,0,5"/>
+                    <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,20">
+                        <TextBox x:Name="MachineIdTextBox" IsReadOnly="True" BorderThickness="0" Background="Transparent" Text="MOCK_DEVICE_ID_12345" Foreground="{DynamicResource SystemTextBrush}"/>
                     </Border>
 
-                    <TextBlock Text="激活码" FontSize="14" Foreground="#666666" Margin="0,0,0,5"/>
-                    <Border Background="White" CornerRadius="10" Padding="10" Margin="0,0,0,20">
-                        <TextBox x:Name="LicenseKeyTextBox" Height="100" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" AcceptsReturn="True"/>
+                    <TextBlock Text="激活码" FontSize="14" Foreground="#8E8E93" Margin="0,0,0,5"/>
+                    <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,20">
+                        <TextBox x:Name="LicenseKeyTextBox" Height="100" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" AcceptsReturn="True" Foreground="{DynamicResource SystemTextBrush}"/>
                     </Border>
 
                     <Button Content="激活" Background="#007AFF" Foreground="White" Padding="15" BorderThickness="0" Click="OnActivateSubmit">

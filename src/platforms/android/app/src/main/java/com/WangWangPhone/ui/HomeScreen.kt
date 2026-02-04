@@ -1,5 +1,6 @@
 package com.WangWangPhone.ui
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -174,17 +175,23 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 
 @Composable
 fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
+    val isDark = isSystemInDarkTheme()
+    val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val cardColor = if (isDark) Color(0xFF2C2C2E) else Color.White
+    val textColor = if (isDark) Color.White else Color.Black
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF2F2F7))
+            .background(backgroundColor)
+            .statusBarsPadding()
     ) {
         // Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .background(Color.White)
+                .background(cardColor)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.CenterStart
         ) {
@@ -197,7 +204,8 @@ fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
                 "设置",
                 modifier = Modifier.align(Alignment.Center),
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 18.sp
+                fontSize = 18.sp,
+                color = textColor
             )
         }
 
@@ -215,7 +223,7 @@ fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
                 .padding(horizontal = 16.dp)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White)
+                .background(cardColor)
                 .clickable { onNavigateToActivation() }
                 .padding(16.dp)
         ) {
@@ -223,7 +231,7 @@ fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("软件激活", fontSize = 16.sp)
+                Text("软件激活", fontSize = 16.sp, color = textColor)
                 Text("未激活 >", color = Color.Gray, fontSize = 16.sp)
             }
         }
@@ -232,19 +240,24 @@ fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
 
 @Composable
 fun ActivationScreen(onBack: () -> Unit) {
+    val isDark = isSystemInDarkTheme()
+    val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val cardColor = if (isDark) Color(0xFF2C2C2E) else Color.White
+    val textColor = if (isDark) Color.White else Color.Black
     var licenseKey by remember { mutableStateOf("") }
     
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFFF2F2F7))
+            .background(backgroundColor)
+            .statusBarsPadding()
     ) {
         // Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .background(Color.White)
+                .background(cardColor)
                 .padding(horizontal = 16.dp),
             contentAlignment = Alignment.CenterStart
         ) {
@@ -257,7 +270,8 @@ fun ActivationScreen(onBack: () -> Unit) {
                 "激活授权",
                 modifier = Modifier.align(Alignment.Center),
                 fontWeight = FontWeight.SemiBold,
-                fontSize = 18.sp
+                fontSize = 18.sp,
+                color = textColor
             )
         }
 
@@ -268,10 +282,10 @@ fun ActivationScreen(onBack: () -> Unit) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
-                    .background(Color.White)
+                    .background(cardColor)
                     .padding(12.dp)
             ) {
-                Text("MOCK_DEVICE_ID_12345", color = Color.Black)
+                Text("MOCK_DEVICE_ID_12345", color = textColor)
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -286,10 +300,12 @@ fun ActivationScreen(onBack: () -> Unit) {
                     .height(120.dp)
                     .clip(RoundedCornerShape(10.dp)),
                 colors = androidx.compose.material3.TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = cardColor,
+                    unfocusedContainerColor = cardColor,
                     focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = textColor,
+                    unfocusedTextColor = textColor
                 )
             )
 

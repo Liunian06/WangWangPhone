@@ -4,6 +4,23 @@
              xmlns:local="clr-namespace:WangWangPhone"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-         
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="SystemBackgroundBrush" Color="White"/>
+                    <SolidColorBrush x:Key="SettingsBackgroundBrush" Color="#F2F2F7"/>
+                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="White"/>
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="White"/>
+                    <SolidColorBrush x:Key="SystemTextBrush" Color="Black"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="SystemBackgroundBrush" Color="Black"/>
+                    <SolidColorBrush x:Key="SettingsBackgroundBrush" Color="#1C1C1E"/>
+                    <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#2C2C2E"/>
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#2C2C2E"/>
+                    <SolidColorBrush x:Key="SystemTextBrush" Color="White"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
     </Application.Resources>
 </Application>

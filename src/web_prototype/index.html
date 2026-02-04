@@ -9,6 +9,19 @@
             --ios-radius: 20px;
             --dock-bg: rgba(255, 255, 255, 0.3);
             --text-color: white;
+            --bg-color: #F2F2F7;
+            --card-bg: white;
+            --system-text: black;
+            --header-bg: white;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-color: #1C1C1E;
+                --card-bg: #2C2C2E;
+                --system-text: white;
+                --header-bg: #2C2C2E;
+            }
         }
 
         body, html {
@@ -246,20 +259,22 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: #F2F2F7;
+            background: var(--bg-color);
             z-index: 200;
             display: none;
             flex-direction: column;
+            padding-top: env(safe-area-inset-top); /* 适配状态栏 */
         }
 
         .overlay-header {
             height: 60px;
-            background: white;
+            background: var(--header-bg);
             display: flex;
             align-items: center;
             justify-content: center;
             position: relative;
-            border-bottom: 1px solid #ddd;
+            border-bottom: 1px solid rgba(0,0,0,0.1);
+            color: var(--system-text);
         }
 
         .back-btn {
@@ -288,9 +303,10 @@
         }
 
         .settings-list {
-            background: white;
+            background: var(--card-bg);
             border-radius: 10px;
             overflow: hidden;
+            color: var(--system-text);
         }
 
         .settings-item {
@@ -298,7 +314,7 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            border-bottom: 1px solid #f0f0f0;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
             cursor: pointer;
         }
 
@@ -322,11 +338,12 @@
         }
 
         .input-box {
-            background: white;
+            background: var(--card-bg);
             border-radius: 10px;
             padding: 12px;
             word-break: break-all;
             min-height: 20px;
+            color: var(--system-text);
         }
 
         textarea.input-box {
@@ -336,6 +353,8 @@
             box-sizing: border-box;
             font-family: inherit;
             resize: none;
+            background: var(--card-bg);
+            color: var(--system-text);
         }
 
         .btn-primary {

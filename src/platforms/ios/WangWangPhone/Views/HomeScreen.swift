@@ -232,6 +232,7 @@ struct HomeScreen: View {
 struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var showActivation: Bool
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         NavigationView {
@@ -261,6 +262,7 @@ struct SettingsView: View {
 struct ActivationView: View {
     @Binding var showActivation: Bool
     @State private var licenseKey = ""
+    @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
         NavigationView {

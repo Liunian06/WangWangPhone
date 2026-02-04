@@ -51,11 +51,17 @@ bool LicenseManager::decodeAndVerify(const std::string& licenseKey, LicensePaylo
     // 3. 使用 publicKey 验证 Signature
     // 4. 解析 JSON Payload
     
-    // 模拟实现：假设格式正确
-    if (licenseKey.empty()) return false;
+    // 模拟实现：为了演示具体的授权逻辑，我们假设激活码包含特定前缀 "WANGWANG-"
+    // 且后面跟着一段模拟的 JSON Payload 数据（这里简单模拟解析）
+    if (licenseKey.empty() || licenseKey.find("WANGWANG-") != 0) return false;
     
-    // 这里应插入真正的 RSA 验证逻辑
-    return true; 
+    // 模拟解析出的 Payload (实际上应该从解密后的字符串中反序列化)
+    outPayload.machine_id = "MOCK_DEVICE_ID_12345";
+    outPayload.expiration_time = 1893456000; // 2030-01-01
+    outPayload.type = "pro";
+    outPayload.salt = "random_salt";
+
+    return true;
 }
 
 std::string LicenseManager::getMachineId() {
