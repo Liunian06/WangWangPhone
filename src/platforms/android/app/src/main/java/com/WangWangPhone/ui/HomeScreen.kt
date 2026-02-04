@@ -7,7 +7,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -17,8 +17,123 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 data class AppIcon(val name: String, val icon: String, val color: Brush)
+
+@Composable
+fun WidgetsSection() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(15.dp)
+    ) {
+        // Clock Widget
+        ClockWidget(modifier = Modifier.weight(1f))
+        
+        // Weather Widget
+        WeatherWidget(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+fun ClockWidget(modifier: Modifier = Modifier) {
+    var currentTime by remember { mutableStateOf(LocalDateTime.now()) }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = LocalDateTime.now()
+            delay(1000)
+        }
+    }
+
+    val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
+    val dateFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)
+
+    Box(
+        modifier = modifier
+            .height(150.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFFE0C3FC), Color(0xFF8EC5FC))))
+            .padding(15.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = currentTime.format(dateFormatter),
+                color = Color.White,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+            Spacer(modifier = Modifier.height(5.dp))
+            Text(
+                text = currentTime.format(timeFormatter),
+                color = Color.White,
+                fontSize = 40.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "北京",
+                color = Color.White.copy(alpha = 0.8f),
+                fontSize = 12.sp
+            )
+        }
+    }
+}
+
+@Composable
+fun WeatherWidget(modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .height(150.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.linearGradient(listOf(Color(0xFF4FACFE), Color(0xFF00F2FE))))
+            .padding(15.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "北京",
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "24°",
+                    color = Color.White,
+                    fontSize = 40.sp,
+                    fontWeight = FontWeight.Light
+                )
+            }
+            Column {
+                Text(
+                    text = "☀️",
+                    fontSize = 24.sp
+                )
+                Spacer(modifier = Modifier.height(5.dp))
+                Text(
+                    text = "晴朗",
+                    color = Color.White,
+                    fontSize = 14.sp
+                )
+                Text(
+                    text = "最高 28° 最低 18°",
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 10.sp
+                )
+            }
+        }
+    }
+}
 
 @Composable
 fun HomeScreen() {
@@ -38,6 +153,9 @@ fun HomeScreen() {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black))
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            // 小组件区域
+            WidgetsSection()
+
             // 应用网格
             LazyVerticalGrid(
                 columns = GridCells.Fixed(4),

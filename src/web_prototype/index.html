@@ -115,6 +115,69 @@
             box-sizing: border-box;
         }
 
+        /* 小组件区域 */
+        .widgets-area {
+            display: flex;
+            gap: 15px;
+            padding: 0 20px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+        }
+
+        .widget {
+            flex: 1;
+            height: 150px;
+            border-radius: 20px;
+            padding: 15px;
+            box-sizing: border-box;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+        }
+
+        .clock-widget {
+            background: linear-gradient(135deg, #E0C3FC 0%, #8EC5FC 100%);
+        }
+
+        .weather-widget {
+            background: linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%);
+        }
+
+        .widget-date {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .widget-time {
+            font-size: 40px;
+            font-weight: bold;
+        }
+
+        .widget-city {
+            font-size: 10px;
+            opacity: 0.8;
+        }
+
+        .widget-temp {
+            font-size: 40px;
+            font-weight: 300;
+        }
+
+        .widget-icon {
+            font-size: 24px;
+        }
+
+        .widget-status {
+            font-size: 12px;
+        }
+
+        .widget-range {
+            font-size: 10px;
+            opacity: 0.8;
+        }
+
         .app-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -199,6 +262,26 @@
 
     <!-- 桌面界面 -->
     <div id="home-screen">
+        <!-- 小组件区域 -->
+        <div class="widgets-area">
+            <div class="widget clock-widget">
+                <div class="widget-date" id="widget-date">10月1日 星期一</div>
+                <div class="widget-time" id="widget-time">09:41</div>
+                <div class="widget-city">北京</div>
+            </div>
+            <div class="widget weather-widget">
+                <div>
+                    <div style="font-weight: bold;">北京</div>
+                    <div class="widget-temp">24°</div>
+                </div>
+                <div>
+                    <div class="widget-icon">☀️</div>
+                    <div class="widget-status">晴朗</div>
+                    <div class="widget-range">最高 28° 最低 18°</div>
+                </div>
+            </div>
+        </div>
+
         <div class="app-grid">
             <div class="app-icon-wrapper">
                 <div class="app-icon" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);">📞</div>
@@ -257,7 +340,23 @@
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         const timeStr = `${hours}:${minutes}`;
+        
+        // 更新顶部栏和锁屏时间
         document.querySelectorAll('.time, .lock-time').forEach(el => el.textContent = timeStr);
+        
+        // 更新 Widget 时间
+        const widgetTime = document.getElementById('widget-time');
+        if (widgetTime) widgetTime.textContent = timeStr;
+
+        // 更新 Widget 日期
+        const widgetDate = document.getElementById('widget-date');
+        if (widgetDate) {
+            const month = now.getMonth() + 1;
+            const date = now.getDate();
+            const days = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+            const day = days[now.getDay()];
+            widgetDate.textContent = `${month}月${date}日 ${day}`;
+        }
     }
     setInterval(updateTime, 1000);
     updateTime();

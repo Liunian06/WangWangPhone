@@ -7,6 +7,89 @@ struct AppIconData: Identifiable {
     let colors: [Color]
 }
 
+struct ClockWidget: View {
+    @State private var currentTime = Date()
+    let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(LinearGradient(colors: [Color(red: 0.88, green: 0.76, blue: 0.99), Color(red: 0.56, green: 0.77, blue: 0.99)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(height: 150)
+            
+            VStack(alignment: .leading) {
+                Text(dateFormatter.string(from: currentTime))
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.white)
+                
+                Text(timeFormatter.string(from: currentTime))
+                    .font(.system(size: 40, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text("北京")
+                    .font(.caption2)
+                    .foregroundColor(.white.opacity(0.8))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding()
+        }
+        .onReceive(timer) { input in
+            currentTime = input
+        }
+    }
+    
+    private var timeFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }
+    
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "M月d日 EEEE"
+        formatter.locale = Locale(identifier: "zh_CN")
+        return formatter
+    }
+}
+
+struct WeatherWidget: View {
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 20)
+                .fill(LinearGradient(colors: [Color(red: 0.31, green: 0.67, blue: 0.99), Color(red: 0.0, green: 0.95, blue: 0.99)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .frame(height: 150)
+            
+            HStack {
+                VStack(alignment: .leading) {
+                    Text("北京")
+                        .font(.headline)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                    
+                    Text("24°")
+                        .font(.system(size: 40, weight: .light))
+                        .foregroundColor(.white)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing) {
+                    Text("☀️")
+                        .font(.title)
+                    Text("晴朗")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                    Text("H:28° L:18°")
+                        .font(.caption2)
+                        .foregroundColor(.white.opacity(0.8))
+                }
+            }
+            .padding()
+        }
+    }
+}
+
 struct HomeScreen: View {
     let apps = [
         AppIconData(name: "电话", icon: "📞", colors: [.pink, .orange]),
@@ -31,6 +114,14 @@ struct HomeScreen: View {
             Color.black.ignoresSafeArea()
             
             VStack {
+                // 小组件区域
+                HStack(spacing: 15) {
+                    ClockWidget()
+                    WeatherWidget()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
+
                 // 应用网格
                 LazyVGrid(columns: columns, spacing: 25) {
                     ForEach(apps) { app in
