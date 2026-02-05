@@ -104,6 +104,8 @@ bool LicenseManager::restoreLicenseFromDatabase(const std::string& currentMachin
     currentPayload.expiration_time = record.expiration_time;
     currentPayload.type = record.license_type;
     currentPayload.salt = "";
+    currentPayload.xhsID = record.xhsID;
+    currentPayload.qqID = record.qqID;
     activated = true;
 
     std::cout << "LicenseManager: 从数据库恢复授权成功" << std::endl;
@@ -215,6 +217,8 @@ bool LicenseManager::decodeAndVerify(const std::string& licenseKey, LicensePaylo
     
     outPayload.type = "pro";
     outPayload.salt = "generated_salt";
+    outPayload.xhsID = 0; // 模拟解析出的追踪 ID
+    outPayload.qqID = 0;
 
     // TODO: 当集成真正的加密库后，这里应该：
     // 1. Base64 解码 payloadBase64 获得 JSON 字符串
@@ -236,6 +240,8 @@ bool LicenseManager::saveLicenseToDatabase(const std::string& licenseKey, const 
     record.machine_id = payload.machine_id;
     record.expiration_time = payload.expiration_time;
     record.license_type = payload.type;
+    record.xhsID = payload.xhsID;
+    record.qqID = payload.qqID;
     
     auto now = std::chrono::system_clock::now();
     record.activation_time = std::chrono::duration_cast<std::chrono::seconds>(

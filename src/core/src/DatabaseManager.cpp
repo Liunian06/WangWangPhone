@@ -67,6 +67,8 @@ bool DatabaseManager::createTables() {
             expiration_time INTEGER NOT NULL,
             license_type TEXT DEFAULT 'standard',
             activation_time INTEGER NOT NULL,
+            xhs_id INTEGER,
+            qq_id INTEGER,
             created_at INTEGER DEFAULT (strftime('%s', 'now')),
             updated_at INTEGER DEFAULT (strftime('%s', 'now'))
         );
@@ -112,8 +114,8 @@ bool DatabaseManager::saveLicenseRecord(const LicenseRecord& record) {
     clearLicenseRecord();
 
     const char* insertSQL = R"(
-        INSERT INTO license (license_key, machine_id, expiration_time, license_type, activation_time)
-        VALUES (?, ?, ?, ?, ?);
+        INSERT INTO license (license_key, machine_id, expiration_time, license_type, activation_time, xhs_id, qq_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?);
     )";
 
     sqlite3_stmt* stmt = nullptr;
@@ -129,6 +131,8 @@ bool DatabaseManager::saveLicenseRecord(const LicenseRecord& record) {
     sqlite3_bind_int64(stmt, 3, record.expiration_time);
     sqlite3_bind_text(stmt, 4, record.license_type.c_str(), -1, SQLITE_TRANSIENT);
     sqlite3_bind_int64(stmt, 5, record.activation_time);
+    sqlite3_bind_int64(stmt, 6, record.xhsID);
+    sqlite3_bind_int64(stmt, 7, record.qqID);
 
     result = sqlite3_step(stmt);
     sqlite3_finalize(stmt);
@@ -146,7 +150,7 @@ bool DatabaseManager::getLicenseRecord(LicenseRecord& outRecord) {
     if (!db) return false;
 
     const char* selectSQL = R"(
-        SELECT license_key, machine_id, expiration_time, license_type, activation_time
+        SELECT license_key, machine_id, expiration_time, license_type, activation_time, xhs_id, qq_id
         FROM license
         ORDER BY id DESC
         LIMIT 1;
@@ -168,6 +172,8 @@ bool DatabaseManager::getLicenseRecord(LicenseRecord& outRecord) {
         outRecord.expiration_time = sqlite3_column_int64(stmt, 2);
         outRecord.license_type = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
         outRecord.activation_time = sqlite3_column_int64(stmt, 4);
+        outRecord.xhsID = sqlite3_column_int64(stmt, 5);
+        outRecord.qqID = sqlite3_column_int64(stmt, 6);
         
         sqlite3_finalize(stmt);
         return true;

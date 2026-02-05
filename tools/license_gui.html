@@ -153,6 +153,17 @@
                 <input type="text" id="machineId" placeholder="例如: WIN-XXXXXX 或 AND-XXXXXX">
             </div>
 
+            <div style="display: flex; gap: 15px;">
+                <div class="form-group" style="flex: 1;">
+                    <label for="xhsID">小红书 ID (可选)</label>
+                    <input type="number" id="xhsID" placeholder="溯源用">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label for="qqID">QQ ID (可选)</label>
+                    <input type="number" id="qqID" placeholder="溯源用">
+                </div>
+            </div>
+
             <div class="form-group">
                 <label for="days">有效时长 (天)</label>
                 <select id="days">
@@ -188,6 +199,8 @@
         const signBtn = document.getElementById('signBtn');
         const copyBtn = document.getElementById('copyBtn');
         const machineIdInput = document.getElementById('machineId');
+        const xhsIDInput = document.getElementById('xhsID');
+        const qqIDInput = document.getElementById('qqID');
         const daysSelect = document.getElementById('days');
         const typeSelect = document.getElementById('type');
         const resultArea = document.getElementById('resultArea');
@@ -212,7 +225,9 @@
                     body: JSON.stringify({
                         mid: mid,
                         days: parseInt(daysSelect.value),
-                        type: typeSelect.value
+                        type: typeSelect.value,
+                        xhs: parseInt(xhsIDInput.value) || 0,
+                        qq: parseInt(qqIDInput.value) || 0
                     })
                 });
 

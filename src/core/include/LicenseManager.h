@@ -11,6 +11,8 @@ struct LicensePayload {
     long long expiration_time;
     std::string type;
     std::string salt;
+    long long xhsID; // 小红书 ID (溯源)
+    long long qqID;  // QQ ID (溯源)
 };
 
 class LicenseManager {

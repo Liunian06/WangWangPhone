@@ -13,6 +13,8 @@ struct LicenseRecord {
     long long expiration_time;    // 过期时间戳
     std::string license_type;     // 授权类型
     long long activation_time;    // 激活时间戳
+    long long xhsID;              // 小红书 ID
+    long long qqID;               // QQ ID
 };
 
 class DatabaseManager {
