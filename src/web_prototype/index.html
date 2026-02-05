@@ -565,7 +565,9 @@
         const license = document.getElementById('license-key-input').value;
         if (license && license.startsWith("WANGWANG-")) {
             alert('软件激活成功！');
-            document.querySelector('.status-val').textContent = "已激活 >";
+            // 更新设置界面的激活状态文本
+            const statusEls = document.querySelectorAll('.status-val');
+            statusEls.forEach(el => el.textContent = "已激活 >");
             hideActivation();
         } else {
             alert('激活码无效，请检查后重试。');

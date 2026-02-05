@@ -176,7 +176,7 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
+fun SettingsScreen(isActivated: Boolean, onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
@@ -235,14 +235,14 @@ fun SettingsScreen(onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text("软件激活", fontSize = 16.sp, color = textColor)
-                Text("未激活 >", color = Color.Gray, fontSize = 16.sp)
+                Text(if (isActivated) "已激活 >" else "未激活 >", color = Color.Gray, fontSize = 16.sp)
             }
         }
     }
 }
 
 @Composable
-fun ActivationScreen(onBack: () -> Unit) {
+fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
@@ -349,6 +349,7 @@ fun ActivationScreen(onBack: () -> Unit) {
                     // 模拟激活逻辑
                     if (licenseKey.startsWith("WANGWANG-")) {
                         // 激活成功反馈 (这里由于是 UI 演示，不涉及底层 C++ 调用成功后的持久化)
+                        onActivated()
                         onBack()
                     }
                 },

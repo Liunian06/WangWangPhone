@@ -126,6 +126,7 @@ struct HomeScreen: View {
     @State private var weather: WeatherInfo? = nil
     @State private var showSettings = false
     @State private var showActivation = false
+    @State private var isActivated = false
 
     var body: some View {
         ZStack {
@@ -204,13 +205,13 @@ struct HomeScreen: View {
                     .padding(.bottom, 8)
             }
             if showSettings {
-                SettingsView(showSettings: $showSettings, showActivation: $showActivation)
+                SettingsView(showSettings: $showSettings, showActivation: $showActivation, isActivated: $isActivated)
                     .transition(.move(edge: .trailing))
                     .zIndex(1)
             }
             
             if showActivation {
-                ActivationView(showActivation: $showActivation)
+                ActivationView(showActivation: $showActivation, isActivated: $isActivated)
                     .transition(.move(edge: .trailing))
                     .zIndex(2)
             }
@@ -234,6 +235,7 @@ struct HomeScreen: View {
 struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var showActivation: Bool
+    @Binding var isActivated: Bool
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
@@ -243,7 +245,7 @@ struct SettingsView: View {
                     HStack {
                         Text("软件激活")
                         Spacer()
-                        Text("未激活")
+                        Text(isActivated ? "已激活" : "未激活")
                             .foregroundColor(.gray)
                     }
                     .contentShape(Rectangle())
@@ -264,6 +266,7 @@ struct SettingsView: View {
 
 struct ActivationView: View {
     @Binding var showActivation: Bool
+    @Binding var isActivated: Bool
     @State private var licenseKey = ""
     @Environment(\.colorScheme) var colorScheme
     
@@ -307,6 +310,7 @@ struct ActivationView: View {
                 Section {
                     Button(action: {
                         if licenseKey.hasPrefix("WANGWANG-") {
+                            isActivated = true
                             showActivation = false
                         }
                     }) {
