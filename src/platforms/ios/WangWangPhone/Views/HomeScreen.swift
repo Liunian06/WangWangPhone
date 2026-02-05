@@ -5,6 +5,7 @@ struct AppIconData: Identifiable {
     let name: String
     let icon: String
     let colors: [Color]
+    var useImage: Bool = false
 }
 
 struct ClockWidget: View {
@@ -111,7 +112,7 @@ struct HomeScreen: View {
         AppIconData(name: "音乐", icon: "🎵", colors: [.yellow, .red]),
         AppIconData(name: "相机", icon: "📷", colors: [.white, .gray]),
         AppIconData(name: "日历", icon: "📅", colors: [.white, .gray]),
-        AppIconData(name: "设置", icon: "⚙️", colors: [.white, .gray]),
+        AppIconData(name: "设置", icon: "SettingsIcon", colors: [.white, .gray], useImage: true),
         AppIconData(name: "汪汪", icon: "🐶", colors: [.white, .gray])
     ]
 
@@ -153,8 +154,15 @@ struct HomeScreen: View {
                                 RoundedRectangle(cornerRadius: 14)
                                     .fill(LinearGradient(colors: app.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                                     .frame(width: 60, height: 60)
-                                Text(app.icon)
-                                    .font(.system(size: 30))
+                                if app.useImage {
+                                    Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 40, height: 40)
+                                } else {
+                                    Text(app.icon)
+                                        .font(.system(size: 30))
+                                }
                             }
                             Text(app.name)
                                 .font(.caption)
@@ -188,8 +196,15 @@ struct HomeScreen: View {
                                 RoundedRectangle(cornerRadius: 14)
                                     .fill(LinearGradient(colors: app.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
                                     .frame(width: 55, height: 55)
-                                Text(app.icon)
-                                    .font(.system(size: 28))
+                                if app.useImage {
+                                    Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 35, height: 35)
+                                } else {
+                                    Text(app.icon)
+                                        .font(.system(size: 28))
+                                }
                             }
                         }
                     }
@@ -205,6 +220,8 @@ struct HomeScreen: View {
                     .frame(width: 120, height: 5)
                     .padding(.bottom, 8)
             }
+            .environment(\.colorScheme, colorScheme) // Ensure colorScheme is accessible
+
             if showSettings {
                 SettingsView(showSettings: $showSettings, showActivation: $showActivation, isActivated: $isActivated, expiryDate: expiryDate)
                     .transition(.move(edge: .trailing))
@@ -238,7 +255,7 @@ struct SettingsView: View {
     @Binding var showActivation: Bool
     @Binding var isActivated: Bool
     var expiryDate: String
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
     
     var body: some View {
         NavigationView {
@@ -277,7 +294,7 @@ struct ActivationView: View {
     @Binding var showActivation: Bool
     @Binding var isActivated: Bool
     @State private var licenseKey = ""
-    @Environment(\.colorScheme) var colorScheme
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
     
     private var deviceId: String {
         UIDevice.current.identifierForVendor?.uuidString ?? "UNKNOWN_DEVICE"

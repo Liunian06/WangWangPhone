@@ -79,7 +79,10 @@
             </StackPanel>
             <StackPanel HorizontalAlignment="Center" Margin="5" MouseDown="OnSettingsClick">
                  <Border Width="60" Height="60" CornerRadius="14" Background="Gray">
-                     <TextBlock Text="⚙️" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                     <Grid>
+                         <Image x:Name="SettingsIconLight" Source="Assets/Setting_Light.png" Width="40" Height="40" Visibility="Visible"/>
+                         <Image x:Name="SettingsIconDark" Source="Assets/Setting_Dark.png" Width="40" Height="40" Visibility="Collapsed"/>
+                     </Grid>
                  </Border>
                  <TextBlock Text="设置" Foreground="White" FontSize="12" HorizontalAlignment="Center" Margin="0,5,0,0"/>
             </StackPanel>

@@ -318,6 +318,18 @@
             cursor: pointer;
         }
 
+        .settings-icon-img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+        }
+
+        .settings-icon-img-dock {
+            width: 35px;
+            height: 35px;
+            object-fit: contain;
+        }
+
         .settings-item:last-child {
             border-bottom: none;
         }
@@ -440,7 +452,12 @@
                 <div class="app-name">日历</div>
             </div>
             <div class="app-icon-wrapper" onclick="showSettings()">
-                <div class="app-icon" style="background: #fff;">⚙️</div>
+                <div class="app-icon" style="background: #fff;">
+                    <picture>
+                        <source srcset="Setting_Dark.png" media="(prefers-color-scheme: dark)">
+                        <img src="Setting_Light.png" alt="设置" class="settings-icon-img">
+                    </picture>
+                </div>
                 <div class="app-name">设置</div>
             </div>
             <div class="app-icon-wrapper">

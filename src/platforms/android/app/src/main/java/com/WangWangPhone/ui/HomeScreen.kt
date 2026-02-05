@@ -2,6 +2,7 @@ package com.WangWangPhone.ui
 
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,7 +27,7 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-data class AppIcon(val name: String, val icon: String, val color: Brush)
+data class AppIcon(val name: String, val icon: String, val color: Brush, val useImage: Boolean = false)
 
 // Mock Location & Weather Logic (In real app this would be in Repository/ViewModel)
 suspend fun fetchLocation(): String {
@@ -375,6 +376,7 @@ fun HomeScreen() {
     var isActivated by remember { mutableStateOf(false) }
     var expiryDate by remember { mutableStateOf("2030-01-01") } // 模拟获取到的过期时间
 
+    val isDark = isSystemInDarkTheme()
     val apps = listOf(
         AppIcon("电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
         AppIcon("信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
@@ -382,7 +384,7 @@ fun HomeScreen() {
         AppIcon("音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
         AppIcon("相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
         AppIcon("日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("设置", "⚙️", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+        AppIcon("设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
         AppIcon("汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
     )
 
@@ -411,6 +413,7 @@ fun HomeScreen() {
 
 @Composable
 fun HomeScreenContent(onSettingsClick: () -> Unit) {
+    val isDark = isSystemInDarkTheme()
     val apps = listOf(
         AppIcon("电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
         AppIcon("信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
@@ -418,7 +421,7 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
         AppIcon("音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
         AppIcon("相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
         AppIcon("日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("设置", "⚙️", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+        AppIcon("设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
         AppIcon("汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
     )
 
@@ -476,7 +479,19 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                             .background(app.color),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(app.icon, fontSize = 28.sp)
+                        if (app.useImage) {
+                            val context = androidx.compose.ui.platform.LocalContext.current
+                            val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+                            if (resId != 0) {
+                                Image(
+                                    painter = androidx.compose.ui.res.painterResource(id = resId),
+                                    contentDescription = app.name,
+                                    modifier = Modifier.size(35.dp)
+                                )
+                            }
+                        } else {
+                            Text(app.icon, fontSize = 28.sp)
+                        }
                     }
                 }
             }
@@ -508,7 +523,19 @@ fun AppIconItem(app: AppIcon, onClick: () -> Unit = {}) {
                 .background(app.color),
             contentAlignment = Alignment.Center
         ) {
-            Text(app.icon, fontSize = 30.sp)
+            if (app.useImage) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+                if (resId != 0) {
+                    Image(
+                        painter = androidx.compose.ui.res.painterResource(id = resId),
+                        contentDescription = app.name,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
+            } else {
+                Text(app.icon, fontSize = 30.sp)
+            }
         }
         Spacer(modifier = Modifier.height(5.dp))
         Text(app.name, color = Color.White, fontSize = 12.sp)

@@ -17,6 +17,19 @@ namespace WangWangPhone
             UpdateDateTime();
             _ = LoadWeatherData();
             LoadMachineId();
+            ApplyThemeIcons();
+        }
+
+        private void ApplyThemeIcons()
+        {
+            // Simple logic to detect "dark" theme by checking a system color or just hardcode for this prototype
+            // In WPF, we can use Registry or SystemParameters
+            bool isDark = SystemParameters.HighContrast; // Placeholder logic
+            
+            // For now, let's just make it toggleable or check background
+            // Actually, let's just default to Light since it's a prototype
+            SettingsIconLight.Visibility = Visibility.Visible;
+            SettingsIconDark.Visibility = Visibility.Collapsed;
         }
 
         private void LoadMachineId()
