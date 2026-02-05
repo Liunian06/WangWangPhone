@@ -1,0 +1,23 @@
+{
+  "name": "wangwangphone",
+  "version": "1.0.0",
+  "description": "<div align=\"center\">\r   <img src=\"assets/icons/logo.jpg\" width=\"120\" height=\"120\" alt=\"WangWangJi Logo\">\r   <h1>汪汪机 (WangWangJi)</h1>\r   <p><b>手机里的手机 —— 极致流畅的“递归操作系统” AI 伴侣</b></p>",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Liunian06/WangWangPhone.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Liunian06/WangWangPhone/issues"
+  },
+  "homepage": "https://github.com/Liunian06/WangWangPhone#readme"
+}

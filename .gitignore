@@ -29,3 +29,6 @@
 .idea/
 *.swp
 *.bak
+
+# Backend SQLite logs
+tools/*.db
