@@ -12,6 +12,7 @@
             --text: #000000;
             --secondary: #8E8E93;
             --border: rgba(0,0,0,0.1);
+            --highlight: #FFD60A;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -62,14 +63,8 @@
             font-weight: 500;
         }
 
-        .nav-item:hover {
-            background-color: rgba(0, 122, 255, 0.1);
-        }
-
-        .nav-item.active {
-            color: var(--primary);
-            background-color: rgba(0, 122, 255, 0.15);
-        }
+        .nav-item:hover { background-color: rgba(0, 122, 255, 0.1); }
+        .nav-item.active { color: var(--primary); background-color: rgba(0, 122, 255, 0.15); }
 
         /* 主内容 */
         .main-content {
@@ -78,17 +73,9 @@
             padding: 30px;
         }
 
-        .view {
-            display: none;
-            max-width: 1000px;
-            margin: 0 auto;
-        }
+        .view { display: none; max-width: 1100px; margin: 0 auto; }
+        .view.active { display: block; }
 
-        .view.active {
-            display: block;
-        }
-
-        /* 通用组件 */
         .card {
             background: var(--card);
             border-radius: 16px;
@@ -99,17 +86,8 @@
 
         h2 { margin-top: 0; margin-bottom: 20px; font-size: 20px; }
 
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-        }
-
-        .stat-card {
-            text-align: center;
-            padding: 20px;
-        }
-
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .stat-card { text-align: center; padding: 20px; }
         .stat-value { font-size: 32px; font-weight: bold; color: var(--primary); }
         .stat-label { font-size: 14px; color: var(--secondary); margin-top: 8px; }
 
@@ -121,21 +99,22 @@
         }
 
         .btn {
-            background: var(--primary); color: white; border: none; padding: 14px 24px;
+            background: var(--primary); color: white; border: none; padding: 12px 20px;
             border-radius: 10px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
         }
-
         .btn:disabled { background: var(--secondary); opacity: 0.5; }
+
+        /* 搜索栏样式 */
+        .search-bar { display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
+        .search-item { flex: 1; min-width: 150px; }
 
         /* 表格样式 */
         .table-container { overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
-        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; table-layout: fixed; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         th { color: var(--secondary); font-weight: 600; }
         
-        .badge {
-            padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
-        }
+        .badge { padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600; }
         .badge-pro { background: rgba(0, 122, 255, 0.1); color: var(--primary); }
         .badge-std { background: rgba(142, 142, 147, 0.1); color: var(--secondary); }
 
@@ -143,15 +122,21 @@
             background: rgba(52, 199, 89, 0.1); border: 1px solid #34C759; color: #34C759;
             padding: 15px; border-radius: 10px; word-break: break-all; font-family: monospace; margin-top: 10px;
         }
+
+        .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; }
+        mark { background: var(--highlight); color: black; border-radius: 2px; }
+
+        .id-cell { display: flex; flex-direction: column; gap: 2px; }
+        .id-label { font-size: 10px; color: var(--secondary); }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <div class="sidebar-header">汪汪机管理</div>
-        <div class="nav-item active" onclick="showView('dashboard')">📊 控制台面板</div>
-        <div class="nav-item" onclick="showView('sign')">🔑 签发激活码</div>
-        <div class="nav-item" onclick="showView('trace')">🔍 激活码溯源</div>
-        <div class="nav-item" onclick="showView('database')">💾 数据库查询</div>
+        <div class="nav-item active" data-view="dashboard">📊 控制台面板</div>
+        <div class="nav-item" data-view="sign">🔑 签发激活码</div>
+        <div class="nav-item" data-view="trace">🔍 激活码溯源</div>
+        <div class="nav-item" data-view="database">💾 数据库查询</div>
     </div>
 
     <div class="main-content">
@@ -159,18 +144,9 @@
         <div id="dashboard" class="view active">
             <h2>数据概览</h2>
             <div class="grid">
-                <div class="card stat-card">
-                    <div id="stat-total" class="stat-value">-</div>
-                    <div class="stat-label">总签发数量</div>
-                </div>
-                <div class="card stat-card">
-                    <div id="stat-24h" class="stat-value">-</div>
-                    <div class="stat-label">24小时内签发</div>
-                </div>
-                <div class="card stat-card">
-                    <div id="stat-pro" class="stat-value">-</div>
-                    <div class="stat-label">专业版数量</div>
-                </div>
+                <div class="card stat-card"><div id="stat-total" class="stat-value">-</div><div class="stat-label">总签发数量</div></div>
+                <div class="card stat-card"><div id="stat-24h" class="stat-value">-</div><div class="stat-label">24小时内签发</div></div>
+                <div class="card stat-card"><div id="stat-pro" class="stat-value">-</div><div class="stat-label">专业版数量</div></div>
             </div>
         </div>
 
@@ -178,42 +154,17 @@
         <div id="sign" class="view">
             <h2>签发新授权</h2>
             <div class="card">
-                <div class="form-group">
-                    <label>机器码 (Machine ID)</label>
-                    <input type="text" id="mid" placeholder="例如: WIN-XXXXXX">
+                <div class="form-group"><label>机器码 (Machine ID)</label><input type="text" id="mid" placeholder="例如: WIN-XXXXXX"></div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;"><label>小红书 ID</label><input type="number" id="xhs" placeholder="溯源用"></div>
+                    <div class="form-group" style="flex: 1;"><label>QQ ID</label><input type="number" id="qq" placeholder="溯源用"></div>
                 </div>
                 <div style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>小红书 ID (可选)</label>
-                        <input type="number" id="xhs" placeholder="用于溯源">
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label>QQ ID (可选)</label>
-                        <input type="number" id="qq" placeholder="用于溯源">
-                    </div>
-                </div>
-                <div style="display: flex; gap: 15px;">
-                    <div class="form-group" style="flex: 1;">
-                        <label>有效时长</label>
-                        <select id="days">
-                            <option value="30">30 天</option>
-                            <option value="365" selected>1 年</option>
-                            <option value="3650">长期 (10年)</option>
-                        </select>
-                    </div>
-                    <div class="form-group" style="flex: 1;">
-                        <label>授权级别</label>
-                        <select id="type">
-                            <option value="standard">标准版</option>
-                            <option value="pro" selected>专业版</option>
-                        </select>
-                    </div>
+                    <div class="form-group" style="flex: 1;"><label>有效时长</label><select id="days"><option value="30">30 天</option><option value="365" selected>1 年</option><option value="3650">长期</option></select></div>
+                    <div class="form-group" style="flex: 1;"><label>授权级别</label><select id="type"><option value="standard">标准版</option><option value="pro" selected>专业版</option></select></div>
                 </div>
                 <button onclick="submitSign()" id="signBtn" class="btn">生成激活码</button>
-                <div id="signResult" style="display: none;">
-                    <div class="result-box" id="licenseText"></div>
-                    <button class="btn" style="margin-top: 10px; background: transparent; color: var(--primary); border: 1px solid var(--primary);" onclick="copyLicense()">复制激活码</button>
-                </div>
+                <div id="signResult" style="display: none;"><div class="result-box" id="licenseText"></div><button class="btn" style="margin-top: 10px;" onclick="copyLicense()">复制激活码</button></div>
             </div>
         </div>
 
@@ -221,17 +172,9 @@
         <div id="trace" class="view">
             <h2>激活码溯源</h2>
             <div class="card">
-                <div class="form-group">
-                    <label>激活码全文</label>
-                    <textarea id="traceInput" placeholder="粘贴完整的 WANGWANG- 激活码"></textarea>
-                </div>
+                <div class="form-group"><label>激活码全文</label><textarea id="traceInput" placeholder="粘贴完整的 WANGWANG- 激活码"></textarea></div>
                 <button onclick="submitTrace()" class="btn">解析回原文</button>
-                <div id="traceResult" style="margin-top: 20px; display: none;">
-                    <h3>解密数据:</h3>
-                    <div class="result-box" style="color: var(--text); background: var(--bg); border-color: var(--border);">
-                        <pre id="traceData" style="margin: 0; white-space: pre-wrap;"></pre>
-                    </div>
-                </div>
+                <div id="traceResult" style="margin-top: 20px; display: none;"><h3>解密数据:</h3><div class="result-box" style="color: var(--text); background: var(--bg); border-color: var(--border);"><pre id="traceData" style="margin: 0; white-space: pre-wrap;"></pre></div></div>
             </div>
         </div>
 
@@ -239,42 +182,46 @@
         <div id="database" class="view">
             <h2>数据详情查询</h2>
             <div class="card">
-                <div class="form-group">
-                    <input type="text" id="queryInput" placeholder="输入关键词 (空格分隔多词检索)..." onkeyup="if(event.keyCode===13)submitQuery()">
+                <div class="search-bar">
+                    <div class="search-item" style="flex: 2;"><label>搜索关键词 (空格分隔多词)</label><input type="text" id="queryInput" placeholder="搜索机器码、ID、IP..." oninput="debounceQuery()"></div>
+                    <div class="search-item"><label>授权级别</label><select id="filterType" onchange="submitQuery()"><option value="all">全部级别</option><option value="standard">标准版</option><option value="pro">专业版</option></select></div>
+                    <div class="search-item"><label>每页显示</label><select id="filterLimit" onchange="submitQuery()"><option value="10">10个</option><option value="30" selected>30个</option><option value="50">50个</option><option value="100">100个</option></select></div>
                 </div>
-                <button onclick="submitQuery()" class="btn">搜索</button>
+                <div class="search-bar" style="margin-top: 15px;">
+                    <div class="search-item"><label>开始日期</label><input type="date" id="filterStart" onchange="submitQuery()"></div>
+                    <div class="search-item"><label>结束日期</label><input type="date" id="filterEnd" onchange="submitQuery()"></div>
+                    <button onclick="clearFilters()" class="btn" style="background: var(--secondary);">重置</button>
+                </div>
             </div>
             <div class="card table-container">
                 <table>
-                    <thead>
-                        <tr>
-                            <th>时间</th>
-                            <th>机器码</th>
-                            <th>类型</th>
-                            <th>溯源 ID</th>
-                            <th>IP 地址</th>
-                        </tr>
-                    </thead>
+                    <thead><tr><th style="width: 150px;">签发时间</th><th>机器码</th><th style="width: 80px;">类型</th><th style="width: 120px;">xhsID</th><th style="width: 120px;">QQID</th><th style="width: 100px;">来源 IP</th></tr></thead>
                     <tbody id="queryTableBody"></tbody>
                 </table>
+                <div class="pagination" id="paginationControls"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // 导航切换
-        function showView(viewId) {
-            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            document.getElementById(viewId).classList.add('active');
-            event.target.classList.add('active');
-            if(viewId === 'dashboard') loadStats();
-        }
+        let currentPage = 1;
+        let queryTimer;
 
-        // 格式化日期
+        // 视图切换
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.onclick = (e) => {
+                const view = e.target.dataset.view;
+                document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                document.getElementById(view).classList.add('active');
+                e.target.classList.add('active');
+                if(view === 'dashboard') loadStats();
+                if(view === 'database') submitQuery();
+            };
+        });
+
         const fmtDate = ts => new Date(ts * 1000).toLocaleString();
 
-        // 获取统计
         async function loadStats() {
             const res = await fetch('/api/stats');
             const data = await res.json();
@@ -285,7 +232,6 @@
             }
         }
 
-        // 签发
         async function submitSign() {
             const btn = document.getElementById('signBtn');
             btn.disabled = true;
@@ -304,9 +250,7 @@
             if(data.success) {
                 document.getElementById('signResult').style.display = 'block';
                 document.getElementById('licenseText').textContent = data.license;
-            } else {
-                alert('签发失败: ' + data.error);
-            }
+            } else alert('失败: ' + data.error);
             btn.disabled = false;
         }
 
@@ -315,7 +259,6 @@
             alert('已复制');
         }
 
-        // 溯源
         async function submitTrace() {
             const res = await fetch('/api/trace', {
                 method: 'POST',
@@ -327,34 +270,77 @@
             if(data.success) {
                 resDiv.style.display = 'block';
                 document.getElementById('traceData').textContent = JSON.stringify(data.data, null, 2);
-            } else {
-                alert('溯源失败: ' + data.error);
-            }
+            } else alert('失败: ' + data.error);
         }
 
-        // 查询
-        async function submitQuery() {
+        function debounceQuery() {
+            clearTimeout(queryTimer);
+            queryTimer = setTimeout(submitQuery, 300);
+        }
+
+        function clearFilters() {
+            document.getElementById('queryInput').value = '';
+            document.getElementById('filterType').value = 'all';
+            document.getElementById('filterStart').value = '';
+            document.getElementById('filterEnd').value = '';
+            submitQuery();
+        }
+
+        function highlight(text, keywords) {
+            if (!keywords || keywords.length === 0 || !text) return text;
+            let result = String(text);
+            keywords.forEach(kw => {
+                if (!kw) return;
+                const reg = new RegExp(`(${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                result = result.replace(reg, '<mark>$1</mark>');
+            });
+            return result;
+        }
+
+        async function submitQuery(page = 1) {
+            currentPage = page;
             const q = document.getElementById('queryInput').value;
-            const res = await fetch('/api/query?q=' + encodeURIComponent(q));
+            const type = document.getElementById('filterType').value;
+            const start = document.getElementById('filterStart').value;
+            const end = document.getElementById('filterEnd').value;
+            const limit = document.getElementById('filterLimit').value;
+            
+            const params = new URLSearchParams({ q, type, start, end, page, limit });
+            const res = await fetch('/api/query?' + params.toString());
             const data = await res.json();
+            
+            const keywords = q.split(/\s+/).filter(k => k.length > 0);
             const body = document.getElementById('queryTableBody');
             body.innerHTML = '';
+            
             if(data.success) {
                 data.data.forEach(row => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td>${fmtDate(row.created_at)}</td>
-                        <td title="${row.machine_id}">${row.machine_id.substring(0,12)}...</td>
+                        <td title="${row.machine_id}">${highlight(row.machine_id, keywords)}</td>
                         <td><span class="badge badge-${row.license_type === 'pro' ? 'pro' : 'std'}">${row.license_type}</span></td>
-                        <td>${row.xhs_id || '-'}/${row.qq_id || '-'}</td>
-                        <td>${row.client_ip || 'local'}</td>
+                        <td>${highlight(row.xhs_id || '-', keywords)}</td>
+                        <td>${highlight(row.qq_id || '-', keywords)}</td>
+                        <td>${highlight(row.client_ip || 'local', keywords)}</td>
                     `;
                     body.appendChild(tr);
                 });
+                renderPagination(data.pagination);
             }
         }
 
-        // 初始加载统计
+        function renderPagination(p) {
+            const container = document.getElementById('paginationControls');
+            if (p.totalPages <= 1) { container.innerHTML = ''; return; }
+            
+            let html = `<button class="btn" style="padding: 5px 10px;" ${p.page <= 1 ? 'disabled' : ''} onclick="submitQuery(${p.page - 1})">上一页</button>`;
+            html += `<span style="font-size: 14px; color: var(--secondary);">第 ${p.page} / ${p.totalPages} 页 (共 ${p.total} 条)</span>`;
+            html += `<button class="btn" style="padding: 5px 10px;" ${p.page >= p.totalPages ? 'disabled' : ''} onclick="submitQuery(${p.page + 1})">下一页</button>`;
+            container.innerHTML = html;
+        }
+
+        // 初始化加载
         loadStats();
     </script>
 </body>

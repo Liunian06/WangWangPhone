@@ -175,28 +175,59 @@ const server = http.createServer((req, res) => {
     else if (req.url.startsWith('/api/query') && req.method === 'GET') {
         try {
             const url = new URL(req.url, `http://${req.headers.host}`);
-            const query = url.searchParams.get('q') || '';
-            const keywords = query.split(/\s+/).filter(k => k.length > 0);
+            const q = url.searchParams.get('q') || '';
+            const type = url.searchParams.get('type') || '';
+            const start = url.searchParams.get('start') || '';
+            const end = url.searchParams.get('end') || '';
+            const page = parseInt(url.searchParams.get('page')) || 1;
+            const limit = parseInt(url.searchParams.get('limit')) || 30;
+            const offset = (page - 1) * limit;
+
+            const keywords = q.split(/\s+/).filter(k => k.length > 0);
             
-            let sql = "SELECT * FROM sign_logs";
+            let whereClauses = [];
             let params = [];
             
             if (keywords.length > 0) {
-                sql += " WHERE " + keywords.map(() => 
-                    "(machine_id LIKE ? OR license_key LIKE ? OR license_type LIKE ? OR xhs_id LIKE ? OR qq_id LIKE ? OR client_ip LIKE ?)"
-                ).join(" AND ");
-                
+                const kwClause = "(" + keywords.map(() =>
+                    "(machine_id LIKE ? OR license_key LIKE ? OR license_type LIKE ? OR CAST(xhs_id AS TEXT) LIKE ? OR CAST(qq_id AS TEXT) LIKE ? OR client_ip LIKE ?)"
+                ).join(" AND ") + ")";
+                whereClauses.push(kwClause);
                 keywords.forEach(kw => {
                     const pattern = `%${kw}%`;
                     params.push(pattern, pattern, pattern, pattern, pattern, pattern);
                 });
             }
+
+            if (type && type !== 'all') {
+                whereClauses.push("license_type = ?");
+                params.push(type);
+            }
+
+            if (start) {
+                whereClauses.push("created_at >= ?");
+                params.push(Math.floor(new Date(start).getTime() / 1000));
+            }
+            if (end) {
+                const endTs = Math.floor(new Date(end).getTime() / 1000) + 86399;
+                whereClauses.push("created_at <= ?");
+                params.push(endTs);
+            }
+
+            const whereSql = whereClauses.length > 0 ? " WHERE " + whereClauses.join(" AND ") : "";
             
-            sql += " ORDER BY created_at DESC LIMIT 100";
-            const rows = db.prepare(sql).all(...params);
+            const countRow = db.prepare(`SELECT COUNT(*) as count FROM sign_logs${whereSql}`).get(...params);
+            const total = countRow.count;
+
+            const sql = `SELECT * FROM sign_logs${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+            const rows = db.prepare(sql).all(...params, limit, offset);
             
             res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ success: true, data: rows }));
+            res.end(JSON.stringify({
+                success: true,
+                data: rows,
+                pagination: { total, page, limit, totalPages: Math.ceil(total / limit) }
+            }));
         } catch (err) {
             res.writeHead(500);
             res.end(JSON.stringify({ success: false, error: err.message }));
