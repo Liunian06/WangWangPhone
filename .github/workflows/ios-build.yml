@@ -11,7 +11,10 @@ jobs:
     - uses: actions/checkout@v4
 
     - name: Select Xcode
-      run: sudo xcode-select -s /Applications/Xcode_15.0.app
+      run: |
+        # 移除过期的特定路径选择，使用默认环境提供的最新 Xcode
+        # 或者使用通用的 xcode-select 命令
+        sudo xcode-select -p
 
     - name: Install XcodeGen
       run: brew install xcodegen
