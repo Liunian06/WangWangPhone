@@ -140,7 +140,9 @@ namespace WangWangPhone
             // 统一模拟校验逻辑：必须以 WANGWANG- 开头
             if (!string.IsNullOrEmpty(licenseKey) && licenseKey.StartsWith("WANGWANG-"))
             {
-                ActivationStatusText.Text = "已激活 >";
+                ActivationStatusText.Text = "已查看 >";
+                ExpiryDateText.Text = "有效期至: 2030-01-01";
+                ExpiryDateText.Visibility = Visibility.Visible;
                 MessageBox.Show("软件激活成功！", "授权管理", MessageBoxButton.OK, MessageBoxImage.Information);
                 ActivationOverlay.Visibility = Visibility.Collapsed;
             }

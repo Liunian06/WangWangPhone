@@ -44,6 +44,10 @@ bool LicenseManager::isActivated() const {
     return activated;
 }
 
+LicensePayload LicenseManager::getLicensePayload() const {
+    return currentPayload;
+}
+
 bool LicenseManager::decodeAndVerify(const std::string& licenseKey, LicensePayload& outPayload) {
     // 逻辑步骤：
     // 1. Base64 解码 licenseKey

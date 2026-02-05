@@ -26,6 +26,9 @@ public:
     // 获取当前授权状态
     bool isActivated() const;
 
+    // 获取当前授权载荷
+    LicensePayload getLicensePayload() const;
+
     // 获取机器码 (平台相关实现)
     std::string getMachineId();
 

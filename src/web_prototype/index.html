@@ -470,7 +470,10 @@
                 <div class="section-title">激活与授权</div>
                 <div class="settings-list">
                     <div class="settings-item" onclick="showActivation()">
-                        <span>软件激活</span>
+                        <div style="display: flex; flex-direction: column;">
+                            <span>软件激活</span>
+                            <span id="expiry-date-web" style="font-size: 11px; color: #8E8E93; display: none;">有效期至: 2030-01-01</span>
+                        </div>
                         <span class="status-val">未激活 ></span>
                     </div>
                 </div>
@@ -567,7 +570,9 @@
             alert('软件激活成功！');
             // 更新设置界面的激活状态文本
             const statusEls = document.querySelectorAll('.status-val');
-            statusEls.forEach(el => el.textContent = "已激活 >");
+            statusEls.forEach(el => el.textContent = "已查看 >");
+            const expiryEl = document.getElementById('expiry-date-web');
+            if (expiryEl) expiryEl.style.display = 'block';
             hideActivation();
         } else {
             alert('激活码无效，请检查后重试。');

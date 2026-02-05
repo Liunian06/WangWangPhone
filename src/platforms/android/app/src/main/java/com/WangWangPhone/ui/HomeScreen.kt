@@ -176,7 +176,7 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 }
 
 @Composable
-fun SettingsScreen(isActivated: Boolean, onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
+fun SettingsScreen(isActivated: Boolean, expiryDate: String, onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
@@ -234,8 +234,13 @@ fun SettingsScreen(isActivated: Boolean, onBack: () -> Unit, onNavigateToActivat
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("软件激活", fontSize = 16.sp, color = textColor)
-                Text(if (isActivated) "已激活 >" else "未激活 >", color = Color.Gray, fontSize = 16.sp)
+                Column {
+                    Text("软件激活", fontSize = 16.sp, color = textColor)
+                    if (isActivated) {
+                        Text("有效期至: $expiryDate", fontSize = 12.sp, color = Color.Gray)
+                    }
+                }
+                Text(if (isActivated) "已查看 >" else "未激活 >", color = Color.Gray, fontSize = 16.sp)
             }
         }
     }
@@ -367,6 +372,8 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
 fun HomeScreen() {
     var showSettings by remember { mutableStateOf(false) }
     var showActivation by remember { mutableStateOf(false) }
+    var isActivated by remember { mutableStateOf(false) }
+    var expiryDate by remember { mutableStateOf("2030-01-01") } // 模拟获取到的过期时间
 
     val apps = listOf(
         AppIcon("电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
@@ -384,6 +391,8 @@ fun HomeScreen() {
 
         if (showSettings) {
             SettingsScreen(
+                isActivated = isActivated,
+                expiryDate = expiryDate,
                 onBack = { showSettings = false },
                 onNavigateToActivation = {
                     showActivation = true
@@ -392,7 +401,10 @@ fun HomeScreen() {
         }
 
         if (showActivation) {
-            ActivationScreen(onBack = { showActivation = false })
+            ActivationScreen(
+                onBack = { showActivation = false },
+                onActivated = { isActivated = true }
+            )
         }
     }
 }

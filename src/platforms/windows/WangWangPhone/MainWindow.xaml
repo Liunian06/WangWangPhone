@@ -107,7 +107,10 @@
                         <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="0">
                             <Button HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Click="OnActivationClickUI">
                                 <Grid Padding="15">
-                                    <TextBlock Text="软件激活" FontSize="16" VerticalAlignment="Center" Foreground="{DynamicResource SystemTextBrush}"/>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="软件激活" FontSize="16" Foreground="{DynamicResource SystemTextBrush}"/>
+                                        <TextBlock x:Name="ExpiryDateText" Text="有效期至: 2030-01-01" FontSize="12" Foreground="#8E8E93" Visibility="Collapsed"/>
+                                    </StackPanel>
                                     <TextBlock x:Name="ActivationStatusText" Text="未激活 >" Foreground="#8E8E93" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                 </Grid>
                             </Button>

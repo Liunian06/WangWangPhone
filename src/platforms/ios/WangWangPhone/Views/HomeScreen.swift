@@ -127,6 +127,7 @@ struct HomeScreen: View {
     @State private var showSettings = false
     @State private var showActivation = false
     @State private var isActivated = false
+    @State private var expiryDate = "2030-01-01"
 
     var body: some View {
         ZStack {
@@ -205,7 +206,7 @@ struct HomeScreen: View {
                     .padding(.bottom, 8)
             }
             if showSettings {
-                SettingsView(showSettings: $showSettings, showActivation: $showActivation, isActivated: $isActivated)
+                SettingsView(showSettings: $showSettings, showActivation: $showActivation, isActivated: $isActivated, expiryDate: expiryDate)
                     .transition(.move(edge: .trailing))
                     .zIndex(1)
             }
@@ -236,6 +237,7 @@ struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var showActivation: Bool
     @Binding var isActivated: Bool
+    var expiryDate: String
     @Environment(\.colorScheme) var colorScheme
     
     var body: some View {
@@ -243,9 +245,16 @@ struct SettingsView: View {
             List {
                 Section(header: Text("激活与授权")) {
                     HStack {
-                        Text("软件激活")
+                        VStack(alignment: .leading) {
+                            Text("软件激活")
+                            if isActivated {
+                                Text("有效期至: \(expiryDate)")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        }
                         Spacer()
-                        Text(isActivated ? "已激活" : "未激活")
+                        Text(isActivated ? "已查看" : "未激活")
                             .foregroundColor(.gray)
                     }
                     .contentShape(Rectangle())
