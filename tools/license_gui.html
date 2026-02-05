@@ -3,262 +3,359 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>汪汪机 - 授权签名管理后台</title>
+    <title>汪汪机 - 签名管理系统</title>
     <style>
         :root {
-            --primary-color: #007AFF;
-            --bg-color: #F2F2F7;
-            --card-bg: #FFFFFF;
-            --text-color: #000000;
-            --secondary-text: #8E8E93;
+            --primary: #007AFF;
+            --bg: #F2F2F7;
+            --card: #FFFFFF;
+            --text: #000000;
+            --secondary: #8E8E93;
+            --border: rgba(0,0,0,0.1);
         }
 
         @media (prefers-color-scheme: dark) {
             :root {
-                --bg-color: #1C1C1E;
-                --card-bg: #2C2C2E;
-                --text-color: #FFFFFF;
-                --secondary-text: #AEAEB2;
+                --bg: #1C1C1E;
+                --card: #2C2C2E;
+                --text: #FFFFFF;
+                --secondary: #AEAEB2;
+                --border: rgba(255,255,255,0.1);
             }
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
             margin: 0;
+            background-color: var(--bg);
+            color: var(--text);
             display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            height: 100vh;
         }
 
-        .container {
-            width: 100%;
-            max-width: 500px;
+        /* 侧边栏 */
+        .sidebar {
+            width: 240px;
+            background-color: var(--card);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px 0;
+        }
+
+        .sidebar-header {
+            padding: 0 20px 20px;
+            font-size: 20px;
+            font-weight: bold;
+            color: var(--primary);
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 10px;
+        }
+
+        .nav-item {
+            padding: 15px 20px;
+            cursor: pointer;
+            transition: background 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+        }
+
+        .nav-item:hover {
+            background-color: rgba(0, 122, 255, 0.1);
+        }
+
+        .nav-item.active {
+            color: var(--primary);
+            background-color: rgba(0, 122, 255, 0.15);
+        }
+
+        /* 主内容 */
+        .main-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 30px;
+        }
+
+        .view {
+            display: none;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* 通用组件 */
+        .card {
+            background: var(--card);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+            margin-bottom: 24px;
+        }
+
+        h2 { margin-top: 0; margin-bottom: 20px; font-size: 20px; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+
+        .stat-card {
+            text-align: center;
             padding: 20px;
         }
 
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 20px;
-            padding: 30px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-        }
+        .stat-value { font-size: 32px; font-weight: bold; color: var(--primary); }
+        .stat-label { font-size: 14px; color: var(--secondary); margin-top: 8px; }
 
-        h1 {
-            font-size: 24px;
-            margin-top: 0;
-            text-align: center;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--secondary-text);
-        }
-
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--secondary); }
         input, select, textarea {
-            width: 100%;
-            padding: 12px;
-            border-radius: 10px;
-            border: 1px solid rgba(0,0,0,0.1);
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-size: 16px;
-            box-sizing: border-box;
-            font-family: inherit;
-        }
-
-        textarea {
-            height: 100px;
-            resize: none;
-            word-break: break-all;
+            width: 100%; padding: 12px; border-radius: 10px; border: 1px solid var(--border);
+            background: var(--bg); color: var(--text); font-size: 15px; box-sizing: border-box;
         }
 
         .btn {
-            width: 100%;
-            padding: 15px;
-            border-radius: 12px;
-            border: none;
-            background-color: var(--primary-color);
-            color: white;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
+            background: var(--primary); color: white; border: none; padding: 14px 24px;
+            border-radius: 10px; font-weight: 600; cursor: pointer; transition: opacity 0.2s;
         }
 
-        .btn:hover {
-            opacity: 0.9;
-        }
+        .btn:disabled { background: var(--secondary); opacity: 0.5; }
 
-        .btn:disabled {
-            background-color: var(--secondary-text);
-            cursor: not-allowed;
+        /* 表格样式 */
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid var(--border); }
+        th { color: var(--secondary); font-weight: 600; }
+        
+        .badge {
+            padding: 4px 8px; border-radius: 6px; font-size: 12px; font-weight: 600;
         }
-
-        .result-area {
-            margin-top: 30px;
-            display: none;
-        }
+        .badge-pro { background: rgba(0, 122, 255, 0.1); color: var(--primary); }
+        .badge-std { background: rgba(142, 142, 147, 0.1); color: var(--secondary); }
 
         .result-box {
-            background-color: rgba(52, 199, 89, 0.1);
-            border: 1px solid #34C759;
-            color: #34C759;
-            padding: 15px;
-            border-radius: 10px;
-            word-break: break-all;
-            font-family: monospace;
-            font-size: 14px;
-            position: relative;
-        }
-
-        .copy-btn {
-            margin-top: 10px;
-            background-color: transparent;
-            color: var(--primary-color);
-            border: 1px solid var(--primary-color);
-            padding: 8px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-
-        .status-msg {
-            text-align: center;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-
-        .error {
-            color: #FF3B30;
+            background: rgba(52, 199, 89, 0.1); border: 1px solid #34C759; color: #34C759;
+            padding: 15px; border-radius: 10px; word-break: break-all; font-family: monospace; margin-top: 10px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="card">
-            <h1>汪汪机签名系统</h1>
-            
-            <div class="form-group">
-                <label for="machineId">用户机器码 (Machine ID)</label>
-                <input type="text" id="machineId" placeholder="例如: WIN-XXXXXX 或 AND-XXXXXX">
-            </div>
+    <div class="sidebar">
+        <div class="sidebar-header">汪汪机管理</div>
+        <div class="nav-item active" onclick="showView('dashboard')">📊 控制台面板</div>
+        <div class="nav-item" onclick="showView('sign')">🔑 签发激活码</div>
+        <div class="nav-item" onclick="showView('trace')">🔍 激活码溯源</div>
+        <div class="nav-item" onclick="showView('database')">💾 数据库查询</div>
+    </div>
 
-            <div style="display: flex; gap: 15px;">
-                <div class="form-group" style="flex: 1;">
-                    <label for="xhsID">小红书 ID (可选)</label>
-                    <input type="number" id="xhsID" placeholder="溯源用">
+    <div class="main-content">
+        <!-- 控制台 -->
+        <div id="dashboard" class="view active">
+            <h2>数据概览</h2>
+            <div class="grid">
+                <div class="card stat-card">
+                    <div id="stat-total" class="stat-value">-</div>
+                    <div class="stat-label">总签发数量</div>
                 </div>
-                <div class="form-group" style="flex: 1;">
-                    <label for="qqID">QQ ID (可选)</label>
-                    <input type="number" id="qqID" placeholder="溯源用">
+                <div class="card stat-card">
+                    <div id="stat-24h" class="stat-value">-</div>
+                    <div class="stat-label">24小时内签发</div>
+                </div>
+                <div class="card stat-card">
+                    <div id="stat-pro" class="stat-value">-</div>
+                    <div class="stat-label">专业版数量</div>
                 </div>
             </div>
+        </div>
 
-            <div class="form-group">
-                <label for="days">有效时长 (天)</label>
-                <select id="days">
-                    <option value="30">30 天 (月度)</option>
-                    <option value="90">90 天 (季度)</option>
-                    <option value="365" selected>365 天 (年度)</option>
-                    <option value="3650">3650 天 (永久/长期)</option>
-                </select>
+        <!-- 签发激活码 -->
+        <div id="sign" class="view">
+            <h2>签发新授权</h2>
+            <div class="card">
+                <div class="form-group">
+                    <label>机器码 (Machine ID)</label>
+                    <input type="text" id="mid" placeholder="例如: WIN-XXXXXX">
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>小红书 ID (可选)</label>
+                        <input type="number" id="xhs" placeholder="用于溯源">
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>QQ ID (可选)</label>
+                        <input type="number" id="qq" placeholder="用于溯源">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 15px;">
+                    <div class="form-group" style="flex: 1;">
+                        <label>有效时长</label>
+                        <select id="days">
+                            <option value="30">30 天</option>
+                            <option value="365" selected>1 年</option>
+                            <option value="3650">长期 (10年)</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex: 1;">
+                        <label>授权级别</label>
+                        <select id="type">
+                            <option value="standard">标准版</option>
+                            <option value="pro" selected>专业版</option>
+                        </select>
+                    </div>
+                </div>
+                <button onclick="submitSign()" id="signBtn" class="btn">生成激活码</button>
+                <div id="signResult" style="display: none;">
+                    <div class="result-box" id="licenseText"></div>
+                    <button class="btn" style="margin-top: 10px; background: transparent; color: var(--primary); border: 1px solid var(--primary);" onclick="copyLicense()">复制激活码</button>
+                </div>
             </div>
+        </div>
 
-            <div class="form-group">
-                <label for="type">授权级别</label>
-                <select id="type">
-                    <option value="standard">标准版 (Standard)</option>
-                    <option value="pro" selected>专业版 (Pro)</option>
-                    <option value="enterprise">企业版 (Enterprise)</option>
-                </select>
+        <!-- 溯源 -->
+        <div id="trace" class="view">
+            <h2>激活码溯源</h2>
+            <div class="card">
+                <div class="form-group">
+                    <label>激活码全文</label>
+                    <textarea id="traceInput" placeholder="粘贴完整的 WANGWANG- 激活码"></textarea>
+                </div>
+                <button onclick="submitTrace()" class="btn">解析回原文</button>
+                <div id="traceResult" style="margin-top: 20px; display: none;">
+                    <h3>解密数据:</h3>
+                    <div class="result-box" style="color: var(--text); background: var(--bg); border-color: var(--border);">
+                        <pre id="traceData" style="margin: 0; white-space: pre-wrap;"></pre>
+                    </div>
+                </div>
             </div>
+        </div>
 
-            <button id="signBtn" class="btn">生成激活码</button>
-
-            <div id="status" class="status-msg"></div>
-
-            <div id="resultArea" class="result-area">
-                <label>生成的激活码:</label>
-                <div id="licenseResult" class="result-box"></div>
-                <button id="copyBtn" class="copy-btn">复制激活码</button>
+        <!-- 数据库查询 -->
+        <div id="database" class="view">
+            <h2>数据详情查询</h2>
+            <div class="card">
+                <div class="form-group">
+                    <input type="text" id="queryInput" placeholder="输入关键词 (空格分隔多词检索)..." onkeyup="if(event.keyCode===13)submitQuery()">
+                </div>
+                <button onclick="submitQuery()" class="btn">搜索</button>
+            </div>
+            <div class="card table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>机器码</th>
+                            <th>类型</th>
+                            <th>溯源 ID</th>
+                            <th>IP 地址</th>
+                        </tr>
+                    </thead>
+                    <tbody id="queryTableBody"></tbody>
+                </table>
             </div>
         </div>
     </div>
 
     <script>
-        const signBtn = document.getElementById('signBtn');
-        const copyBtn = document.getElementById('copyBtn');
-        const machineIdInput = document.getElementById('machineId');
-        const xhsIDInput = document.getElementById('xhsID');
-        const qqIDInput = document.getElementById('qqID');
-        const daysSelect = document.getElementById('days');
-        const typeSelect = document.getElementById('type');
-        const resultArea = document.getElementById('resultArea');
-        const licenseResult = document.getElementById('licenseResult');
-        const statusMsg = document.getElementById('status');
-
-        signBtn.onclick = async () => {
-            const mid = machineIdInput.value.trim();
-            if (!mid) {
-                showStatus('请输入机器码', true);
-                return;
-            }
-
-            signBtn.disabled = true;
-            showStatus('正在生成...', false);
-            resultArea.style.display = 'none';
-
-            try {
-                const response = await fetch('/api/sign', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        mid: mid,
-                        days: parseInt(daysSelect.value),
-                        type: typeSelect.value,
-                        xhs: parseInt(xhsIDInput.value) || 0,
-                        qq: parseInt(qqIDInput.value) || 0
-                    })
-                });
-
-                const data = await response.json();
-
-                if (data.success) {
-                    licenseResult.textContent = data.license;
-                    resultArea.style.display = 'block';
-                    showStatus('生成成功！', false);
-                } else {
-                    showStatus('失败: ' + data.error, true);
-                }
-            } catch (err) {
-                showStatus('网络请求失败', true);
-            } finally {
-                signBtn.disabled = false;
-            }
-        };
-
-        copyBtn.onclick = () => {
-            navigator.clipboard.writeText(licenseResult.textContent).then(() => {
-                const originalText = copyBtn.textContent;
-                copyBtn.textContent = '已复制！';
-                setTimeout(() => copyBtn.textContent = originalText, 2000);
-            });
-        };
-
-        function showStatus(msg, isError) {
-            statusMsg.textContent = msg;
-            statusMsg.className = 'status-msg' + (isError ? ' error' : '');
+        // 导航切换
+        function showView(viewId) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+            document.getElementById(viewId).classList.add('active');
+            event.target.classList.add('active');
+            if(viewId === 'dashboard') loadStats();
         }
+
+        // 格式化日期
+        const fmtDate = ts => new Date(ts * 1000).toLocaleString();
+
+        // 获取统计
+        async function loadStats() {
+            const res = await fetch('/api/stats');
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('stat-total').textContent = data.stats.total;
+                document.getElementById('stat-24h').textContent = data.stats.recent_24h;
+                document.getElementById('stat-pro').textContent = data.stats.pro;
+            }
+        }
+
+        // 签发
+        async function submitSign() {
+            const btn = document.getElementById('signBtn');
+            btn.disabled = true;
+            const res = await fetch('/api/sign', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    mid: document.getElementById('mid').value,
+                    xhs: parseInt(document.getElementById('xhs').value) || 0,
+                    qq: parseInt(document.getElementById('qq').value) || 0,
+                    days: parseInt(document.getElementById('days').value),
+                    type: document.getElementById('type').value
+                })
+            });
+            const data = await res.json();
+            if(data.success) {
+                document.getElementById('signResult').style.display = 'block';
+                document.getElementById('licenseText').textContent = data.license;
+            } else {
+                alert('签发失败: ' + data.error);
+            }
+            btn.disabled = false;
+        }
+
+        function copyLicense() {
+            navigator.clipboard.writeText(document.getElementById('licenseText').textContent);
+            alert('已复制');
+        }
+
+        // 溯源
+        async function submitTrace() {
+            const res = await fetch('/api/trace', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ license: document.getElementById('traceInput').value.trim() })
+            });
+            const data = await res.json();
+            const resDiv = document.getElementById('traceResult');
+            if(data.success) {
+                resDiv.style.display = 'block';
+                document.getElementById('traceData').textContent = JSON.stringify(data.data, null, 2);
+            } else {
+                alert('溯源失败: ' + data.error);
+            }
+        }
+
+        // 查询
+        async function submitQuery() {
+            const q = document.getElementById('queryInput').value;
+            const res = await fetch('/api/query?q=' + encodeURIComponent(q));
+            const data = await res.json();
+            const body = document.getElementById('queryTableBody');
+            body.innerHTML = '';
+            if(data.success) {
+                data.data.forEach(row => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${fmtDate(row.created_at)}</td>
+                        <td title="${row.machine_id}">${row.machine_id.substring(0,12)}...</td>
+                        <td><span class="badge badge-${row.license_type === 'pro' ? 'pro' : 'std'}">${row.license_type}</span></td>
+                        <td>${row.xhs_id || '-'}/${row.qq_id || '-'}</td>
+                        <td>${row.client_ip || 'local'}</td>
+                    `;
+                    body.appendChild(tr);
+                });
+            }
+        }
+
+        // 初始加载统计
+        loadStats();
     </script>
 </body>
 </html>

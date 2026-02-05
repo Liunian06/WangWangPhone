@@ -18,7 +18,7 @@ db.prepare(`CREATE TABLE IF NOT EXISTS sign_logs (
         qq_id INTEGER,
         client_ip TEXT,
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
-    )`);
+    )`).run();
 
 // 导入签名逻辑 (模拟 license_tool.js 的功能)
 function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = 0, qqID = 0, ip = '127.0.0.1') {
@@ -60,7 +60,54 @@ function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = 0, qqID =
     }
 }
 
+// 溯源：解密激活码
+function traceLicense(licenseKey) {
+    try {
+        if (!licenseKey.startsWith('WANGWANG-')) {
+            throw new Error('无效的激活码格式');
+        }
+
+        const rest = licenseKey.substring('WANGWANG-'.length);
+        const parts = rest.split('.');
+        if (parts.length !== 2) {
+            throw new Error('激活码数据不完整');
+        }
+
+        const payloadBase64 = parts[0];
+        const signatureBase64 = parts[1];
+        const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf8');
+        const payload = JSON.parse(payloadJson);
+
+        // 验证签名
+        const publicKeyPath = path.join(__dirname, 'keys/public.pem');
+        if (fs.existsSync(publicKeyPath)) {
+            const publicKey = fs.readFileSync(publicKeyPath);
+            const verifier = crypto.createVerify('SHA256');
+            verifier.update(payloadJson);
+            const isValid = verifier.verify(publicKey, signatureBase64, 'base64');
+            payload.is_authentic = isValid;
+        } else {
+            payload.is_authentic = 'unknown (public key missing)';
+        }
+
+        return { success: true, data: payload };
+    } catch (err) {
+        return { success: false, error: err.message };
+    }
+}
+
 const server = http.createServer((req, res) => {
+    // 允许跨域 (如果需要)
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+    if (req.method === 'OPTIONS') {
+        res.writeHead(204);
+        res.end();
+        return;
+    }
+
     // 处理静态 HTML 页面
     if (req.url === '/' || req.url === '/index.html') {
         fs.readFile(path.join(__dirname, 'license_gui.html'), (err, data) => {
@@ -73,7 +120,7 @@ const server = http.createServer((req, res) => {
             res.end(data);
         });
     } 
-    // 处理签名 API
+    // API: 签发
     else if (req.url === '/api/sign' && req.method === 'POST') {
         let body = '';
         req.on('data', chunk => { body += chunk.toString(); });
@@ -89,7 +136,73 @@ const server = http.createServer((req, res) => {
                 res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
             }
         });
-    } else {
+    }
+    // API: 统计信息
+    else if (req.url === '/api/stats' && req.method === 'GET') {
+        try {
+            const total = db.prepare("SELECT COUNT(*) as count FROM sign_logs").get().count;
+            const recent = db.prepare("SELECT COUNT(*) as count FROM sign_logs WHERE created_at > (strftime('%s', 'now') - 86400)").get().count;
+            const proCount = db.prepare("SELECT COUNT(*) as count FROM sign_logs WHERE license_type = 'pro'").get().count;
+            const standardCount = db.prepare("SELECT COUNT(*) as count FROM sign_logs WHERE license_type = 'standard'").get().count;
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: true,
+                stats: { total, recent_24h: recent, pro: proCount, standard: standardCount }
+            }));
+        } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+    }
+    // API: 溯源
+    else if (req.url === '/api/trace' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk.toString(); });
+        req.on('end', () => {
+            try {
+                const params = JSON.parse(body);
+                const result = traceLicense(params.license);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify(result));
+            } catch (err) {
+                res.writeHead(400);
+                res.end(JSON.stringify({ success: false, error: 'Invalid request' }));
+            }
+        });
+    }
+    // API: 查询
+    else if (req.url.startsWith('/api/query') && req.method === 'GET') {
+        try {
+            const url = new URL(req.url, `http://${req.headers.host}`);
+            const query = url.searchParams.get('q') || '';
+            const keywords = query.split(/\s+/).filter(k => k.length > 0);
+            
+            let sql = "SELECT * FROM sign_logs";
+            let params = [];
+            
+            if (keywords.length > 0) {
+                sql += " WHERE " + keywords.map(() => 
+                    "(machine_id LIKE ? OR license_key LIKE ? OR license_type LIKE ? OR xhs_id LIKE ? OR qq_id LIKE ? OR client_ip LIKE ?)"
+                ).join(" AND ");
+                
+                keywords.forEach(kw => {
+                    const pattern = `%${kw}%`;
+                    params.push(pattern, pattern, pattern, pattern, pattern, pattern);
+                });
+            }
+            
+            sql += " ORDER BY created_at DESC LIMIT 100";
+            const rows = db.prepare(sql).all(...params);
+            
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ success: true, data: rows }));
+        } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+    }
+    else {
         res.writeHead(404);
         res.end('Not Found');
     }
@@ -97,6 +210,5 @@ const server = http.createServer((req, res) => {
 
 const PORT = 3000;
 server.listen(PORT, () => {
-    console.log(`汪汪机授权签名后台已启动: http://localhost:${PORT}`);
-    console.log(`请在浏览器中打开该地址进行签名。`);
+    console.log(`汪汪机管理系统已启动: http://localhost:${PORT}`);
 });
