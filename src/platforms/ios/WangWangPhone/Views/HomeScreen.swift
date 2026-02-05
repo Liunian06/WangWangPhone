@@ -152,16 +152,16 @@ struct HomeScreen: View {
                         VStack(spacing: 8) {
                             ZStack {
                                 if app.useImage {
-                                    Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fit)
-                                        .frame(width: 60, height: 60)
-                                } else {
-                                    Text(app.icon)
-                                        .font(.system(size: 50))
+                                        Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fit)
+                                            .frame(width: 80, height: 80)
+                                    } else {
+                                        Text(app.icon)
+                                            .font(.system(size: 65))
+                                    }
                                 }
-                            }
-                            .frame(width: 60, height: 60)
+                                .frame(width: 80, height: 80)
                             Text(app.name)
                                 .font(.caption)
                                 .foregroundColor(.white)
@@ -195,13 +195,13 @@ struct HomeScreen: View {
                                     Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
-                                        .frame(width: 55, height: 55)
+                                        .frame(width: 70, height: 70)
                                 } else {
                                     Text(app.icon)
-                                        .font(.system(size: 45))
+                                        .font(.system(size: 55))
                                 }
                             }
-                            .frame(width: 55, height: 55)
+                            .frame(width: 70, height: 70)
                         }
                     }
                 }

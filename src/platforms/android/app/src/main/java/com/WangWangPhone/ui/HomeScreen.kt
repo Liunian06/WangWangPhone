@@ -474,7 +474,7 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                 apps.take(4).forEach { app ->
                     Box(
                         modifier = Modifier
-                            .size(55.dp),
+                            .size(70.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (app.useImage) {
@@ -484,11 +484,11 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                                 Image(
                                     painter = androidx.compose.ui.res.painterResource(id = resId),
                                     contentDescription = app.name,
-                                    modifier = Modifier.size(35.dp)
+                                    modifier = Modifier.size(50.dp)
                                 )
                             }
                         } else {
-                            Text(app.icon, fontSize = 28.sp)
+                            Text(app.icon, fontSize = 40.sp)
                         }
                     }
                 }
@@ -516,7 +516,7 @@ fun AppIconItem(app: AppIcon, onClick: () -> Unit = {}) {
     ) {
         Box(
             modifier = Modifier
-                .size(60.dp),
+                .size(80.dp),
             contentAlignment = Alignment.Center
         ) {
             if (app.useImage) {
@@ -526,11 +526,11 @@ fun AppIconItem(app: AppIcon, onClick: () -> Unit = {}) {
                     Image(
                         painter = androidx.compose.ui.res.painterResource(id = resId),
                         contentDescription = app.name,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(60.dp)
                     )
                 }
             } else {
-                Text(app.icon, fontSize = 30.sp)
+                Text(app.icon, fontSize = 50.sp)
             }
         }
         Spacer(modifier = Modifier.height(5.dp))
