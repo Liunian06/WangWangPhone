@@ -474,9 +474,7 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                 apps.take(4).forEach { app ->
                     Box(
                         modifier = Modifier
-                            .size(55.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(app.color),
+                            .size(55.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (app.useImage) {
@@ -518,9 +516,7 @@ fun AppIconItem(app: AppIcon, onClick: () -> Unit = {}) {
     ) {
         Box(
             modifier = Modifier
-                .size(60.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(app.color),
+                .size(60.dp),
             contentAlignment = Alignment.Center
         ) {
             if (app.useImage) {

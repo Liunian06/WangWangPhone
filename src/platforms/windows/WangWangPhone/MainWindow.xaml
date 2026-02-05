@@ -66,22 +66,22 @@
         <!-- App Grid (Placeholder) -->
         <UniformGrid Grid.Row="1" Margin="20,180,20,0" Columns="4" VerticalAlignment="Top">
             <StackPanel HorizontalAlignment="Center" Margin="5">
-                 <Border Width="60" Height="60" CornerRadius="14" Background="Pink">
-                     <TextBlock Text="📞" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                 <Border Width="60" Height="60">
+                     <TextBlock Text="📞" FontSize="50" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                  </Border>
                  <TextBlock Text="电话" Foreground="White" FontSize="12" HorizontalAlignment="Center" Margin="0,5,0,0"/>
             </StackPanel>
              <StackPanel HorizontalAlignment="Center" Margin="5">
-                 <Border Width="60" Height="60" CornerRadius="14" Background="LightBlue">
-                     <TextBlock Text="💬" FontSize="30" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                 <Border Width="60" Height="60">
+                     <TextBlock Text="💬" FontSize="50" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                  </Border>
                  <TextBlock Text="信息" Foreground="White" FontSize="12" HorizontalAlignment="Center" Margin="0,5,0,0"/>
             </StackPanel>
             <StackPanel HorizontalAlignment="Center" Margin="5" MouseDown="OnSettingsClick">
-                 <Border Width="60" Height="60" CornerRadius="14" Background="Gray">
+                 <Border Width="60" Height="60">
                      <Grid>
-                         <Image x:Name="SettingsIconLight" Source="Assets/Setting_Light.png" Width="40" Height="40" Visibility="Visible"/>
-                         <Image x:Name="SettingsIconDark" Source="Assets/Setting_Dark.png" Width="40" Height="40" Visibility="Collapsed"/>
+                         <Image x:Name="SettingsIconLight" Source="Assets/Setting_Light.png" Width="60" Height="60" Visibility="Visible"/>
+                         <Image x:Name="SettingsIconDark" Source="Assets/Setting_Dark.png" Width="60" Height="60" Visibility="Collapsed"/>
                      </Grid>
                  </Border>
                  <TextBlock Text="设置" Foreground="White" FontSize="12" HorizontalAlignment="Center" Margin="0,5,0,0"/>
@@ -178,11 +178,11 @@
         <!-- Dock (Placeholder) -->
         <Border Grid.Row="2" Height="90" Margin="15,0,15,20" CornerRadius="30" Background="#4DFFFFFF">
             <UniformGrid Columns="4">
-                 <Border Width="55" Height="55" CornerRadius="14" Background="Pink" HorizontalAlignment="Center" VerticalAlignment="Center">
-                     <TextBlock Text="📞" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                 <Border Width="55" Height="55" HorizontalAlignment="Center" VerticalAlignment="Center">
+                     <TextBlock Text="📞" FontSize="45" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                  </Border>
-                  <Border Width="55" Height="55" CornerRadius="14" Background="LightBlue" HorizontalAlignment="Center" VerticalAlignment="Center">
-                     <TextBlock Text="💬" FontSize="28" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                  <Border Width="55" Height="55" HorizontalAlignment="Center" VerticalAlignment="Center">
+                     <TextBlock Text="💬" FontSize="45" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                  </Border>
             </UniformGrid>
         </Border>

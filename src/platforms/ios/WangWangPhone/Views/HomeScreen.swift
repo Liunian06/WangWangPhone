@@ -151,19 +151,17 @@ struct HomeScreen: View {
                     ForEach(apps) { app in
                         VStack(spacing: 8) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(LinearGradient(colors: app.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .frame(width: 60, height: 60)
                                 if app.useImage {
                                     Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
-                                        .frame(width: 40, height: 40)
+                                        .frame(width: 60, height: 60)
                                 } else {
                                     Text(app.icon)
-                                        .font(.system(size: 30))
+                                        .font(.system(size: 50))
                                 }
                             }
+                            .frame(width: 60, height: 60)
                             Text(app.name)
                                 .font(.caption)
                                 .foregroundColor(.white)
@@ -193,19 +191,17 @@ struct HomeScreen: View {
                     HStack(spacing: 25) {
                         ForEach(apps.prefix(4)) { app in
                             ZStack {
-                                RoundedRectangle(cornerRadius: 14)
-                                    .fill(LinearGradient(colors: app.colors, startPoint: .topLeading, endPoint: .bottomTrailing))
-                                    .frame(width: 55, height: 55)
                                 if app.useImage {
                                     Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
-                                        .frame(width: 35, height: 35)
+                                        .frame(width: 55, height: 55)
                                 } else {
                                     Text(app.icon)
-                                        .font(.system(size: 28))
+                                        .font(.system(size: 45))
                                 }
                             }
+                            .frame(width: 55, height: 55)
                         }
                     }
                 }

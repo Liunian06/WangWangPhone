@@ -208,13 +208,14 @@
         .app-icon {
             width: 60px;
             height: 60px;
-            background: white;
-            border-radius: 14px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 30px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+            font-size: 50px;
+        }
+
+        .dock .app-icon {
+            font-size: 45px;
         }
 
         .app-name {
@@ -428,31 +429,31 @@
 
         <div class="app-grid">
             <div class="app-icon-wrapper">
-                <div class="app-icon" style="background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 99%, #fecfef 100%);">📞</div>
+                <div class="app-icon">📞</div>
                 <div class="app-name">电话</div>
             </div>
             <div class="app-icon-wrapper">
-                <div class="app-icon" style="background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);">💬</div>
+                <div class="app-icon">💬</div>
                 <div class="app-name">信息</div>
             </div>
             <div class="app-icon-wrapper">
-                <div class="app-icon" style="background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);">🧭</div>
+                <div class="app-icon">🧭</div>
                 <div class="app-name">Safari</div>
             </div>
             <div class="app-icon-wrapper">
-                <div class="app-icon" style="background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);">🎵</div>
+                <div class="app-icon">🎵</div>
                 <div class="app-name">音乐</div>
             </div>
             <div class="app-icon-wrapper">
-                <div class="app-icon" style="background: #fff;">📷</div>
+                <div class="app-icon">📷</div>
                 <div class="app-name">相机</div>
             </div>
             <div class="app-icon-wrapper">
-                <div class="app-icon" style="background: #fff;">📅</div>
+                <div class="app-icon">📅</div>
                 <div class="app-name">日历</div>
             </div>
             <div class="app-icon-wrapper" onclick="showSettings()">
-                <div class="app-icon" style="background: #fff;">
+                <div class="app-icon">
                     <picture>
                         <source srcset="Setting_Dark.png" media="(prefers-color-scheme: dark)">
                         <img src="Setting_Light.png" alt="设置" class="settings-icon-img">
@@ -461,17 +462,17 @@
                 <div class="app-name">设置</div>
             </div>
             <div class="app-icon-wrapper">
-                <div class="app-icon" style="background: #fff;">🐶</div>
+                <div class="app-icon">🐶</div>
                 <div class="app-name">汪汪</div>
             </div>
         </div>
 
         <!-- Dock 栏 -->
         <div class="dock">
-            <div class="app-icon" style="width: 55px; height: 55px;">📞</div>
-            <div class="app-icon" style="width: 55px; height: 55px;">💬</div>
-            <div class="app-icon" style="width: 55px; height: 55px;">🧭</div>
-            <div class="app-icon" style="width: 55px; height: 55px;">🎵</div>
+            <div class="app-icon">📞</div>
+            <div class="app-icon">💬</div>
+            <div class="app-icon">🧭</div>
+            <div class="app-icon">🎵</div>
         </div>
 
         <div class="home-indicator"></div>
