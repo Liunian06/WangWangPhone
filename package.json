@@ -19,5 +19,8 @@
   "bugs": {
     "url": "https://github.com/Liunian06/WangWangPhone/issues"
   },
-  "homepage": "https://github.com/Liunian06/WangWangPhone#readme"
+  "homepage": "https://github.com/Liunian06/WangWangPhone#readme",
+  "dependencies": {
+    "better-sqlite3": "^12.6.2"
+  }
 }

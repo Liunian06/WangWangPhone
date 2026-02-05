@@ -4,12 +4,11 @@ const path = require('path');
 const crypto = require('crypto');
 
 // 初始化后端签名数据库
-const sqlite3 = require('sqlite3').verbose();
+const sqlite3 = require('better-sqlite3');
 const dbPath = path.join(__dirname, 'server_sign_logs.db');
-const db = new sqlite3.Database(dbPath);
+const db = new sqlite3(dbPath);
 
-db.serialize(() => {
-    db.run(`CREATE TABLE IF NOT EXISTS sign_logs (
+db.prepare(`CREATE TABLE IF NOT EXISTS sign_logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         machine_id TEXT NOT NULL,
         license_key TEXT NOT NULL,
@@ -20,7 +19,6 @@ db.serialize(() => {
         client_ip TEXT,
         created_at INTEGER DEFAULT (strftime('%s', 'now'))
     )`);
-});
 
 // 导入签名逻辑 (模拟 license_tool.js 的功能)
 function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = 0, qqID = 0, ip = '127.0.0.1') {
@@ -55,7 +53,6 @@ function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = 0, qqID =
         // 记录到数据库
         const stmt = db.prepare("INSERT INTO sign_logs (machine_id, license_key, expiration_time, license_type, xhs_id, qq_id, client_ip) VALUES (?, ?, ?, ?, ?, ?, ?)");
         stmt.run(machineId, license, exp, type, xhsID, qqID, ip);
-        stmt.finalize();
 
         return { success: true, license: license };
     } catch (err) {
