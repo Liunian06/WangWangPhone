@@ -155,6 +155,51 @@ const server = http.createServer((req, res) => {
             res.end(JSON.stringify({ success: false, error: err.message }));
         }
     }
+    // API: 图表数据
+    else if (req.url === '/api/chart-data' && req.method === 'GET') {
+        try {
+            // 最近30天每日签发数量
+            const dailyData = db.prepare(`
+                SELECT date(created_at, 'unixepoch') as day, COUNT(*) as count
+                FROM sign_logs
+                WHERE created_at > (strftime('%s', 'now') - 86400 * 30)
+                GROUP BY day
+                ORDER BY day ASC
+            `).all();
+
+            // 最近30天每日按类型分组
+            const dailyByType = db.prepare(`
+                SELECT date(created_at, 'unixepoch') as day, license_type, COUNT(*) as count
+                FROM sign_logs
+                WHERE created_at > (strftime('%s', 'now') - 86400 * 30)
+                GROUP BY day, license_type
+                ORDER BY day ASC
+            `).all();
+
+            // 类型分布
+            const typeDistribution = db.prepare(`
+                SELECT license_type, COUNT(*) as count
+                FROM sign_logs
+                GROUP BY license_type
+            `).all();
+
+            // 最近7天 vs 上7天 对比
+            const recent7 = db.prepare("SELECT COUNT(*) as count FROM sign_logs WHERE created_at > (strftime('%s', 'now') - 86400 * 7)").get().count;
+            const prev7 = db.prepare("SELECT COUNT(*) as count FROM sign_logs WHERE created_at > (strftime('%s', 'now') - 86400 * 14) AND created_at <= (strftime('%s', 'now') - 86400 * 7)").get().count;
+
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({
+                success: true,
+                daily: dailyData,
+                dailyByType: dailyByType,
+                typeDistribution: typeDistribution,
+                weekComparison: { recent7, prev7 }
+            }));
+        } catch (err) {
+            res.writeHead(500);
+            res.end(JSON.stringify({ success: false, error: err.message }));
+        }
+    }
     // API: 溯源
     else if (req.url === '/api/trace' && req.method === 'POST') {
         let body = '';

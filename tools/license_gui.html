@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>汪汪机 - 智能中控台</title>
+    <title>汪汪机签名系统</title>
     <style>
         :root {
             /* 默认浅色模式 (Light Mode) */
@@ -381,12 +381,115 @@
             50% { transform: translateY(-10px); }
         }
         .floating-icon { animation: float 6s ease-in-out infinite; }
+
+        /* 图表区域 */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 25px;
+            margin-top: 25px;
+        }
+        @media (max-width: 900px) {
+            .chart-grid { grid-template-columns: 1fr; }
+        }
+        .chart-card {
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 25px;
+            box-shadow: var(--glass-shadow);
+            transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s, border-color 0.3s;
+        }
+        .chart-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.1);
+        }
+        [data-theme="dark"] .chart-card:hover {
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.45);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .chart-subtitle {
+            font-size: 12px;
+            color: var(--text-secondary);
+            font-weight: 400;
+            margin-left: auto;
+        }
+        canvas {
+            width: 100% !important;
+            max-width: 100%;
+        }
+        .donut-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 15px;
+        }
+        .donut-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--text-main);
+        }
+        .donut-legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .donut-legend-value {
+            margin-left: auto;
+            font-weight: 700;
+            font-size: 16px;
+        }
+        .donut-legend-pct {
+            color: var(--text-secondary);
+            font-size: 13px;
+            min-width: 45px;
+            text-align: right;
+        }
+        .week-comparison {
+            margin-top: 20px;
+            padding: 15px;
+            background: rgba(99, 102, 241, 0.05);
+            border-radius: 12px;
+            border: 1px solid rgba(99, 102, 241, 0.1);
+        }
+        [data-theme="dark"] .week-comparison {
+            background: rgba(99, 102, 241, 0.1);
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+        .week-comparison-label {
+            font-size: 12px;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+        .week-comparison-value {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .trend-up { color: #10B981; }
+        .trend-down { color: #EF4444; }
+        .trend-flat { color: var(--text-secondary); }
     </style>
 </head>
 <body>
     <div class="sidebar">
         <div class="sidebar-header">
-            <div>汪汪机中控</div>
+            <div>汪汪机签名系统</div>
             <button class="theme-toggle" id="themeToggle" title="切换深色/浅色模式">🌓</button>
         </div>
         <div class="nav-item active" data-view="dashboard"><span>📊</span> 控制台</div>
@@ -414,6 +517,28 @@
                     <div class="stat-icon">💎</div>
                     <div class="stat-label">专业版占比</div>
                     <div id="stat-pro" class="stat-value" style="background: none; -webkit-text-fill-color: #8b5cf6; color: #8b5cf6;">-</div>
+                </div>
+            </div>
+
+            <!-- 图表区域 -->
+            <div class="chart-grid">
+                <div class="chart-card">
+                    <div class="chart-title">
+                        📊 签发趋势
+                        <span class="chart-subtitle">近30天</span>
+                    </div>
+                    <canvas id="trendChart" height="260"></canvas>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">
+                        🍩 授权类型分布
+                    </div>
+                    <canvas id="donutChart" height="200"></canvas>
+                    <div class="donut-legend" id="donutLegend"></div>
+                    <div class="week-comparison" id="weekComparison">
+                        <div class="week-comparison-label">本周 vs 上周</div>
+                        <div class="week-comparison-value" id="weekCompValue">-</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -555,7 +680,324 @@
                     animateValue("stat-pro", 0, data.stats.pro, 1000);
                 }
             } catch(e) { console.error(e); }
+
+            // 加载图表数据
+            try {
+                const res2 = await fetch('/api/chart-data');
+                const chartData = await res2.json();
+                if(chartData.success !== false) {
+                    drawTrendChart(chartData.daily || [], chartData.dailyByType || []);
+                    drawDonutChart(chartData.typeDistribution || []);
+                    renderWeekComparison(chartData.weekComparison || { recent7: 0, prev7: 0 });
+                } else {
+                    // API返回失败，绘制空图表
+                    drawTrendChart([], []);
+                    drawDonutChart([]);
+                    renderWeekComparison({ recent7: 0, prev7: 0 });
+                }
+            } catch(e) {
+                console.error('图表数据加载失败', e);
+                // API请求失败，仍然绘制空图表以显示框架
+                drawTrendChart([], []);
+                drawDonutChart([]);
+                renderWeekComparison({ recent7: 0, prev7: 0 });
+            }
         }
+
+        // ====== 图表绘制函数 ======
+
+        function getChartColors() {
+            const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+            return {
+                gridLine: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+                axisText: isDark ? '#94A3B8' : '#6b7280',
+                lineMain: '#6366f1',
+                lineFill: isDark ? 'rgba(99,102,241,0.15)' : 'rgba(99,102,241,0.1)',
+                linePro: '#10B981',
+                lineStd: '#F59E0B',
+                tooltip: isDark ? 'rgba(30,30,50,0.95)' : 'rgba(255,255,255,0.95)',
+                tooltipText: isDark ? '#fff' : '#1f2937',
+                donutPro: '#10B981',
+                donutStd: '#8b5cf6',
+                donutCenter: isDark ? '#1a1a2e' : '#f3f4f6',
+            };
+        }
+
+        function drawTrendChart(dailyData, dailyByType) {
+            const canvas = document.getElementById('trendChart');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = 260 * dpr;
+            ctx.scale(dpr, dpr);
+            canvas.style.height = '260px';
+
+            const colors = getChartColors();
+            const W = rect.width;
+            const H = 260;
+            const pad = { top: 20, right: 20, bottom: 40, left: 50 };
+            const cW = W - pad.left - pad.right;
+            const cH = H - pad.top - pad.bottom;
+
+            ctx.clearRect(0, 0, W, H);
+
+            // 生成近30天完整日期列表
+            const days = [];
+            const today = new Date();
+            for (let i = 29; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                days.push(d.toISOString().split('T')[0]);
+            }
+
+            // 映射数据
+            const dailyMap = {};
+            (dailyData || []).forEach(d => { dailyMap[d.day] = d.count; });
+            const values = days.map(d => dailyMap[d] || 0);
+
+            // Pro/Std 分组
+            const proMap = {}, stdMap = {};
+            (dailyByType || []).forEach(d => {
+                if (d.license_type === 'pro') proMap[d.day] = d.count;
+                else stdMap[d.day] = d.count;
+            });
+            const proValues = days.map(d => proMap[d] || 0);
+            const stdValues = days.map(d => stdMap[d] || 0);
+
+            const maxVal = Math.max(...values, 1);
+            const niceMax = Math.ceil(maxVal / 5) * 5 || 5;
+
+            // 绘制网格线
+            const gridLines = 5;
+            ctx.strokeStyle = colors.gridLine;
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 4]);
+            for (let i = 0; i <= gridLines; i++) {
+                const y = pad.top + (cH / gridLines) * i;
+                ctx.beginPath();
+                ctx.moveTo(pad.left, y);
+                ctx.lineTo(W - pad.right, y);
+                ctx.stroke();
+
+                // Y轴标签
+                const val = Math.round(niceMax - (niceMax / gridLines) * i);
+                ctx.fillStyle = colors.axisText;
+                ctx.font = '11px Inter, sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillText(val, pad.left - 8, y + 4);
+            }
+            ctx.setLineDash([]);
+
+            // X轴日期标签 (每5天显示)
+            ctx.fillStyle = colors.axisText;
+            ctx.font = '10px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            for (let i = 0; i < days.length; i++) {
+                if (i % 5 === 0 || i === days.length - 1) {
+                    const x = pad.left + (cW / (days.length - 1)) * i;
+                    const label = days[i].substring(5); // MM-DD
+                    ctx.fillText(label, x, H - pad.bottom + 20);
+                }
+            }
+
+            // 绘制面积填充
+            function drawArea(vals, fillColor) {
+                ctx.beginPath();
+                for (let i = 0; i < vals.length; i++) {
+                    const x = pad.left + (cW / (vals.length - 1)) * i;
+                    const y = pad.top + cH - (vals[i] / niceMax) * cH;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.lineTo(pad.left + cW, pad.top + cH);
+                ctx.lineTo(pad.left, pad.top + cH);
+                ctx.closePath();
+                ctx.fillStyle = fillColor;
+                ctx.fill();
+            }
+
+            // 绘制线条
+            function drawLine(vals, strokeColor, lineWidth) {
+                ctx.beginPath();
+                ctx.strokeStyle = strokeColor;
+                ctx.lineWidth = lineWidth;
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+                for (let i = 0; i < vals.length; i++) {
+                    const x = pad.left + (cW / (vals.length - 1)) * i;
+                    const y = pad.top + cH - (vals[i] / niceMax) * cH;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            }
+
+            // 绘制总量面积+线
+            drawArea(values, colors.lineFill);
+            drawLine(values, colors.lineMain, 2.5);
+
+            // 绘制Pro线 (虚线)
+            ctx.setLineDash([6, 3]);
+            drawLine(proValues, colors.linePro, 1.5);
+            ctx.setLineDash([3, 3]);
+            drawLine(stdValues, colors.lineStd, 1.5);
+            ctx.setLineDash([]);
+
+            // 绘制端点圆点
+            const lastX = pad.left + cW;
+            const lastY = pad.top + cH - (values[values.length - 1] / niceMax) * cH;
+            ctx.beginPath();
+            ctx.arc(lastX, lastY, 4, 0, Math.PI * 2);
+            ctx.fillStyle = colors.lineMain;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(lastX, lastY, 7, 0, Math.PI * 2);
+            ctx.strokeStyle = colors.lineMain;
+            ctx.lineWidth = 1.5;
+            ctx.globalAlpha = 0.3;
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+
+            // 图例
+            const legendY = H - 8;
+            const legends = [
+                { label: '总量', color: colors.lineMain, dash: [] },
+                { label: 'Pro', color: colors.linePro, dash: [6, 3] },
+                { label: '标准', color: colors.lineStd, dash: [3, 3] }
+            ];
+            let lx = pad.left;
+            legends.forEach(leg => {
+                ctx.setLineDash(leg.dash);
+                ctx.strokeStyle = leg.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(lx, legendY);
+                ctx.lineTo(lx + 20, legendY);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                ctx.fillStyle = colors.axisText;
+                ctx.font = '11px Inter, sans-serif';
+                ctx.textAlign = 'left';
+                ctx.fillText(leg.label, lx + 24, legendY + 4);
+                lx += 70;
+            });
+        }
+
+        function drawDonutChart(typeData) {
+            const canvas = document.getElementById('donutChart');
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * dpr;
+            canvas.height = 200 * dpr;
+            ctx.scale(dpr, dpr);
+            canvas.style.height = '200px';
+
+            const colors = getChartColors();
+            const W = rect.width;
+            const H = 200;
+            const cx = W / 2;
+            const cy = H / 2;
+            const outerR = Math.min(W, H) / 2 - 10;
+            const innerR = outerR * 0.6;
+
+            ctx.clearRect(0, 0, W, H);
+
+            if (!typeData || typeData.length === 0) {
+                ctx.fillStyle = colors.axisText;
+                ctx.font = '14px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('暂无数据', cx, cy);
+                return;
+            }
+
+            const total = typeData.reduce((s, d) => s + d.count, 0);
+            const segments = typeData.map(d => ({
+                type: d.license_type,
+                count: d.count,
+                pct: total > 0 ? d.count / total : 0,
+                color: d.license_type === 'pro' ? colors.donutPro : colors.donutStd
+            }));
+
+            // 绘制环形
+            let startAngle = -Math.PI / 2;
+            segments.forEach((seg, i) => {
+                const sliceAngle = seg.pct * Math.PI * 2;
+                // 外圆弧
+                ctx.beginPath();
+                ctx.arc(cx, cy, outerR, startAngle, startAngle + sliceAngle);
+                ctx.arc(cx, cy, innerR, startAngle + sliceAngle, startAngle, true);
+                ctx.closePath();
+                ctx.fillStyle = seg.color;
+                ctx.fill();
+
+                // 间隔线
+                if (segments.length > 1) {
+                    ctx.beginPath();
+                    ctx.moveTo(
+                        cx + innerR * Math.cos(startAngle),
+                        cy + innerR * Math.sin(startAngle)
+                    );
+                    ctx.lineTo(
+                        cx + outerR * Math.cos(startAngle),
+                        cy + outerR * Math.sin(startAngle)
+                    );
+                    ctx.strokeStyle = colors.donutCenter;
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+
+                startAngle += sliceAngle;
+            });
+
+            // 中心文字
+            ctx.fillStyle = colors.tooltipText;
+            ctx.font = 'bold 28px Inter, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(total, cx, cy - 6);
+            ctx.font = '12px Inter, sans-serif';
+            ctx.fillStyle = colors.axisText;
+            ctx.fillText('总计', cx, cy + 16);
+
+            // 更新图例
+            const legendEl = document.getElementById('donutLegend');
+            legendEl.innerHTML = segments.map(seg => `
+                <div class="donut-legend-item">
+                    <span class="donut-legend-dot" style="background: ${seg.color};"></span>
+                    <span>${seg.type === 'pro' ? '专业版' : '标准版'}</span>
+                    <span class="donut-legend-pct">${(seg.pct * 100).toFixed(1)}%</span>
+                    <span class="donut-legend-value">${seg.count}</span>
+                </div>
+            `).join('');
+        }
+
+        function renderWeekComparison(data) {
+            if (!data) return;
+            const el = document.getElementById('weekCompValue');
+            const diff = data.recent7 - data.prev7;
+            const pct = data.prev7 > 0 ? ((diff / data.prev7) * 100).toFixed(1) : (diff > 0 ? '∞' : '0');
+            const arrow = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+            const cls = diff > 0 ? 'trend-up' : diff < 0 ? 'trend-down' : 'trend-flat';
+            el.className = 'week-comparison-value ' + cls;
+            el.textContent = `${arrow} ${Math.abs(diff)} 件 (${diff >= 0 ? '+' : ''}${pct}%)`;
+        }
+
+        // 主题切换时重新渲染图表
+        const origSetTheme = setTheme;
+        setTheme = function(theme) {
+            origSetTheme(theme);
+            // 延迟重绘图表以确保CSS变量已更新
+            setTimeout(() => { loadStats(); }, 100);
+        };
+
+        // 窗口大小变化时重绘
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => { loadStats(); }, 200);
+        });
 
         // 数字滚动动画
         function animateValue(id, start, end, duration) {
