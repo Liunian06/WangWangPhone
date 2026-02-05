@@ -123,6 +123,13 @@
             padding: 15px; border-radius: 10px; word-break: break-all; font-family: monospace; margin-top: 10px;
         }
 
+        .toast-msg {
+            display: inline-block; margin-left: 15px; font-size: 14px; color: #34C759;
+            opacity: 0; transition: opacity 0.3s; pointer-events: none;
+        }
+        .toast-msg.show { opacity: 1; }
+        .error-msg { color: #FF3B30; font-size: 14px; margin-top: 10px; display: none; }
+
         .pagination { display: flex; justify-content: center; align-items: center; gap: 15px; margin-top: 20px; }
         mark { background: var(--highlight); color: black; border-radius: 2px; }
 
@@ -164,7 +171,14 @@
                     <div class="form-group" style="flex: 1;"><label>授权级别</label><select id="type"><option value="standard">标准版</option><option value="pro" selected>专业版</option></select></div>
                 </div>
                 <button onclick="submitSign()" id="signBtn" class="btn">生成激活码</button>
-                <div id="signResult" style="display: none;"><div class="result-box" id="licenseText"></div><button class="btn" style="margin-top: 10px;" onclick="copyLicense()">复制激活码</button></div>
+                <div id="signError" class="error-msg"></div>
+                <div id="signResult" style="display: none;">
+                    <div class="result-box" id="licenseText"></div>
+                    <div style="margin-top: 10px; display: flex; align-items: center;">
+                        <button class="btn" onclick="copyLicense()">复制激活码</button>
+                        <span id="copyToast" class="toast-msg">已成功复制到剪贴板！</span>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -174,6 +188,7 @@
             <div class="card">
                 <div class="form-group"><label>激活码全文</label><textarea id="traceInput" placeholder="粘贴完整的 WANGWANG- 激活码"></textarea></div>
                 <button onclick="submitTrace()" class="btn">解析回原文</button>
+                <div id="traceError" class="error-msg"></div>
                 <div id="traceResult" style="margin-top: 20px; display: none;"><h3>解密数据:</h3><div class="result-box" style="color: var(--text); background: var(--bg); border-color: var(--border);"><pre id="traceData" style="margin: 0; white-space: pre-wrap;"></pre></div></div>
             </div>
         </div>
@@ -234,43 +249,73 @@
 
         async function submitSign() {
             const btn = document.getElementById('signBtn');
+            const errDiv = document.getElementById('signError');
+            const resDiv = document.getElementById('signResult');
             btn.disabled = true;
-            const res = await fetch('/api/sign', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    mid: document.getElementById('mid').value,
-                    xhs: parseInt(document.getElementById('xhs').value) || 0,
-                    qq: parseInt(document.getElementById('qq').value) || 0,
-                    days: parseInt(document.getElementById('days').value),
-                    type: document.getElementById('type').value
-                })
-            });
-            const data = await res.json();
-            if(data.success) {
-                document.getElementById('signResult').style.display = 'block';
-                document.getElementById('licenseText').textContent = data.license;
-            } else alert('失败: ' + data.error);
+            errDiv.style.display = 'none';
+            resDiv.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/sign', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        mid: document.getElementById('mid').value,
+                        xhs: parseInt(document.getElementById('xhs').value) || 0,
+                        qq: parseInt(document.getElementById('qq').value) || 0,
+                        days: parseInt(document.getElementById('days').value),
+                        type: document.getElementById('type').value
+                    })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    resDiv.style.display = 'block';
+                    document.getElementById('licenseText').textContent = data.license;
+                } else {
+                    errDiv.style.display = 'block';
+                    errDiv.textContent = '签发失败: ' + data.error;
+                }
+            } catch (e) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = '网络请求失败';
+            }
             btn.disabled = false;
         }
 
         function copyLicense() {
-            navigator.clipboard.writeText(document.getElementById('licenseText').textContent);
-            alert('已复制');
+            const text = document.getElementById('licenseText').textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const toast = document.getElementById('copyToast');
+                toast.textContent = '已成功复制到剪贴板！';
+                toast.classList.add('show');
+                setTimeout(() => toast.classList.remove('show'), 2000);
+            });
         }
 
         async function submitTrace() {
-            const res = await fetch('/api/trace', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ license: document.getElementById('traceInput').value.trim() })
-            });
-            const data = await res.json();
+            const errDiv = document.getElementById('traceError');
             const resDiv = document.getElementById('traceResult');
-            if(data.success) {
-                resDiv.style.display = 'block';
-                document.getElementById('traceData').textContent = JSON.stringify(data.data, null, 2);
-            } else alert('失败: ' + data.error);
+            errDiv.style.display = 'none';
+            resDiv.style.display = 'none';
+
+            try {
+                const res = await fetch('/api/trace', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ license: document.getElementById('traceInput').value.trim() })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    resDiv.style.display = 'block';
+                    document.getElementById('traceData').textContent = JSON.stringify(data.data, null, 2);
+                } else {
+                    errDiv.style.display = 'block';
+                    errDiv.textContent = '溯源失败: ' + data.error;
+                }
+            } catch (e) {
+                errDiv.style.display = 'block';
+                errDiv.textContent = '网络请求失败';
+            }
         }
 
         function debounceQuery() {
