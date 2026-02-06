@@ -555,14 +555,17 @@
                 <div style="display: flex; gap: 20px;">
                     <div class="form-group" style="flex: 1;">
                         <label>有效时长</label>
-                        <select id="days" onchange="onDaysChange()">
+                        <select id="days" onchange="onDaysPresetChange()">
+                            <option value="1">1 天</option>
+                            <option value="3">3 天</option>
+                            <option value="7">7 天</option>
                             <option value="30">30 天 (试用)</option>
                             <option value="365" selected>1 年 (标准)</option>
                             <option value="3650">长期 (终身)</option>
-                            <option value="custom">自定义天数</option>
+                            <option value="custom">自定义</option>
                         </select>
-                        <div id="customDaysWrapper" style="display: none; margin-top: 10px; position: relative;">
-                            <input type="number" id="customDays" min="1" max="36500" placeholder="请输入自定义天数（1~36500）" style="padding-right: 50px;">
+                        <div style="margin-top: 10px; position: relative;">
+                            <input type="number" id="customDays" min="1" max="36500" value="365" placeholder="输入天数（1~36500）" style="padding-right: 50px;" oninput="onCustomDaysInput()">
                             <span style="position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: var(--text-secondary); font-size: 14px; font-family: Inter, sans-serif; pointer-events: none;">天</span>
                         </div>
                     </div>
@@ -1027,27 +1030,37 @@
             obj.textContent = end; 
         }
 
-        function onDaysChange() {
+        // 预设值映射表
+        const presetValues = { '1': true, '3': true, '7': true, '30': true, '365': true, '3650': true };
+
+        function onDaysPresetChange() {
             const sel = document.getElementById('days');
-            const wrapper = document.getElementById('customDaysWrapper');
-            if (sel.value === 'custom') {
-                wrapper.style.display = 'block';
-                document.getElementById('customDays').focus();
+            const input = document.getElementById('customDays');
+            if (sel.value !== 'custom') {
+                input.value = sel.value;
             } else {
-                wrapper.style.display = 'none';
+                input.value = '';
+                input.focus();
+            }
+        }
+
+        function onCustomDaysInput() {
+            const input = document.getElementById('customDays');
+            const sel = document.getElementById('days');
+            const val = input.value.trim();
+            if (val in presetValues) {
+                sel.value = val;
+            } else {
+                sel.value = 'custom';
             }
         }
 
         function getSelectedDays() {
-            const sel = document.getElementById('days');
-            if (sel.value === 'custom') {
-                const val = parseInt(document.getElementById('customDays').value);
-                if (!val || val < 1 || val > 36500) {
-                    return { error: '自定义天数必须在 1 ~ 36500 之间' };
-                }
-                return { days: val };
+            const val = parseInt(document.getElementById('customDays').value);
+            if (!val || val < 1 || val > 36500) {
+                return { error: '自定义天数必须在 1 ~ 36500 之间' };
             }
-            return { days: parseInt(sel.value) };
+            return { days: val };
         }
 
         async function submitSign() {
