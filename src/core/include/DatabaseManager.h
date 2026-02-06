@@ -2,6 +2,7 @@
 #define DATABASE_MANAGER_H
 
 #include <string>
+#include <vector>
 #include <functional>
 
 namespace wwj_core {
@@ -17,13 +18,11 @@ struct LicenseRecord {
     long long qqID;               // QQ ID
 };
 
-// 软件/组件布局信息
-struct AppLayout {
-    std::string app_id;    // 软件唯一标识
-    int column;            // 所在列
-    int row;               // 所在行
-    int span_x;            // 跨列数
-    int span_y;            // 跨行数
+// 布局项结构 - 记录每个应用图标在网格中的位置
+struct LayoutItem {
+    std::string app_id;           // 应用唯一标识（如 "phone", "settings"）
+    int position;                 // 在网格中的位置索引（0-based）
+    std::string area;             // 区域标识: "grid" = 主网格, "dock" = 底部 Dock 栏
 };
 
 class DatabaseManager {
@@ -45,9 +44,9 @@ public:
     bool clearLicenseRecord();
 
     // 布局相关操作
-    bool saveAppLayout(const AppLayout& layout);
-    bool getAppLayouts(std::vector<AppLayout>& outLayouts);
-    bool clearAppLayouts();
+    bool saveLayout(const std::vector<LayoutItem>& items);
+    std::vector<LayoutItem> getLayout();
+    bool clearLayout();
 
     // 获取数据库路径
     std::string getDatabasePath() const;

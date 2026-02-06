@@ -31,14 +31,6 @@ class LicenseDbHelper(context: Context) : SQLiteOpenHelper(
         private const val COLUMN_ACTIVATION_TIME = "activation_time"
         private const val COLUMN_CREATED_AT = "created_at"
         private const val COLUMN_UPDATED_AT = "updated_at"
-
-        // 布局表
-        private const val TABLE_LAYOUT = "app_layout"
-        private const val COLUMN_APP_ID = "app_id"
-        private const val COLUMN_COL = "col"
-        private const val COLUMN_ROW = "row"
-        private const val COLUMN_SPAN_X = "span_x"
-        private const val COLUMN_SPAN_Y = "span_y"
     }
     
     override fun onCreate(db: SQLiteDatabase) {
@@ -56,18 +48,6 @@ class LicenseDbHelper(context: Context) : SQLiteOpenHelper(
         """.trimIndent()
         
         db.execSQL(createTableSQL)
-
-        val createLayoutTableSQL = """
-            CREATE TABLE $TABLE_LAYOUT (
-                $COLUMN_APP_ID TEXT PRIMARY KEY,
-                $COLUMN_COL INTEGER NOT NULL,
-                $COLUMN_ROW INTEGER NOT NULL,
-                $COLUMN_SPAN_X INTEGER DEFAULT 1,
-                $COLUMN_SPAN_Y INTEGER DEFAULT 1,
-                $COLUMN_UPDATED_AT INTEGER DEFAULT (strftime('%s', 'now'))
-            )
-        """.trimIndent()
-        db.execSQL(createLayoutTableSQL)
     }
     
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -167,58 +147,4 @@ class LicenseDbHelper(context: Context) : SQLiteOpenHelper(
         val now = System.currentTimeMillis() / 1000
         return record.expirationTime > now
     }
-    /**
-     * 保存布局信息
-     */
-    fun saveAppLayout(appId: String, col: Int, row: Int, spanX: Int = 1, spanY: Int = 1): Boolean {
-        return try {
-            val db = writableDatabase
-            val values = ContentValues().apply {
-                put(COLUMN_APP_ID, appId)
-                put(COLUMN_COL, col)
-                put(COLUMN_ROW, row)
-                put(COLUMN_SPAN_X, spanX)
-                put(COLUMN_SPAN_Y, spanY)
-                put(COLUMN_UPDATED_AT, System.currentTimeMillis() / 1000)
-            }
-            val result = db.insertWithOnConflict(TABLE_LAYOUT, null, values, SQLiteDatabase.CONFLICT_REPLACE)
-            result != -1L
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-
-    /**
-     * 获取所有布局
-     */
-    fun getAppLayouts(): List<SavedLayout> {
-        val layouts = mutableListOf<SavedLayout>()
-        try {
-            val db = readableDatabase
-            val cursor = db.query(TABLE_LAYOUT, null, null, null, null, null, null)
-            cursor.use {
-                while (it.moveToNext()) {
-                    layouts.add(SavedLayout(
-                        appId = it.getString(it.getColumnIndexOrThrow(COLUMN_APP_ID)),
-                        col = it.getInt(it.getColumnIndexOrThrow(COLUMN_COL)),
-                        row = it.getInt(it.getColumnIndexOrThrow(COLUMN_ROW)),
-                        spanX = it.getInt(it.getColumnIndexOrThrow(COLUMN_SPAN_X)),
-                        spanY = it.getInt(it.getColumnIndexOrThrow(COLUMN_SPAN_Y))
-                    ))
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return layouts
-    }
 }
-
-data class SavedLayout(
-    val appId: String,
-    val col: Int,
-    val row: Int,
-    val spanX: Int,
-    val spanY: Int
-)

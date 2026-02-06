@@ -11,15 +11,6 @@ struct LicenseRecord: Codable {
     let activationTime: Int64
 }
 
-/// 布局记录结构
-struct AppLayoutRecord {
-    let appId: String
-    let col: Int
-    let row: Int
-    let spanX: Int
-    let spanY: Int
-}
-
 /// 授权载荷结构
 struct LicensePayload {
     let machineId: String
@@ -201,55 +192,6 @@ class LicenseManager {
         return clearLicenseRecord()
     }
     
-    /// 保存布局信息
-    func saveAppLayout(appId: String, col: Int, row: Int, spanX: Int = 1, spanY: Int = 1) -> Bool {
-        let replaceSQL = """
-            INSERT OR REPLACE INTO app_layout (app_id, col, row, span_x, span_y, updated_at)
-            VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'));
-        """
-        
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, replaceSQL, -1, &statement, nil) == SQLITE_OK else {
-            return false
-        }
-        
-        sqlite3_bind_text(statement, 1, (appId as NSString).utf8String, -1, nil)
-        sqlite3_bind_int(statement, 2, Int32(col))
-        sqlite3_bind_int(statement, 3, Int32(row))
-        sqlite3_bind_int(statement, 4, Int32(spanX))
-        sqlite3_bind_int(statement, 5, Int32(spanY))
-        
-        let result = sqlite3_step(statement)
-        sqlite3_finalize(statement)
-        
-        return result == SQLITE_DONE
-    }
-    
-    /// 获取所有布局信息
-    func getAppLayouts() -> [AppLayoutRecord] {
-        let selectSQL = "SELECT app_id, col, row, span_x, span_y FROM app_layout;"
-        var layouts: [AppLayoutRecord] = []
-        
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(db, selectSQL, -1, &statement, nil) == SQLITE_OK else {
-            return []
-        }
-        
-        defer { sqlite3_finalize(statement) }
-        
-        while sqlite3_step(statement) == SQLITE_ROW {
-            let appId = String(cString: sqlite3_column_text(statement, 0))
-            let col = Int(sqlite3_column_int(statement, 1))
-            let row = Int(sqlite3_column_int(statement, 2))
-            let spanX = Int(sqlite3_column_int(statement, 3))
-            let spanY = Int(sqlite3_column_int(statement, 4))
-            
-            layouts.append(AppLayoutRecord(appId: appId, col: col, row: row, spanX: spanX, spanY: spanY))
-        }
-        
-        return layouts
-    }
-    
     // MARK: - 私有方法
     
     private func getDatabasePath() -> String? {
@@ -276,29 +218,8 @@ class LicenseManager {
             );
         """
         
-        let createLayoutTableSQL = """
-            CREATE TABLE IF NOT EXISTS app_layout (
-                app_id TEXT PRIMARY KEY,
-                col INTEGER NOT NULL,
-                row INTEGER NOT NULL,
-                span_x INTEGER DEFAULT 1,
-                span_y INTEGER DEFAULT 1,
-                updated_at INTEGER DEFAULT (strftime('%s', 'now'))
-            );
-        """
-        
         var statement: OpaquePointer?
         if sqlite3_prepare_v2(db, createTableSQL, -1, &statement, nil) == SQLITE_OK {
-            if sqlite3_step(statement) == SQLITE_DONE {
-                sqlite3_finalize(statement)
-                sqlite3_finalize(statement)
-            } else {
-                sqlite3_finalize(statement)
-                return false
-            }
-        }
-        
-        if sqlite3_prepare_v2(db, createLayoutTableSQL, -1, &statement, nil) == SQLITE_OK {
             if sqlite3_step(statement) == SQLITE_DONE {
                 sqlite3_finalize(statement)
                 return true

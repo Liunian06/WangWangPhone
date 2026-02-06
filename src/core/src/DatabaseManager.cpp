@@ -81,15 +81,20 @@ bool DatabaseManager::createTables() {
     )";
 
     // 创建布局信息表
-    const char* createAppLayoutTableSQL = R"(
+    const char* createLayoutTableSQL = R"(
         CREATE TABLE IF NOT EXISTS app_layout (
-            app_id TEXT PRIMARY KEY,
-            col INTEGER NOT NULL,
-            row INTEGER NOT NULL,
-            span_x INTEGER DEFAULT 1,
-            span_y INTEGER DEFAULT 1,
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_id TEXT NOT NULL,
+            position INTEGER NOT NULL,
+            area TEXT NOT NULL DEFAULT 'grid',
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
             updated_at INTEGER DEFAULT (strftime('%s', 'now'))
         );
+    )";
+
+    // 创建布局唯一索引（同一区域下 app_id 唯一）
+    const char* createLayoutIndexSQL = R"(
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_layout_app ON app_layout(app_id, area);
     )";
 
     if (!executeSQL(createLicenseTableSQL)) {
@@ -102,8 +107,13 @@ bool DatabaseManager::createTables() {
         return false;
     }
 
-    if (!executeSQL(createAppLayoutTableSQL)) {
+    if (!executeSQL(createLayoutTableSQL)) {
         std::cerr << "创建 app_layout 表失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(createLayoutIndexSQL)) {
+        std::cerr << "创建布局索引失败" << std::endl;
         return false;
     }
 
@@ -205,61 +215,91 @@ bool DatabaseManager::clearLicenseRecord() {
     return executeSQL("DELETE FROM license;");
 }
 
-bool DatabaseManager::saveAppLayout(const AppLayout& layout) {
+bool DatabaseManager::saveLayout(const std::vector<LayoutItem>& items) {
     if (!db) return false;
 
-    const char* replaceSQL = R"(
-        INSERT OR REPLACE INTO app_layout (app_id, col, row, span_x, span_y, updated_at)
-        VALUES (?, ?, ?, ?, ?, strftime('%s', 'now'));
-    )";
+    sqlite3* sqliteDb = static_cast<sqlite3*>(db);
 
-    sqlite3_stmt* stmt = nullptr;
-    int result = sqlite3_prepare_v2(static_cast<sqlite3*>(db), replaceSQL, -1, &stmt, nullptr);
+    // 开启事务
+    if (!executeSQL("BEGIN TRANSACTION;")) return false;
 
-    if (result != SQLITE_OK) {
+    // 先清除旧布局
+    if (!executeSQL("DELETE FROM app_layout;")) {
+        executeSQL("ROLLBACK;");
         return false;
     }
 
-    sqlite3_bind_text(stmt, 1, layout.app_id.c_str(), -1, SQLITE_TRANSIENT);
-    sqlite3_bind_int(stmt, 2, layout.column);
-    sqlite3_bind_int(stmt, 3, layout.row);
-    sqlite3_bind_int(stmt, 4, layout.span_x);
-    sqlite3_bind_int(stmt, 5, layout.span_y);
+    const char* insertSQL = R"(
+        INSERT INTO app_layout (app_id, position, area)
+        VALUES (?, ?, ?);
+    )";
 
-    result = sqlite3_step(stmt);
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(sqliteDb, insertSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) {
+        std::cerr << "准备布局 SQL 语句失败: " << sqlite3_errmsg(sqliteDb) << std::endl;
+        executeSQL("ROLLBACK;");
+        return false;
+    }
+
+    for (const auto& item : items) {
+        sqlite3_reset(stmt);
+        sqlite3_bind_text(stmt, 1, item.app_id.c_str(), -1, SQLITE_TRANSIENT);
+        sqlite3_bind_int(stmt, 2, item.position);
+        sqlite3_bind_text(stmt, 3, item.area.c_str(), -1, SQLITE_TRANSIENT);
+
+        result = sqlite3_step(stmt);
+        if (result != SQLITE_DONE) {
+            std::cerr << "保存布局项失败: " << sqlite3_errmsg(sqliteDb) << std::endl;
+            sqlite3_finalize(stmt);
+            executeSQL("ROLLBACK;");
+            return false;
+        }
+    }
+
     sqlite3_finalize(stmt);
 
-    return result == SQLITE_DONE;
+    if (!executeSQL("COMMIT;")) {
+        executeSQL("ROLLBACK;");
+        return false;
+    }
+
+    std::cout << "布局已保存到数据库 (" << items.size() << " 项)" << std::endl;
+    return true;
 }
 
-bool DatabaseManager::getAppLayouts(std::vector<AppLayout>& outLayouts) {
-    if (!db) return false;
+std::vector<LayoutItem> DatabaseManager::getLayout() {
+    std::vector<LayoutItem> items;
+    if (!db) return items;
 
-    const char* selectSQL = "SELECT app_id, col, row, span_x, span_y FROM app_layout;";
+    const char* selectSQL = R"(
+        SELECT app_id, position, area
+        FROM app_layout
+        ORDER BY area ASC, position ASC;
+    )";
 
     sqlite3_stmt* stmt = nullptr;
     int result = sqlite3_prepare_v2(static_cast<sqlite3*>(db), selectSQL, -1, &stmt, nullptr);
 
     if (result != SQLITE_OK) {
-        return false;
+        std::cerr << "准备布局查询语句失败: " << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return items;
     }
 
-    outLayouts.clear();
     while (sqlite3_step(stmt) == SQLITE_ROW) {
-        AppLayout layout;
-        layout.app_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
-        layout.column = sqlite3_column_int(stmt, 1);
-        layout.row = sqlite3_column_int(stmt, 2);
-        layout.span_x = sqlite3_column_int(stmt, 3);
-        layout.span_y = sqlite3_column_int(stmt, 4);
-        outLayouts.push_back(layout);
+        LayoutItem item;
+        item.app_id = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        item.position = sqlite3_column_int(stmt, 1);
+        item.area = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        items.push_back(item);
     }
 
     sqlite3_finalize(stmt);
-    return true;
+    return items;
 }
 
-bool DatabaseManager::clearAppLayouts() {
+bool DatabaseManager::clearLayout() {
     return executeSQL("DELETE FROM app_layout;");
 }
 

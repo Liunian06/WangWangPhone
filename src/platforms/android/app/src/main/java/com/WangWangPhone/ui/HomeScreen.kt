@@ -2,14 +2,18 @@ package com.WangWangPhone.ui
 
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -17,43 +21,57 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import com.WangWangPhone.core.LayoutDbHelper
+import com.WangWangPhone.core.LayoutItem
 import com.WangWangPhone.core.LicenseManager
 import com.WangWangPhone.core.LicenseResult
-import com.WangWangPhone.core.LicenseDbHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.zIndex
 import kotlin.math.roundToInt
 
+/**
+ * 应用图标数据
+ * @param id 唯一标识，用于布局持久化
+ */
 data class AppIcon(
     val id: String,
     val name: String,
     val icon: String,
     val color: Brush,
-    val useImage: Boolean = false,
-    var col: Int = 0,
-    var row: Int = 0
+    val useImage: Boolean = false
 )
 
-// Mock Location & Weather Logic (In real app this would be in Repository/ViewModel)
+/** 默认应用列表（初始顺序） */
+fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
+    AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
+    AppIcon("message", "信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
+    AppIcon("safari", "Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
+    AppIcon("music", "音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
+    AppIcon("camera", "相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+    AppIcon("calendar", "日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+    AppIcon("settings", "设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
+    AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
+)
+
+// Mock Location & Weather Logic
 suspend fun fetchLocation(): String {
-    // In a real Android app, you would use LocationManager or FusedLocationProviderClient
-    // For this prototype, we simulate an API call or logic similar to the JS version
-    // Mocking an async operation:
     delay(500)
-    return "广州" // Mock result
+    return "广州"
 }
 
 data class WeatherInfo(
@@ -64,17 +82,15 @@ data class WeatherInfo(
 )
 
 suspend fun fetchWeather(city: String): WeatherInfo {
-    delay(500) // Mock API
-    // Real app would use Retrofit to call goweather.herokuapp.com
+    delay(500)
     return WeatherInfo("25°", "多云", "⛅", "最高 29° 最低 21°")
 }
 
 @Composable
 fun WidgetsSection() {
-    // State for location and weather
     var city by remember { mutableStateOf("...") }
     var weather by remember { mutableStateOf<WeatherInfo?>(null) }
-    
+
     LaunchedEffect(Unit) {
         city = fetchLocation()
         if (city.isNotEmpty()) {
@@ -88,10 +104,7 @@ fun WidgetsSection() {
             .padding(horizontal = 20.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(15.dp)
     ) {
-        // Clock Widget
         ClockWidget(city = city, modifier = Modifier.weight(1f))
-        
-        // Weather Widget
         WeatherWidget(city = city, weather = weather, modifier = Modifier.weight(1f))
     }
 }
@@ -208,7 +221,6 @@ fun SettingsScreen(isActivated: Boolean, expiryDate: String, onBack: () -> Unit,
             .background(backgroundColor)
             .statusBarsPadding()
     ) {
-        // Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -233,7 +245,6 @@ fun SettingsScreen(isActivated: Boolean, expiryDate: String, onBack: () -> Unit,
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Section: Activation
         Text(
             "激活与授权",
             modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp),
@@ -278,14 +289,13 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
     val context = LocalContext.current
     val licenseManager = remember { LicenseManager.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(backgroundColor)
             .statusBarsPadding()
     ) {
-        // Header
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -368,7 +378,6 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
                 Text("粘贴激活码", color = Color.White, fontSize = 14.sp)
             }
 
-            // 显示错误信息
             errorMessage?.let { msg ->
                 Spacer(modifier = Modifier.height(10.dp))
                 Text(msg, color = Color.Red, fontSize = 13.sp)
@@ -378,7 +387,6 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
 
             androidx.compose.material3.Button(
                 onClick = {
-                    // 通过 LicenseManager 验证并持久化激活信息到数据库
                     coroutineScope.launch {
                         val result = licenseManager.verifyLicense(licenseKey.trim())
                         when (result) {
@@ -408,26 +416,18 @@ fun HomeScreen() {
     var showSettings by remember { mutableStateOf(false) }
     var showActivation by remember { mutableStateOf(false) }
 
-    // 从 LicenseManager 读取持久化的激活状态
     val context = LocalContext.current
     val licenseManager = remember { LicenseManager.getInstance(context) }
     var isActivated by remember { mutableStateOf(licenseManager.isActivated()) }
     var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
 
     val isDark = isSystemInDarkTheme()
-    val appsList = listOf(
-        AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
-        AppIcon("msg", "信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
-        AppIcon("safari", "Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
-        AppIcon("music", "音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
-        AppIcon("camera", "相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("calendar", "日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("settings", "设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
-        AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
-    )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        HomeScreenContent(onSettingsClick = { showSettings = true })
+        HomeScreenContent(
+            isDark = isDark,
+            onSettingsClick = { showSettings = true }
+        )
 
         if (showSettings) {
             SettingsScreen(
@@ -444,7 +444,6 @@ fun HomeScreen() {
             ActivationScreen(
                 onBack = { showActivation = false },
                 onActivated = {
-                    // 激活成功后，从 LicenseManager 刷新持久化状态
                     isActivated = licenseManager.isActivated()
                     expiryDate = licenseManager.getExpirationDateString()
                 }
@@ -454,73 +453,272 @@ fun HomeScreen() {
 }
 
 @Composable
-fun HomeScreenContent(onSettingsClick: () -> Unit) {
-    val isDark = isSystemInDarkTheme()
+fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit) {
     val context = LocalContext.current
-    val licenseDbHelper = remember { LicenseDbHelper(context) }
-    
-    // Initial apps with default positions
-    val appsList = remember {
-        mutableStateListOf(
-            AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF))), col = 0, row = 0),
-            AppIcon("msg", "信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB))), col = 1, row = 0),
-            AppIcon("safari", "Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4))), col = 2, row = 0),
-            AppIcon("music", "音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085))), col = 3, row = 0),
-            AppIcon("camera", "相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray)), col = 0, row = 1),
-            AppIcon("calendar", "日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray)), col = 1, row = 1),
-            AppIcon("settings", "设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true, col = 2, row = 1),
-            AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)), col = 3, row = 1)
-        )
-    }
+    val layoutDbHelper = remember { LayoutDbHelper(context) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // Load saved layouts if any
-    LaunchedEffect(Unit) {
-        val savedLayouts = licenseDbHelper.getAppLayouts()
-        if (savedLayouts.isNotEmpty()) {
-            savedLayouts.forEach { layout ->
-                val index = appsList.indexOfFirst { it.id == layout.appId }
-                if (index != -1) {
-                    val currentApp = appsList[index]
-                    appsList[index] = currentApp.copy(col = layout.col, row = layout.row)
+    // 默认应用列表
+    val defaultApps = remember(isDark) { getDefaultApps(isDark) }
+
+    // 当前应用排列（可变列表，支持拖拽重排）
+    val apps = remember { mutableStateListOf<AppIcon>() }
+
+    // 编辑模式状态
+    var isEditMode by remember { mutableStateOf(false) }
+
+    // 当前正在拖拽的项的索引
+    var draggedIndex by remember { mutableStateOf(-1) }
+
+    // 拖拽偏移量
+    var dragOffsetX by remember { mutableStateOf(0f) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+
+    // 从数据库加载布局
+    LaunchedEffect(isDark) {
+        val savedLayout = layoutDbHelper.getLayout()
+        apps.clear()
+        if (savedLayout.isNotEmpty()) {
+            // 根据数据库中保存的顺序排列应用
+            val gridItems = savedLayout.filter { it.area == "grid" }.sortedBy { it.position }
+            for (layoutItem in gridItems) {
+                val app = defaultApps.find { it.id == layoutItem.appId }
+                if (app != null) {
+                    apps.add(app)
                 }
             }
+            // 如果数据库中缺少某些应用（新增的），追加到末尾
+            for (app in defaultApps) {
+                if (apps.none { it.id == app.id }) {
+                    apps.add(app)
+                }
+            }
+        } else {
+            apps.addAll(defaultApps)
+        }
+    }
+
+    // 退出编辑模式时保存布局
+    fun saveCurrentLayout() {
+        val items = apps.mapIndexed { index, app ->
+            LayoutItem(appId = app.id, position = index, area = "grid")
+        }
+        layoutDbHelper.saveLayout(items)
+    }
+
+    // 处理退出编辑模式
+    if (isEditMode) {
+        BackHandler {
+            isEditMode = false
+            saveCurrentLayout()
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 背景 (实际应为 Live2D 或壁纸)
+        // 背景
         Box(modifier = Modifier.fillMaxSize().background(Color.Black))
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // 小组件区域
             WidgetsSection()
 
-            // 应用区域 (使用 Box 配合自定义布局实现自由拖拽)
-            Box(
+            // 编辑模式提示栏
+            if (isEditMode) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 8.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.15f))
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            "长按拖拽图标以调整位置",
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            "完成",
+                            color = Color(0xFF007AFF),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable {
+                                isEditMode = false
+                                saveCurrentLayout()
+                            }
+                        )
+                    }
+                }
+            }
+
+            // 应用网格 - 使用固定网格手动布局以支持拖拽
+            val columns = 4
+            val itemSizeDp = 90.dp
+            val spacingDp = 12.dp
+
+            // 计算格子布局
+            BoxWithConstraints(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp)
-            ) {
-                appsList.forEachIndexed { index, app ->
-                    DraggableAppIcon(
-                        app = app,
-                        onPositionChanged = { newCol, newRow ->
-                            appsList[index] = app.copy(col = newCol, row = newRow)
-                            // 保存到数据库
-                            licenseDbHelper.saveAppLayout(app.id, newCol, newRow)
-                        },
-                        onClick = {
-                            if (app.id == "settings") onSettingsClick()
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(horizontal = 16.dp)
+                    .then(
+                        if (!isEditMode) {
+                            Modifier // 非编辑模式下，点击空白区域不做任何事
+                        } else {
+                            Modifier.clickable(
+                                indication = null,
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                            ) {
+                                // 点击空白区域退出编辑模式
+                                isEditMode = false
+                                saveCurrentLayout()
+                            }
                         }
                     )
+            ) {
+                val density = LocalDensity.current
+                val totalWidth = constraints.maxWidth
+                val cellWidth = totalWidth / columns
+
+                apps.forEachIndexed { index, app ->
+                    val row = index / columns
+                    val col = index % columns
+
+                    val baseX = col * cellWidth
+                    val baseY = with(density) { (row * (itemSizeDp + spacingDp)).toPx() }
+
+                    val isDragged = draggedIndex == index
+
+                    // 抖动动画（编辑模式）
+                    val infiniteTransition = rememberInfiniteTransition(label = "wiggle_$index")
+                    val wiggleAngle by infiniteTransition.animateFloat(
+                        initialValue = if (index % 2 == 0) -1.5f else 1.5f,
+                        targetValue = if (index % 2 == 0) 1.5f else -1.5f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(
+                                durationMillis = 150 + (index % 3) * 50,
+                                easing = LinearEasing
+                            ),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "wiggle_angle_$index"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .offset {
+                                IntOffset(
+                                    x = baseX + if (isDragged) dragOffsetX.roundToInt() else 0,
+                                    y = baseY.roundToInt() + if (isDragged) dragOffsetY.roundToInt() else 0
+                                )
+                            }
+                            .width(with(density) { cellWidth.toDp() })
+                            .zIndex(if (isDragged) 10f else 0f)
+                            .graphicsLayer {
+                                if (isEditMode) {
+                                    rotationZ = if (isDragged) 0f else wiggleAngle
+                                }
+                                scaleX = if (isDragged) 1.15f else 1f
+                                scaleY = if (isDragged) 1.15f else 1f
+                                alpha = if (isDragged) 0.85f else 1f
+                            }
+                            .pointerInput(isEditMode, index) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        if (!isEditMode) {
+                                            isEditMode = true
+                                        }
+                                        draggedIndex = index
+                                        dragOffsetX = 0f
+                                        dragOffsetY = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetX += dragAmount.x
+                                        dragOffsetY += dragAmount.y
+
+                                        // 计算拖拽目标位置
+                                        val currentCenterX = baseX + cellWidth / 2f + dragOffsetX
+                                        val currentCenterY = baseY + with(density) { (itemSizeDp + spacingDp).toPx() } / 2f + dragOffsetY
+
+                                        val targetCol = (currentCenterX / cellWidth).toInt().coerceIn(0, columns - 1)
+                                        val targetRow = (currentCenterY / with(density) { (itemSizeDp + spacingDp).toPx() }).toInt().coerceAtLeast(0)
+                                        val targetIndex = (targetRow * columns + targetCol).coerceIn(0, apps.size - 1)
+
+                                        if (targetIndex != draggedIndex && targetIndex >= 0 && targetIndex < apps.size) {
+                                            // 交换位置
+                                            val draggedApp = apps[draggedIndex]
+                                            apps.removeAt(draggedIndex)
+                                            apps.add(targetIndex, draggedApp)
+
+                                            // 更新偏移量以补偿位置变化
+                                            val oldRow = draggedIndex / columns
+                                            val oldCol = draggedIndex % columns
+                                            val newRow = targetIndex / columns
+                                            val newCol = targetIndex % columns
+                                            dragOffsetX += (oldCol - newCol) * cellWidth
+                                            dragOffsetY += (oldRow - newRow) * with(density) { (itemSizeDp + spacingDp).toPx() }
+
+                                            draggedIndex = targetIndex
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        draggedIndex = -1
+                                        dragOffsetX = 0f
+                                        dragOffsetY = 0f
+                                        saveCurrentLayout()
+                                    },
+                                    onDragCancel = {
+                                        draggedIndex = -1
+                                        dragOffsetX = 0f
+                                        dragOffsetY = 0f
+                                    }
+                                )
+                            },
+                        contentAlignment = Alignment.TopCenter
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clickable(enabled = !isEditMode) {
+                                    if (app.id == "settings") onSettingsClick()
+                                }
+                                .padding(vertical = 4.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier.size(80.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (app.useImage) {
+                                    val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+                                    if (resId != 0) {
+                                        Image(
+                                            painter = androidx.compose.ui.res.painterResource(id = resId),
+                                            contentDescription = app.name,
+                                            modifier = Modifier.size(60.dp)
+                                        )
+                                    }
+                                } else {
+                                    Text(app.icon, fontSize = 50.sp)
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(5.dp))
+                            Text(app.name, color = Color.White, fontSize = 12.sp)
+                        }
+                    }
                 }
             }
         }
 
-        // Dock 栏
-        // Dock 栏区域使用的应用列表（取前4个）
-        val dockApps = remember(appsList) { appsList.take(4).toList() }
-
+        // Dock 栏（始终显示前4个应用）
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -537,20 +735,18 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                     .blur(20.dp)
             )
 
-            // 应用图标层 (在背景层之上)
+            // 应用图标层
             Row(
                 modifier = Modifier.fillMaxSize(),
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                dockApps.forEach { app ->
+                apps.take(4).forEach { app ->
                     Box(
-                        modifier = Modifier
-                            .size(70.dp),
+                        modifier = Modifier.size(70.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         if (app.useImage) {
-                            val context = androidx.compose.ui.platform.LocalContext.current
                             val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
                             if (resId != 0) {
                                 Image(
@@ -577,87 +773,5 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                 .clip(RoundedCornerShape(5.dp))
                 .background(Color.White.copy(alpha = 0.8f))
         )
-    }
-}
-
-@Composable
-fun DraggableAppIcon(
-    app: AppIcon,
-    onPositionChanged: (Int, Int) -> Unit,
-    onClick: () -> Unit
-) {
-    val itemSize = 85.dp
-    val spacing = 15.dp
-    val density = androidx.compose.ui.platform.LocalDensity.current
-    
-    // 计算基于列和行的目标偏移
-    val targetOffsetX = with(density) { (app.col.toFloat() * (itemSize + spacing).toPx()) }
-    val targetOffsetY = with(density) { (app.row.toFloat() * (itemSize + spacing).toPx()) }
-
-    var offsetX by remember { mutableStateOf(0f) }
-    var offsetY by remember { mutableStateOf(0f) }
-    var isDragging by remember { mutableStateOf(false) }
-
-    // 当位置改变时同步偏移（非拖拽状态）
-    LaunchedEffect(app.col, app.row, isDragging) {
-        if (!isDragging) {
-            offsetX = targetOffsetX
-            offsetY = targetOffsetY
-        }
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier
-            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
-            .zIndex(if (isDragging) 1f else 0f)
-            .pointerInput(Unit) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { isDragging = true },
-                    onDragEnd = {
-                        isDragging = false
-                        // 计算落点在哪一列哪一行
-                        val stepPx = with(density) { (itemSize + spacing).toPx() }
-                        val finalCol = (offsetX / stepPx).roundToInt().coerceIn(0, 3)
-                        val finalRow = (offsetY / stepPx).roundToInt().coerceIn(0, 5)
-                        onPositionChanged(finalCol, finalRow)
-                    },
-                    onDragCancel = { isDragging = false },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        offsetX += dragAmount.x
-                        offsetY += dragAmount.y
-                    }
-                )
-            }
-            .clickable { if (!isDragging) onClick() }
-            .width(itemSize)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(70.dp)
-                .clip(RoundedCornerShape(15.dp))
-                .then(
-                    if (app.useImage) Modifier.background(Color.Transparent, shape = RoundedCornerShape(15.dp))
-                    else Modifier.background(app.color, shape = RoundedCornerShape(15.dp))
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            if (app.useImage) {
-                val context = LocalContext.current
-                val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
-                if (resId != 0) {
-                    Image(
-                        painter = androidx.compose.ui.res.painterResource(id = resId),
-                        contentDescription = app.name,
-                        modifier = Modifier.size(50.dp)
-                    )
-                }
-            } else {
-                Text(app.icon, fontSize = 40.sp)
-            }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(app.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }

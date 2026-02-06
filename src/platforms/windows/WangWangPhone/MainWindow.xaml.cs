@@ -1,23 +1,26 @@
 using System;
-using System.Management;
-using System.Windows;
-using System.Windows.Threading;
-using System.Threading.Tasks;
-using WangWangPhone.Core;
 using System.Collections.Generic;
+using System.Linq;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
+using System.Threading.Tasks;
+using WangWangPhone.Core;
 
 namespace WangWangPhone
 {
-    public class AppIconData
+    /// <summary>
+    /// 应用图标数据模型
+    /// </summary>
+    public class AppIconModel
     {
         public string Id { get; set; }
         public string Name { get; set; }
         public string Icon { get; set; }
-        public int Col { get; set; }
-        public int Row { get; set; }
         public bool UseImage { get; set; }
     }
 
@@ -25,10 +28,30 @@ namespace WangWangPhone
     {
         private DispatcherTimer _timer;
         private readonly LicenseManager _licenseManager = LicenseManager.Instance;
-        private List<AppIconData> _apps;
-        private UIElement _draggedElement;
-        private Point _dragStart;
-        private AppIconData _draggedApp;
+        private readonly LayoutManager _layoutManager = LayoutManager.Instance;
+
+        // 应用图标列表（可重排序）
+        private List<AppIconModel> _apps = new List<AppIconModel>();
+
+        // 编辑模式相关
+        private bool _isEditMode = false;
+        private DispatcherTimer _longPressTimer;
+        private StackPanel _longPressTarget;
+        private Point _longPressStartPos;
+
+        // 拖拽相关
+        private bool _isDragging = false;
+        private StackPanel _draggedElement;
+        private int _draggedIndex = -1;
+        private Point _dragStartPoint;
+
+        // 网格布局参数
+        private const int Columns = 4;
+        private const double CellWidth = 85;
+        private const double CellHeight = 105;
+
+        // 抖动动画
+        private List<Storyboard> _wiggleStoryboards = new List<Storyboard>();
 
         public MainWindow()
         {
@@ -37,142 +60,23 @@ namespace WangWangPhone
             UpdateDateTime();
             _ = LoadWeatherData();
             InitializeLicense();
-            InitializeApps();
+            InitializeLayout();
+            ApplyThemeIcons();
         }
 
-        private void InitializeApps()
+        #region 初始化
+
+        private void ApplyThemeIcons()
         {
-            _apps = new List<AppIconData>
-            {
-                new AppIconData { Id = "phone", Name = "电话", Icon = "📞", Col = 0, Row = 0 },
-                new AppIconData { Id = "msg", Name = "信息", Icon = "💬", Col = 1, Row = 0 },
-                new AppIconData { Id = "music", Name = "音乐", Icon = "🎵", Col = 2, Row = 0 },
-                new AppIconData { Id = "camera", Name = "相机", Icon = "📷", Col = 3, Row = 0 },
-                new AppIconData { Id = "settings", Name = "设置", Icon = "Assets/Setting_Light.png", UseImage = true, Col = 0, Row = 1 },
-                new AppIconData { Id = "wangwang", Name = "汪汪", Icon = "🐶", Col = 1, Row = 1 }
-            };
-
-            // 加载保存的布局
-            var savedLayouts = _licenseManager.GetAppLayouts();
-            foreach (var layout in savedLayouts)
-            {
-                var app = _apps.Find(a => a.Id == layout.AppId);
-                if (app != null)
-                {
-                    app.Col = layout.Col;
-                    app.Row = layout.Row;
-                }
-            }
-
-            RenderApps();
+            bool isDark = SystemParameters.HighContrast;
+            // Default to Light for prototype
         }
 
-        private void RenderApps()
-        {
-            AppCanvas.Children.Clear();
-            foreach (var app in _apps)
-            {
-                var appItem = CreateAppItem(app);
-                AppCanvas.Children.Add(appItem);
-                UpdateElementPosition(appItem, app.Col, app.Row);
-            }
-        }
-
-        private UIElement CreateAppItem(AppIconData app)
-        {
-            var stack = new StackPanel { Width = 80, Margin = new Thickness(5), Tag = app };
-            var border = new Border { Width = 80, Height = 80 };
-            
-            if (app.UseImage)
-            {
-                border.Child = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(app.Icon, UriKind.RelativeOrAbsolute)), Width = 80, Height = 80 };
-            }
-            else
-            {
-                border.Child = new TextBlock { Text = app.Icon, FontSize = 65, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-            }
-
-            stack.Children.Add(border);
-            stack.Children.Add(new TextBlock { Text = app.Name, Foreground = Brushes.White, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 0) });
-
-            stack.MouseLeftButtonDown += OnAppMouseDown;
-            stack.MouseMove += OnAppMouseMove;
-            stack.MouseLeftButtonUp += OnAppMouseUp;
-
-            return stack;
-        }
-
-        private void OnAppMouseDown(object sender, MouseButtonEventArgs e)
-        {
-            _draggedElement = sender as UIElement;
-            _dragStart = e.GetPosition(AppCanvas);
-            _draggedApp = (sender as StackPanel).Tag as AppIconData;
-            _draggedElement.CaptureMouse();
-            Panel.SetZIndex(_draggedElement, 1000);
-        }
-
-        private void OnAppMouseMove(object sender, MouseEventArgs e)
-        {
-            if (_draggedElement != null)
-            {
-                Point current = e.GetPosition(AppCanvas);
-                double left = Canvas.GetLeft(_draggedElement) + (current.X - _dragStart.X);
-                double top = Canvas.GetTop(_draggedElement) + (current.Y - _dragStart.Y);
-                
-                Canvas.SetLeft(_draggedElement, left);
-                Canvas.SetTop(_draggedElement, top);
-                _dragStart = current;
-            }
-        }
-
-        private void OnAppMouseUp(object sender, MouseButtonEventArgs e)
-        {
-            if (_draggedElement != null)
-            {
-                _draggedElement.ReleaseMouseCapture();
-                
-                // 计算落点网格
-                double left = Canvas.GetLeft(_draggedElement);
-                double top = Canvas.GetTop(_draggedElement);
-                
-                int col = (int)Math.Round(left / 100);
-                int row = (int)Math.Round(top / 100);
-                
-                _draggedApp.Col = Math.Max(0, Math.Min(col, 3));
-                _draggedApp.Row = Math.Max(0, Math.Min(row, 5));
-                
-                UpdateElementPosition(_draggedElement, _draggedApp.Col, _draggedApp.Row);
-                
-                // 持久化
-                _licenseManager.SaveAppLayout(_draggedApp.Id, _draggedApp.Col, _draggedApp.Row);
-                
-                if (left < 5 && top < 5 && _draggedApp.Id == "settings") {
-                    OnSettingsClick(null, null);
-                }
-
-                _draggedElement = null;
-                _draggedApp = null;
-            }
-        }
-
-        private void UpdateElementPosition(UIElement element, int col, int row)
-        {
-            Canvas.SetLeft(element, col * 100);
-            Canvas.SetTop(element, row * 100);
-        }
-
-        /// <summary>
-        /// 初始化授权管理器，从数据库恢复激活状态，并设置机器码
-        /// </summary>
         private void InitializeLicense()
         {
-            // 初始化 LicenseManager（内部会打开数据库并恢复缓存）
             _licenseManager.Initialize();
-
-            // 显示机器码
             MachineIdTextBox.Text = _licenseManager.GetMachineId();
 
-            // 从数据库恢复的激活状态刷新到 UI
             if (_licenseManager.IsActivated())
             {
                 ActivationStatusText.Text = "已查看 >";
@@ -180,6 +84,535 @@ namespace WangWangPhone
                 ExpiryDateText.Visibility = Visibility.Visible;
             }
         }
+
+        /// <summary>
+        /// 初始化布局管理器并加载保存的布局
+        /// </summary>
+        private void InitializeLayout()
+        {
+            _layoutManager.Initialize();
+
+            // 默认应用列表
+            var defaultApps = GetDefaultApps();
+
+            // 从数据库加载布局
+            var savedLayout = _layoutManager.GetLayout();
+            if (savedLayout.Count > 0)
+            {
+                var gridItems = savedLayout.Where(i => i.Area == "grid").OrderBy(i => i.Position).ToList();
+                _apps.Clear();
+                foreach (var layoutItem in gridItems)
+                {
+                    var app = defaultApps.FirstOrDefault(a => a.Id == layoutItem.AppId);
+                    if (app != null)
+                    {
+                        _apps.Add(app);
+                    }
+                }
+                // 补充数据库中没有的新应用
+                foreach (var app in defaultApps)
+                {
+                    if (!_apps.Any(a => a.Id == app.Id))
+                    {
+                        _apps.Add(app);
+                    }
+                }
+            }
+            else
+            {
+                _apps = defaultApps;
+            }
+
+            RenderAppGrid();
+            UpdateDock();
+
+            // 初始化长按计时器
+            _longPressTimer = new DispatcherTimer();
+            _longPressTimer.Interval = TimeSpan.FromMilliseconds(500);
+            _longPressTimer.Tick += LongPressTimer_Tick;
+        }
+
+        private List<AppIconModel> GetDefaultApps()
+        {
+            return new List<AppIconModel>
+            {
+                new AppIconModel { Id = "phone", Name = "电话", Icon = "📞", UseImage = false },
+                new AppIconModel { Id = "message", Name = "信息", Icon = "💬", UseImage = false },
+                new AppIconModel { Id = "settings", Name = "设置", Icon = "settings", UseImage = true },
+                new AppIconModel { Id = "safari", Name = "Safari", Icon = "🧭", UseImage = false },
+                new AppIconModel { Id = "music", Name = "音乐", Icon = "🎵", UseImage = false },
+                new AppIconModel { Id = "camera", Name = "相机", Icon = "📷", UseImage = false },
+                new AppIconModel { Id = "calendar", Name = "日历", Icon = "📅", UseImage = false },
+                new AppIconModel { Id = "wangwang", Name = "汪汪", Icon = "🐶", UseImage = false },
+            };
+        }
+
+        #endregion
+
+        #region 应用网格渲染
+
+        /// <summary>
+        /// 在 Canvas 上渲染所有应用图标
+        /// </summary>
+        private void RenderAppGrid()
+        {
+            AppGridCanvas.Children.Clear();
+            _wiggleStoryboards.Clear();
+
+            for (int i = 0; i < _apps.Count; i++)
+            {
+                var app = _apps[i];
+                var panel = CreateAppIconPanel(app, i);
+
+                int row = i / Columns;
+                int col = i % Columns;
+
+                Canvas.SetLeft(panel, col * CellWidth);
+                Canvas.SetTop(panel, row * CellHeight);
+
+                AppGridCanvas.Children.Add(panel);
+
+                // 编辑模式抖动动画
+                if (_isEditMode)
+                {
+                    StartWiggleAnimation(panel, i);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 创建单个应用图标面板
+        /// </summary>
+        private StackPanel CreateAppIconPanel(AppIconModel app, int index)
+        {
+            var panel = new StackPanel
+            {
+                Width = CellWidth,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Cursor = Cursors.Hand,
+                Tag = index // 存储索引
+            };
+
+            var iconContainer = new Border
+            {
+                Width = 80,
+                Height = 80,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+
+            if (app.UseImage)
+            {
+                var grid = new Grid();
+                try
+                {
+                    var lightImage = new Image
+                    {
+                        Source = new BitmapImage(new Uri("Assets/Setting_Light.png", UriKind.Relative)),
+                        Width = 80,
+                        Height = 80
+                    };
+                    grid.Children.Add(lightImage);
+                }
+                catch { }
+                iconContainer.Child = grid;
+            }
+            else
+            {
+                iconContainer.Child = new TextBlock
+                {
+                    Text = app.Icon,
+                    FontSize = 65,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+            }
+
+            var nameBlock = new TextBlock
+            {
+                Text = app.Name,
+                Foreground = Brushes.White,
+                FontSize = 12,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Margin = new Thickness(0, 5, 0, 0)
+            };
+
+            panel.Children.Add(iconContainer);
+            panel.Children.Add(nameBlock);
+
+            // 事件绑定
+            panel.MouseLeftButtonDown += AppIcon_MouseLeftButtonDown;
+            panel.MouseLeftButtonUp += AppIcon_MouseLeftButtonUp;
+            panel.MouseMove += AppIcon_MouseMove;
+            panel.MouseLeave += AppIcon_MouseLeave;
+
+            return panel;
+        }
+
+        /// <summary>
+        /// 更新 Dock 栏（显示前4个应用）
+        /// </summary>
+        private void UpdateDock()
+        {
+            DockPanel.Children.Clear();
+            foreach (var app in _apps.Take(4))
+            {
+                var container = new Border
+                {
+                    Width = 55,
+                    Height = 55,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+
+                if (app.UseImage)
+                {
+                    try
+                    {
+                        container.Child = new Image
+                        {
+                            Source = new BitmapImage(new Uri("Assets/Setting_Light.png", UriKind.Relative)),
+                            Width = 55,
+                            Height = 55
+                        };
+                    }
+                    catch { }
+                }
+                else
+                {
+                    container.Child = new TextBlock
+                    {
+                        Text = app.Icon,
+                        FontSize = 45,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                }
+
+                DockPanel.Children.Add(container);
+            }
+        }
+
+        #endregion
+
+        #region 长按进入编辑模式
+
+        private void AppIcon_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is StackPanel panel)
+            {
+                _longPressTarget = panel;
+                _longPressStartPos = e.GetPosition(AppGridCanvas);
+                _longPressTimer.Start();
+
+                if (_isEditMode)
+                {
+                    // 编辑模式下直接开始拖拽准备
+                    _dragStartPoint = e.GetPosition(AppGridCanvas);
+                    _draggedIndex = (int)panel.Tag;
+                }
+            }
+        }
+
+        private void AppIcon_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _longPressTimer.Stop();
+
+            if (!_isEditMode && !_isDragging)
+            {
+                // 普通点击
+                if (sender is StackPanel panel)
+                {
+                    int index = (int)panel.Tag;
+                    if (index >= 0 && index < _apps.Count && _apps[index].Id == "settings")
+                    {
+                        OnSettingsClick(sender, null);
+                    }
+                }
+            }
+
+            if (_isDragging)
+            {
+                FinishDrag();
+            }
+
+            _longPressTarget = null;
+        }
+
+        private void AppIcon_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_longPressTimer.IsEnabled)
+            {
+                // 检查移动距离是否超过阈值，超过则取消长按
+                var currentPos = e.GetPosition(AppGridCanvas);
+                if (Math.Abs(currentPos.X - _longPressStartPos.X) > 5 ||
+                    Math.Abs(currentPos.Y - _longPressStartPos.Y) > 5)
+                {
+                    _longPressTimer.Stop();
+                }
+            }
+
+            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedIndex >= 0)
+            {
+                var currentPos = e.GetPosition(AppGridCanvas);
+                var diff = currentPos - _dragStartPoint;
+
+                if (!_isDragging && (Math.Abs(diff.X) > 3 || Math.Abs(diff.Y) > 3))
+                {
+                    _isDragging = true;
+                    _draggedElement = sender as StackPanel;
+                    if (_draggedElement != null)
+                    {
+                        _draggedElement.Opacity = 0.7;
+                        Panel.SetZIndex(_draggedElement, 100);
+                        _draggedElement.RenderTransform = new ScaleTransform(1.15, 1.15, CellWidth / 2, CellHeight / 2);
+                    }
+                }
+
+                if (_isDragging && _draggedElement != null)
+                {
+                    // 移动被拖拽的元素
+                    int origRow = _draggedIndex / Columns;
+                    int origCol = _draggedIndex % Columns;
+                    Canvas.SetLeft(_draggedElement, origCol * CellWidth + diff.X);
+                    Canvas.SetTop(_draggedElement, origRow * CellHeight + diff.Y);
+
+                    // 计算目标位置
+                    double centerX = origCol * CellWidth + CellWidth / 2 + diff.X;
+                    double centerY = origRow * CellHeight + CellHeight / 2 + diff.Y;
+
+                    int targetCol = Math.Max(0, Math.Min(Columns - 1, (int)(centerX / CellWidth)));
+                    int targetRow = Math.Max(0, (int)(centerY / CellHeight));
+                    int targetIndex = Math.Min(_apps.Count - 1, Math.Max(0, targetRow * Columns + targetCol));
+
+                    if (targetIndex != _draggedIndex)
+                    {
+                        // 交换位置
+                        var draggedApp = _apps[_draggedIndex];
+                        _apps.RemoveAt(_draggedIndex);
+                        _apps.Insert(targetIndex, draggedApp);
+
+                        // 更新拖拽参考点
+                        _dragStartPoint = currentPos;
+                        _draggedIndex = targetIndex;
+
+                        // 重新渲染其他图标（不包括被拖拽的）
+                        RenderAppGridExcept(targetIndex);
+                    }
+                }
+            }
+        }
+
+        private void AppIcon_MouseLeave(object sender, MouseEventArgs e)
+        {
+            _longPressTimer.Stop();
+        }
+
+        private void LongPressTimer_Tick(object sender, EventArgs e)
+        {
+            _longPressTimer.Stop();
+
+            if (!_isEditMode)
+            {
+                EnterEditMode();
+
+                // 如果有长按的目标，同时开始拖拽
+                if (_longPressTarget != null)
+                {
+                    _draggedIndex = (int)_longPressTarget.Tag;
+                    _dragStartPoint = _longPressStartPos;
+                }
+            }
+        }
+
+        #endregion
+
+        #region 编辑模式
+
+        private void EnterEditMode()
+        {
+            _isEditMode = true;
+            EditModeBanner.Visibility = Visibility.Visible;
+
+            // 重新渲染带抖动动画的网格
+            RenderAppGrid();
+        }
+
+        private void ExitEditMode()
+        {
+            _isEditMode = false;
+            EditModeBanner.Visibility = Visibility.Collapsed;
+
+            // 停止所有抖动动画
+            foreach (var sb in _wiggleStoryboards)
+            {
+                sb.Stop();
+            }
+            _wiggleStoryboards.Clear();
+
+            // 重新渲染（无动画）
+            RenderAppGrid();
+            UpdateDock();
+
+            // 保存布局
+            SaveCurrentLayout();
+        }
+
+        private void OnEditDoneClick(object sender, MouseButtonEventArgs e)
+        {
+            ExitEditMode();
+        }
+
+        /// <summary>
+        /// 启动单个图标的抖动动画
+        /// </summary>
+        private void StartWiggleAnimation(StackPanel panel, int index)
+        {
+            var rotateTransform = new RotateTransform(0, CellWidth / 2, 10);
+            panel.RenderTransform = rotateTransform;
+
+            var animation = new DoubleAnimation
+            {
+                From = index % 2 == 0 ? -1.5 : 1.5,
+                To = index % 2 == 0 ? 1.5 : -1.5,
+                Duration = TimeSpan.FromMilliseconds(120 + (index % 3) * 30),
+                AutoReverse = true,
+                RepeatBehavior = RepeatBehavior.Forever,
+                EasingFunction = new SineEase()
+            };
+
+            var storyboard = new Storyboard();
+            Storyboard.SetTarget(animation, panel);
+            Storyboard.SetTargetProperty(animation, new PropertyPath("(UIElement.RenderTransform).(RotateTransform.Angle)"));
+            storyboard.Children.Add(animation);
+            storyboard.Begin();
+
+            _wiggleStoryboards.Add(storyboard);
+        }
+
+        /// <summary>
+        /// 重新渲染除了指定索引之外的所有图标
+        /// </summary>
+        private void RenderAppGridExcept(int exceptIndex)
+        {
+            // 找到并保存被拖拽的元素
+            StackPanel draggedPanel = null;
+            foreach (UIElement child in AppGridCanvas.Children)
+            {
+                if (child is StackPanel sp && (int)sp.Tag == exceptIndex)
+                {
+                    // 这个可能不匹配，因为tag还没更新
+                }
+            }
+
+            // 简单方式：更新除拖拽元素外所有元素的位置
+            for (int i = 0; i < AppGridCanvas.Children.Count; i++)
+            {
+                if (AppGridCanvas.Children[i] is StackPanel sp)
+                {
+                    int oldIndex = (int)sp.Tag;
+                    // 更新tag到新索引
+                    int newIndex = _apps.FindIndex(a => a == _apps.FirstOrDefault(x => GetAppAtOldIndex(oldIndex, sp) != null));
+                }
+            }
+
+            // 最简单的方式：全部重新渲染
+            var tempDragged = _draggedElement;
+            var tempDraggedIdx = _draggedIndex;
+            var tempIsDragging = _isDragging;
+
+            AppGridCanvas.Children.Clear();
+            _wiggleStoryboards.Clear();
+
+            for (int i = 0; i < _apps.Count; i++)
+            {
+                var app = _apps[i];
+                var panel = CreateAppIconPanel(app, i);
+
+                int row = i / Columns;
+                int col = i % Columns;
+
+                Canvas.SetLeft(panel, col * CellWidth);
+                Canvas.SetTop(panel, row * CellHeight);
+
+                if (i == tempDraggedIdx && tempIsDragging)
+                {
+                    panel.Opacity = 0.7;
+                    Panel.SetZIndex(panel, 100);
+                    panel.RenderTransform = new ScaleTransform(1.15, 1.15, CellWidth / 2, CellHeight / 2);
+                    _draggedElement = panel;
+                    // 保持在拖拽位置（由鼠标移动更新）
+                }
+                else if (_isEditMode)
+                {
+                    StartWiggleAnimation(panel, i);
+                }
+
+                AppGridCanvas.Children.Add(panel);
+            }
+        }
+
+        private AppIconModel GetAppAtOldIndex(int index, StackPanel sp)
+        {
+            // Helper - not actually needed with full re-render approach
+            return null;
+        }
+
+        #endregion
+
+        #region 拖拽完成
+
+        private void FinishDrag()
+        {
+            _isDragging = false;
+            _draggedIndex = -1;
+
+            if (_draggedElement != null)
+            {
+                _draggedElement.Opacity = 1;
+                _draggedElement.RenderTransform = null;
+                Panel.SetZIndex(_draggedElement, 0);
+                _draggedElement = null;
+            }
+
+            // 重新渲染并保存
+            RenderAppGrid();
+            UpdateDock();
+            SaveCurrentLayout();
+        }
+
+        private void AppGridCanvas_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+        }
+
+        private void AppGridCanvas_Drop(object sender, DragEventArgs e)
+        {
+            e.Handled = true;
+        }
+
+        #endregion
+
+        #region 布局持久化
+
+        private void SaveCurrentLayout()
+        {
+            var items = new List<Core.LayoutItem>();
+            for (int i = 0; i < _apps.Count; i++)
+            {
+                items.Add(new Core.LayoutItem
+                {
+                    AppId = _apps[i].Id,
+                    Position = i,
+                    Area = "grid"
+                });
+            }
+            _layoutManager.SaveLayout(items);
+        }
+
+        #endregion
+
+        #region 时钟和天气
 
         private void SetupTimer()
         {
@@ -198,17 +631,14 @@ namespace WangWangPhone
 
         private async Task LoadWeatherData()
         {
-            // Simulate Network Delay
             await Task.Delay(500);
 
-            // Mock Data
             string city = "广州";
             string temp = "25°";
             string desc = "多云";
             string icon = "⛅";
             string range = "H:29° L:21°";
 
-            // Update UI
             ClockCityText.Text = city;
             WeatherCityText.Text = city;
             WeatherTempText.Text = temp;
@@ -217,7 +647,11 @@ namespace WangWangPhone
             WeatherRangeText.Text = range;
         }
 
-        private void OnSettingsClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        #endregion
+
+        #region 设置与激活
+
+        private void OnSettingsClick(object sender, MouseButtonEventArgs e)
         {
             SettingsOverlay.Visibility = Visibility.Visible;
         }
@@ -225,11 +659,6 @@ namespace WangWangPhone
         private void OnBackClick(object sender, RoutedEventArgs e)
         {
             SettingsOverlay.Visibility = Visibility.Collapsed;
-        }
-
-        private void OnActivationClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
-        {
-            ActivationOverlay.Visibility = Visibility.Visible;
         }
 
         private void OnActivationClickUI(object sender, RoutedEventArgs e)
@@ -255,11 +684,16 @@ namespace WangWangPhone
             }
         }
 
-        protected override void OnKeyDown(System.Windows.Input.KeyEventArgs e)
+        protected override void OnKeyDown(KeyEventArgs e)
         {
-            if (e.Key == System.Windows.Input.Key.Escape)
+            if (e.Key == Key.Escape)
             {
-                if (ActivationOverlay.Visibility == Visibility.Visible)
+                if (_isEditMode)
+                {
+                    ExitEditMode();
+                    e.Handled = true;
+                }
+                else if (ActivationOverlay.Visibility == Visibility.Visible)
                 {
                     ActivationOverlay.Visibility = Visibility.Collapsed;
                     e.Handled = true;
@@ -283,7 +717,6 @@ namespace WangWangPhone
                 return;
             }
 
-            // 通过 LicenseManager 验证并持久化激活信息到数据库
             var result = await _licenseManager.VerifyLicenseAsync(licenseKey);
 
             if (result.IsSuccess)
@@ -299,5 +732,7 @@ namespace WangWangPhone
                 MessageBox.Show($"激活失败: {result.ErrorMessage}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+        #endregion
     }
 }

@@ -63,10 +63,21 @@
             </Border>
         </UniformGrid>
 
-        <!-- App Area (Free Canvas for Dragging) -->
-        <Canvas x:Name="AppCanvas" Grid.Row="1" Margin="20,180,20,0" Background="Transparent">
-            <!-- App items will be added programmatically or bind to items control -->
-        </Canvas>
+        <!-- Edit Mode Banner -->
+        <Border x:Name="EditModeBanner" Grid.Row="1" Margin="20,170,20,0" VerticalAlignment="Top" 
+                CornerRadius="12" Background="#26FFFFFF" Padding="16,10" Visibility="Collapsed" Panel.ZIndex="50">
+            <Grid>
+                <TextBlock Text="长按拖拽图标以调整位置" Foreground="#E6FFFFFF" FontSize="14" VerticalAlignment="Center"/>
+                <TextBlock x:Name="EditDoneButton" Text="完成" Foreground="#007AFF" FontSize="16" FontWeight="Bold" 
+                           HorizontalAlignment="Right" VerticalAlignment="Center" Cursor="Hand"
+                           MouseDown="OnEditDoneClick"/>
+            </Grid>
+        </Border>
+
+        <!-- Draggable App Grid -->
+        <Canvas x:Name="AppGridCanvas" Grid.Row="1" Margin="20,210,20,0" VerticalAlignment="Top" Height="300"
+                Background="Transparent" AllowDrop="True"
+                DragOver="AppGridCanvas_DragOver" Drop="AppGridCanvas_Drop"/>
 
         <!-- Settings Overlay -->
         <Border x:Name="SettingsOverlay" Grid.Row="0" Grid.RowSpan="3" Background="{DynamicResource SettingsBackgroundBrush}" Visibility="Collapsed" Panel.ZIndex="100">
@@ -139,9 +150,6 @@
                             </Style>
                         </Button.Resources>
                     </Button>
-                    <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="10" Margin="0,0,0,20">
-                        <TextBox x:Name="LicenseKeyTextBox" Height="100" TextWrapping="Wrap" BorderThickness="0" Background="Transparent" AcceptsReturn="True" Foreground="{DynamicResource SystemTextBrush}"/>
-                    </Border>
 
                     <Button Content="激活" Background="#007AFF" Foreground="White" Padding="15" BorderThickness="0" Click="OnActivateSubmit">
                         <Button.Resources>
@@ -156,13 +164,7 @@
 
         <!-- Dock (Placeholder) -->
         <Border Grid.Row="2" Height="90" Margin="15,0,15,20" CornerRadius="30" Background="#4DFFFFFF">
-            <UniformGrid Columns="4">
-                 <Border Width="55" Height="55" HorizontalAlignment="Center" VerticalAlignment="Center">
-                     <TextBlock Text="📞" FontSize="45" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                 </Border>
-                  <Border Width="55" Height="55" HorizontalAlignment="Center" VerticalAlignment="Center">
-                     <TextBlock Text="💬" FontSize="45" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                 </Border>
+            <UniformGrid x:Name="DockPanel" Columns="4">
             </UniformGrid>
         </Border>
 

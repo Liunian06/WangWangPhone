@@ -32,6 +32,8 @@
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
             background-color: #000;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         #phone-container {
@@ -134,7 +136,7 @@
             gap: 15px;
             padding: 0 20px;
             margin-top: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
         .widget {
@@ -158,62 +160,87 @@
             background: linear-gradient(135deg, #4FACFE 0%, #00F2FE 100%);
         }
 
-        .widget-date {
-            font-size: 12px;
-            font-weight: 500;
+        .widget-date { font-size: 12px; font-weight: 500; }
+        .widget-time { font-size: 40px; font-weight: bold; }
+        .widget-city { font-size: 10px; opacity: 0.8; }
+        .widget-temp { font-size: 40px; font-weight: 300; }
+        .widget-icon { font-size: 24px; }
+        .widget-status { font-size: 12px; }
+        .widget-range { font-size: 10px; opacity: 0.8; }
+
+        /* 编辑模式提示栏 */
+        .edit-banner {
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            margin: 0 20px 8px 20px;
+            padding: 10px 16px;
+            background: rgba(255,255,255,0.15);
+            border-radius: 12px;
+            color: rgba(255,255,255,0.9);
+            font-size: 14px;
         }
 
-        .widget-time {
-            font-size: 40px;
+        .edit-banner.active {
+            display: flex;
+        }
+
+        .edit-banner .done-btn {
+            color: #007AFF;
             font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
         }
 
-        .widget-city {
-            font-size: 10px;
-            opacity: 0.8;
-        }
-
-        .widget-temp {
-            font-size: 40px;
-            font-weight: 300;
-        }
-
-        .widget-icon {
-            font-size: 24px;
-        }
-
-        .widget-status {
-            font-size: 12px;
-        }
-
-        .widget-range {
-            font-size: 10px;
-            opacity: 0.8;
-        }
-
+        /* 应用网格 */
         .app-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-gap: 20px;
+            padding: 10px 20px;
             position: relative;
-            height: 400px;
-            padding: 20px;
         }
 
         .app-icon-wrapper {
-            position: absolute;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 5px;
-            width: 80px;
             cursor: pointer;
-            transition: transform 0.1s ease-out;
-            user-select: none;
+            position: relative;
+            transition: transform 0.2s ease;
+            touch-action: none;
         }
 
         .app-icon-wrapper.dragging {
-            z-index: 1000;
-            transition: none;
-            opacity: 0.8;
-            transform: scale(1.1);
+            opacity: 0.7;
+            transform: scale(1.15);
+            z-index: 100;
+            position: relative;
+        }
+
+        .app-icon-wrapper.drop-target {
+            transform: scale(0.85);
+        }
+
+        /* iOS 编辑模式抖动动画 */
+        @keyframes wiggle1 {
+            0%, 100% { transform: rotate(-1.5deg); }
+            50% { transform: rotate(1.5deg); }
+        }
+        @keyframes wiggle2 {
+            0%, 100% { transform: rotate(1.5deg); }
+            50% { transform: rotate(-1.5deg); }
+        }
+
+        .app-icon-wrapper.edit-mode:nth-child(odd) {
+            animation: wiggle1 0.3s ease-in-out infinite;
+        }
+        .app-icon-wrapper.edit-mode:nth-child(even) {
+            animation: wiggle2 0.28s ease-in-out infinite;
+        }
+        .app-icon-wrapper.edit-mode.dragging {
+            animation: none !important;
         }
 
         .app-icon {
@@ -275,7 +302,6 @@
             z-index: 200;
             display: none;
             flex-direction: column;
-            padding-top: env(safe-area-inset-top); /* 适配状态栏 */
         }
 
         .overlay-header {
@@ -303,16 +329,8 @@
             overflow-y: auto;
         }
 
-        .settings-section {
-            margin-bottom: 20px;
-        }
-
-        .section-title {
-            font-size: 13px;
-            color: #666;
-            margin-left: 10px;
-            margin-bottom: 5px;
-        }
+        .settings-section { margin-bottom: 20px; }
+        .section-title { font-size: 13px; color: #666; margin-left: 10px; margin-bottom: 5px; }
 
         .settings-list {
             background: var(--card-bg);
@@ -342,24 +360,11 @@
             object-fit: contain;
         }
 
-        .settings-item:last-child {
-            border-bottom: none;
-        }
+        .settings-item:last-child { border-bottom: none; }
+        .status-val { color: #8E8E93; }
 
-        .status-val {
-            color: #8E8E93;
-        }
-
-        /* 激活界面 */
-        .input-group {
-            margin-bottom: 20px;
-        }
-
-        .input-label {
-            font-size: 14px;
-            color: #666;
-            margin-bottom: 5px;
-        }
+        .input-group { margin-bottom: 20px; }
+        .input-label { font-size: 14px; color: #666; margin-bottom: 5px; }
 
         .input-box {
             background: var(--card-bg);
@@ -438,20 +443,21 @@
             </div>
         </div>
 
-        <div class="app-grid" id="main-app-grid">
-            <!-- 动态生成 -->
+        <!-- 编辑模式提示栏 -->
+        <div class="edit-banner" id="edit-banner">
+            <span>长按拖拽图标以调整位置</span>
+            <span class="done-btn" id="edit-done-btn">完成</span>
         </div>
 
-        <!-- Dock 栏 -->
-        <div class="dock">
-            <div class="app-icon">📞</div>
-            <div class="app-icon">💬</div>
-            <div class="app-icon">🧭</div>
-            <div class="app-icon">🎵</div>
-        </div>
+        <!-- 应用网格（动态渲染） -->
+        <div class="app-grid" id="app-grid"></div>
+
+        <!-- Dock 栏（动态渲染） -->
+        <div class="dock" id="dock-bar"></div>
 
         <div class="home-indicator"></div>
     </div>
+
     <!-- 设置 Overlay -->
     <div id="settings-overlay" class="overlay">
         <div class="overlay-header">
@@ -500,11 +506,413 @@
     import { getLocation } from './js/location.js';
     import { getWeather } from './js/weather.js';
     import { licenseManager } from './js/license.js';
+    import { layoutManager } from './js/layout.js';
 
-    // 初始化授权管理器，从 IndexedDB 恢复激活状态
+    // ============================================
+    // 默认应用列表
+    // ============================================
+    const DEFAULT_APPS = [
+        { id: 'phone', name: '电话', icon: '📞', useImage: false },
+        { id: 'message', name: '信息', icon: '💬', useImage: false },
+        { id: 'safari', name: 'Safari', icon: '🧭', useImage: false },
+        { id: 'music', name: '音乐', icon: '🎵', useImage: false },
+        { id: 'camera', name: '相机', icon: '📷', useImage: false },
+        { id: 'calendar', name: '日历', icon: '📅', useImage: false },
+        { id: 'settings', name: '设置', icon: 'settings', useImage: true },
+        { id: 'wangwang', name: '汪汪', icon: '🐶', useImage: false }
+    ];
+
+    // 当前应用顺序（可变）
+    let currentApps = [...DEFAULT_APPS];
+
+    // 编辑模式状态
+    let isEditMode = false;
+
+    // 长按计时器
+    let longPressTimer = null;
+    const LONG_PRESS_DURATION = 500; // ms
+
+    // 拖拽状态
+    let isDragging = false;
+    let draggedElement = null;
+    let draggedIndex = -1;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragOffsetX = 0;
+    let dragOffsetY = 0;
+
+    // ============================================
+    // 初始化
+    // ============================================
     await licenseManager.initialize();
+    await layoutManager.initialize();
 
-    // 恢复已持久化的激活状态到 UI
+    // 加载保存的布局
+    const savedLayout = await layoutManager.getLayout();
+    if (savedLayout.length > 0) {
+        const gridItems = savedLayout.filter(i => i.area === 'grid').sort((a, b) => a.position - b.position);
+        const orderedApps = [];
+        for (const layoutItem of gridItems) {
+            const app = DEFAULT_APPS.find(a => a.id === layoutItem.appId);
+            if (app) orderedApps.push(app);
+        }
+        // 补充没有保存的新应用
+        for (const app of DEFAULT_APPS) {
+            if (!orderedApps.find(a => a.id === app.id)) {
+                orderedApps.push(app);
+            }
+        }
+        currentApps = orderedApps;
+    }
+
+    // 渲染应用
+    renderAppGrid();
+    renderDock();
+
+    // 恢复激活状态
+    refreshActivationUI();
+
+    // ============================================
+    // 应用网格渲染
+    // ============================================
+    function renderAppGrid() {
+        const grid = document.getElementById('app-grid');
+        grid.innerHTML = '';
+
+        currentApps.forEach((app, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'app-icon-wrapper' + (isEditMode ? ' edit-mode' : '');
+            wrapper.dataset.index = index;
+            wrapper.dataset.appId = app.id;
+
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'app-icon';
+
+            if (app.useImage) {
+                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                const picture = document.createElement('picture');
+                const source = document.createElement('source');
+                source.srcset = 'Setting_Dark.png';
+                source.media = '(prefers-color-scheme: dark)';
+                const img = document.createElement('img');
+                img.src = 'Setting_Light.png';
+                img.alt = app.name;
+                img.className = 'settings-icon-img';
+                picture.appendChild(source);
+                picture.appendChild(img);
+                iconDiv.appendChild(picture);
+            } else {
+                iconDiv.textContent = app.icon;
+            }
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'app-name';
+            nameDiv.textContent = app.name;
+
+            wrapper.appendChild(iconDiv);
+            wrapper.appendChild(nameDiv);
+
+            // 事件绑定
+            setupDragEvents(wrapper, index);
+
+            grid.appendChild(wrapper);
+        });
+    }
+
+    function renderDock() {
+        const dock = document.getElementById('dock-bar');
+        dock.innerHTML = '';
+
+        currentApps.slice(0, 4).forEach(app => {
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'app-icon';
+
+            if (app.useImage) {
+                const picture = document.createElement('picture');
+                const source = document.createElement('source');
+                source.srcset = 'Setting_Dark.png';
+                source.media = '(prefers-color-scheme: dark)';
+                const img = document.createElement('img');
+                img.src = 'Setting_Light.png';
+                img.alt = app.name;
+                img.className = 'settings-icon-img-dock';
+                picture.appendChild(source);
+                picture.appendChild(img);
+                iconDiv.appendChild(picture);
+            } else {
+                iconDiv.textContent = app.icon;
+            }
+
+            dock.appendChild(iconDiv);
+        });
+    }
+
+    // ============================================
+    // 长按 + 拖拽事件
+    // ============================================
+    function setupDragEvents(element, index) {
+        // 鼠标事件
+        element.addEventListener('mousedown', (e) => onPointerDown(e, element, index));
+        element.addEventListener('mousemove', (e) => onPointerMove(e, element));
+        element.addEventListener('mouseup', (e) => onPointerUp(e, element, index));
+        element.addEventListener('mouseleave', (e) => onPointerCancel(e));
+
+        // 触摸事件
+        element.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            onPointerDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} }, element, index);
+        }, { passive: false });
+
+        element.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            onPointerMove({ clientX: touch.clientX, clientY: touch.clientY }, element);
+        }, { passive: false });
+
+        element.addEventListener('touchend', (e) => {
+            onPointerUp(e, element, index);
+        });
+
+        element.addEventListener('touchcancel', (e) => {
+            onPointerCancel(e);
+        });
+    }
+
+    function onPointerDown(e, element, index) {
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        draggedIndex = index;
+
+        // 启动长按计时器
+        clearTimeout(longPressTimer);
+        longPressTimer = setTimeout(() => {
+            if (!isEditMode) {
+                enterEditMode();
+            }
+            // 开始拖拽
+            startDrag(element, index);
+        }, LONG_PRESS_DURATION);
+
+        // 如果已经在编辑模式，准备立即拖拽
+        if (isEditMode) {
+            clearTimeout(longPressTimer);
+            longPressTimer = setTimeout(() => {
+                startDrag(element, index);
+            }, 150); // 编辑模式下更短的延迟
+        }
+    }
+
+    function onPointerMove(e, element) {
+        const dx = e.clientX - dragStartX;
+        const dy = e.clientY - dragStartY;
+
+        // 移动超过阈值取消长按
+        if (!isDragging && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
+            clearTimeout(longPressTimer);
+        }
+
+        if (isDragging && draggedElement) {
+            dragOffsetX = dx;
+            dragOffsetY = dy;
+            draggedElement.style.transform = `translate(${dragOffsetX}px, ${dragOffsetY}px) scale(1.15)`;
+            draggedElement.style.zIndex = '100';
+
+            // 计算目标位置
+            const grid = document.getElementById('app-grid');
+            const gridRect = grid.getBoundingClientRect();
+            const cellWidth = gridRect.width / 4;
+            const cellHeight = 105;
+
+            const currentCenterX = e.clientX - gridRect.left;
+            const currentCenterY = e.clientY - gridRect.top;
+
+            const targetCol = Math.max(0, Math.min(3, Math.floor(currentCenterX / cellWidth)));
+            const targetRow = Math.max(0, Math.floor(currentCenterY / cellHeight));
+            const targetIndex = Math.min(currentApps.length - 1, Math.max(0, targetRow * 4 + targetCol));
+
+            // 高亮目标位置
+            document.querySelectorAll('.app-icon-wrapper.drop-target').forEach(el => {
+                el.classList.remove('drop-target');
+            });
+
+            if (targetIndex !== draggedIndex && targetIndex >= 0 && targetIndex < currentApps.length) {
+                const targetEl = grid.children[targetIndex];
+                if (targetEl && targetEl !== draggedElement) {
+                    targetEl.classList.add('drop-target');
+                }
+
+                // 交换位置
+                const movedApp = currentApps.splice(draggedIndex, 1)[0];
+                currentApps.splice(targetIndex, 0, movedApp);
+
+                // 更新拖拽参考
+                dragStartX = e.clientX;
+                dragStartY = e.clientY;
+                dragOffsetX = 0;
+                dragOffsetY = 0;
+                draggedIndex = targetIndex;
+
+                // 重新渲染（但保持拖拽状态）
+                renderAppGridDuringDrag(targetIndex);
+            }
+        }
+    }
+
+    function onPointerUp(e, element, index) {
+        clearTimeout(longPressTimer);
+
+        if (isDragging) {
+            finishDrag();
+        } else if (!isEditMode) {
+            // 普通点击
+            const app = currentApps[index];
+            if (app && app.id === 'settings') {
+                showSettings();
+            }
+        }
+    }
+
+    function onPointerCancel(e) {
+        clearTimeout(longPressTimer);
+        if (isDragging) {
+            finishDrag();
+        }
+    }
+
+    function startDrag(element, index) {
+        isDragging = true;
+        draggedElement = element;
+        draggedIndex = index;
+        dragOffsetX = 0;
+        dragOffsetY = 0;
+
+        element.classList.add('dragging');
+        element.style.transition = 'none';
+
+        // 震动反馈（移动端）
+        if (navigator.vibrate) {
+            navigator.vibrate(50);
+        }
+    }
+
+    function finishDrag() {
+        isDragging = false;
+
+        if (draggedElement) {
+            draggedElement.classList.remove('dragging');
+            draggedElement.style.transform = '';
+            draggedElement.style.zIndex = '';
+            draggedElement.style.transition = '';
+            draggedElement = null;
+        }
+
+        document.querySelectorAll('.app-icon-wrapper.drop-target').forEach(el => {
+            el.classList.remove('drop-target');
+        });
+
+        draggedIndex = -1;
+        dragOffsetX = 0;
+        dragOffsetY = 0;
+
+        renderAppGrid();
+        renderDock();
+        saveLayout();
+    }
+
+    /**
+     * 拖拽过程中重新渲染（保持被拖拽元素的状态）
+     */
+    function renderAppGridDuringDrag(activeIndex) {
+        const grid = document.getElementById('app-grid');
+        grid.innerHTML = '';
+
+        currentApps.forEach((app, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'app-icon-wrapper edit-mode';
+            wrapper.dataset.index = index;
+            wrapper.dataset.appId = app.id;
+
+            if (index === activeIndex) {
+                wrapper.classList.add('dragging');
+                wrapper.style.transition = 'none';
+                draggedElement = wrapper;
+            }
+
+            const iconDiv = document.createElement('div');
+            iconDiv.className = 'app-icon';
+
+            if (app.useImage) {
+                const picture = document.createElement('picture');
+                const source = document.createElement('source');
+                source.srcset = 'Setting_Dark.png';
+                source.media = '(prefers-color-scheme: dark)';
+                const img = document.createElement('img');
+                img.src = 'Setting_Light.png';
+                img.alt = app.name;
+                img.className = 'settings-icon-img';
+                picture.appendChild(source);
+                picture.appendChild(img);
+                iconDiv.appendChild(picture);
+            } else {
+                iconDiv.textContent = app.icon;
+            }
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'app-name';
+            nameDiv.textContent = app.name;
+
+            wrapper.appendChild(iconDiv);
+            wrapper.appendChild(nameDiv);
+
+            setupDragEvents(wrapper, index);
+
+            grid.appendChild(wrapper);
+        });
+    }
+
+    // ============================================
+    // 编辑模式
+    // ============================================
+    function enterEditMode() {
+        isEditMode = true;
+        document.getElementById('edit-banner').classList.add('active');
+        renderAppGrid();
+    }
+
+    function exitEditMode() {
+        isEditMode = false;
+        document.getElementById('edit-banner').classList.remove('active');
+        renderAppGrid();
+        renderDock();
+        saveLayout();
+    }
+
+    document.getElementById('edit-done-btn').addEventListener('click', () => {
+        exitEditMode();
+    });
+
+    // 点击空白区域退出编辑模式
+    document.getElementById('home-screen').addEventListener('click', (e) => {
+        if (isEditMode && e.target.id === 'home-screen') {
+            exitEditMode();
+        }
+    });
+
+    // ============================================
+    // 布局持久化
+    // ============================================
+    async function saveLayout() {
+        const items = currentApps.map((app, index) => ({
+            appId: app.id,
+            position: index,
+            area: 'grid'
+        }));
+        await layoutManager.saveLayout(items);
+    }
+
+    // ============================================
+    // 授权相关
+    // ============================================
     function refreshActivationUI() {
         if (licenseManager.isActivated()) {
             const statusEls = document.querySelectorAll('.status-val');
@@ -516,7 +924,6 @@
             }
         }
     }
-    refreshActivationUI();
 
     window.unlock = function() {
         document.getElementById('lock-screen').classList.add('unlocked');
@@ -533,7 +940,6 @@
     window.showActivation = function() {
         document.getElementById('activation-overlay').style.zIndex = 300;
         document.getElementById('activation-overlay').style.display = 'flex';
-        // 使用 LicenseManager 获取机器码
         document.getElementById('web-machine-id').textContent = licenseManager.getMachineId();
     }
 
@@ -554,7 +960,6 @@
         document.getElementById('activation-overlay').style.display = 'none';
     }
 
-    // 监听原生返回 (浏览器后退)
     window.addEventListener('popstate', function(event) {
         if (document.getElementById('activation-overlay').style.display === 'flex') {
             hideActivation();
@@ -573,7 +978,6 @@
             return;
         }
 
-        // 通过 LicenseManager 验证并持久化激活信息到 IndexedDB
         const result = await licenseManager.verifyLicense(license);
         if (result.success) {
             alert('软件激活成功！');
@@ -584,137 +988,20 @@
         }
     }
 
-    // 拖拽布局逻辑
-    const gridEl = document.getElementById('main-app-grid');
-    let apps = [
-        { id: 'phone', name: '电话', icon: '📞', col: 0, row: 0 },
-        { id: 'msg', name: '信息', icon: '💬', col: 1, row: 0 },
-        { id: 'safari', name: 'Safari', icon: '🧭', col: 2, row: 0 },
-        { id: 'music', name: '音乐', icon: '🎵', col: 3, row: 0 },
-        { id: 'camera', name: '相机', icon: '📷', col: 0, row: 1 },
-        { id: 'calendar', name: '日历', icon: '📅', col: 1, row: 1 },
-        { id: 'settings', name: '设置', icon: 'Setting_Light.png', useImage: true, col: 2, row: 1 },
-        { id: 'wangwang', name: '汪汪', icon: '🐶', col: 3, row: 1 },
-    ];
-
-    function saveLayout() {
-        const layoutData = apps.map(a => ({ id: a.id, col: a.col, row: a.row }));
-        localStorage.setItem('wwj_app_layout', JSON.stringify(layoutData));
-    }
-
-    function loadLayout() {
-        const saved = localStorage.getItem('wwj_app_layout');
-        if (saved) {
-            const layoutData = JSON.parse(saved);
-            layoutData.forEach(l => {
-                const app = apps.find(a => a.id === l.id);
-                if (app) {
-                    app.col = l.col;
-                    app.row = l.row;
-                }
-            });
-        }
-    }
-
-    function renderApps() {
-        gridEl.innerHTML = '';
-        apps.forEach(app => {
-            const wrapper = document.createElement('div');
-            wrapper.className = 'app-icon-wrapper';
-            wrapper.style.left = `${app.col * 85 + 20}px`;
-            wrapper.style.top = `${app.row * 100 + 20}px`;
-            wrapper.dataset.id = app.id;
-
-            let iconHtml = '';
-            if (app.useImage) {
-                iconHtml = `<div class="app-icon"><img src="${app.icon}" class="settings-icon-img"></div>`;
-            } else {
-                iconHtml = `<div class="app-icon">${app.icon}</div>`;
-            }
-
-            wrapper.innerHTML = `${iconHtml}<div class="app-name">${app.name}</div>`;
-            
-            wrapper.addEventListener('mousedown', onMouseDown);
-            if (app.id === 'settings') {
-                wrapper.addEventListener('click', (e) => {
-                    if (!wrapper.classList.contains('moved')) showSettings();
-                });
-            }
-
-            gridEl.appendChild(wrapper);
-        });
-    }
-
-    let dragEl = null;
-    let startX, startY, initialLeft, initialTop;
-
-    function onMouseDown(e) {
-        dragEl = e.currentTarget;
-        dragEl.classList.add('dragging');
-        dragEl.classList.remove('moved');
-        
-        startX = e.clientX;
-        startY = e.clientY;
-        initialLeft = parseInt(dragEl.style.left);
-        initialTop = parseInt(dragEl.style.top);
-
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-    }
-
-    function onMouseMove(e) {
-        if (!dragEl) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        dragEl.style.left = `${initialLeft + dx}px`;
-        dragEl.style.top = `${initialTop + dy}px`;
-        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-            dragEl.classList.add('moved');
-        }
-    }
-
-    function onMouseUp(e) {
-        if (!dragEl) return;
-        dragEl.classList.remove('dragging');
-        
-        const finalLeft = parseInt(dragEl.style.left);
-        const finalTop = parseInt(dragEl.style.top);
-        
-        const col = Math.round((finalLeft - 20) / 85);
-        const row = Math.round((finalTop - 20) / 100);
-        
-        const appId = dragEl.dataset.id;
-        const app = apps.find(a => a.id === appId);
-        if (app) {
-            app.col = Math.max(0, Math.min(col, 3));
-            app.row = Math.max(0, Math.min(row, 5));
-            saveLayout();
-        }
-
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        dragEl = null;
-        renderApps();
-    }
-
-    loadLayout();
-    renderApps();
-
-    // 更新时间
+    // ============================================
+    // 时钟更新
+    // ============================================
     function updateTime() {
         const now = new Date();
         const hours = String(now.getHours()).padStart(2, '0');
         const minutes = String(now.getMinutes()).padStart(2, '0');
         const timeStr = `${hours}:${minutes}`;
-        
-        // 更新顶部栏和锁屏时间
+
         document.querySelectorAll('.time, .lock-time').forEach(el => el.textContent = timeStr);
-        
-        // 更新 Widget 时间
+
         const widgetTime = document.getElementById('widget-time');
         if (widgetTime) widgetTime.textContent = timeStr;
 
-        // 更新 Widget 日期
         const widgetDate = document.getElementById('widget-date');
         if (widgetDate) {
             const month = now.getMonth() + 1;
@@ -727,45 +1014,29 @@
     setInterval(updateTime, 1000);
     updateTime();
 
-    // 初始化天气组件
+    // ============================================
+    // 天气初始化
+    // ============================================
     async function initWeatherWidget() {
         try {
-            console.log("Initializing Weather Widget...");
-            // 1. 获取城市
             const city = await getLocation();
-            console.log('当前定位城市:', city);
-
-            // 更新 UI 城市显示
             document.querySelectorAll('.widget-city').forEach(el => el.textContent = city);
-            // 天气组件里通常也有个城市名显示
-            // 注意：原有HTML结构里 Weather Widget 的城市名是硬编码的 "北京"
-            // 我们需要找到它并更新.
-            // 结构: <div class="widget weather-widget"> -> <div> -> <div style="font-weight: bold;">北京</div>
             const weatherWidget = document.querySelector('.weather-widget');
             if (weatherWidget) {
                 const cityEl = weatherWidget.querySelector('div > div:first-child');
                 if (cityEl) cityEl.textContent = city;
             }
 
-            // 2. 获取天气
             if (city) {
                 const weather = await getWeather(city);
-                console.log(`天气：${weather.description}, 温度：${weather.temperature}`);
-                
-                // 更新 UI
                 if (weatherWidget) {
                     const tempEl = weatherWidget.querySelector('.widget-temp');
                     const statusEl = weatherWidget.querySelector('.widget-status');
                     const rangeEl = weatherWidget.querySelector('.widget-range');
-                    
-                    if (tempEl) tempEl.textContent = weather.temperature.replace(' ', ''); // "+5 °C" -> "+5°C"
+
+                    if (tempEl) tempEl.textContent = weather.temperature.replace(' ', '');
                     if (statusEl) statusEl.textContent = weather.description;
-                    
-                    // Forecast data is array, we might pick first day for range or just use description
                     if (weather.forecast && weather.forecast.length > 0) {
-                        // API might not give high/low directly in main object, sometimes it's in description or not available simply
-                        // For this prototype, we just show forecast[0] temp as "Future: ..." or keep it simple
-                        // Let's assume we want to show wind as range/extra info since API returns wind
                         rangeEl.textContent = `Wind: ${weather.wind}`;
                     }
                 }
@@ -774,8 +1045,6 @@
             console.error('获取环境信息失败:', error);
         }
     }
-
-    // 启动初始化
     initWeatherWidget();
 </script>
 
