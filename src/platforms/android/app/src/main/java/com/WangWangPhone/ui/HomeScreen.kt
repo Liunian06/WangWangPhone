@@ -460,7 +460,7 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
     val licenseDbHelper = remember { LicenseDbHelper(context) }
     
     // Initial apps with default positions
-    val initialApps = remember {
+    val appsList = remember {
         mutableStateListOf(
             AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF))), col = 0, row = 0),
             AppIcon("msg", "信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB))), col = 1, row = 0),
@@ -478,9 +478,10 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
         val savedLayouts = licenseDbHelper.getAppLayouts()
         if (savedLayouts.isNotEmpty()) {
             savedLayouts.forEach { layout ->
-                val index = initialApps.indexOfFirst { it.id == layout.appId }
+                val index = appsList.indexOfFirst { it.id == layout.appId }
                 if (index != -1) {
-                    initialApps[index] = initialApps[index].copy(col = layout.col, row = layout.row)
+                    val currentApp = appsList[index]
+                    appsList[index] = currentApp.copy(col = layout.col, row = layout.row)
                 }
             }
         }
@@ -500,11 +501,11 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                     .fillMaxSize()
                     .padding(20.dp)
             ) {
-                initialApps.forEachIndexed { index, app ->
+                appsList.forEachIndexed { index, app ->
                     DraggableAppIcon(
                         app = app,
                         onPositionChanged = { newCol, newRow ->
-                            initialApps[index] = app.copy(col = newCol, row = newRow)
+                            appsList[index] = app.copy(col = newCol, row = newRow)
                             // 保存到数据库
                             licenseDbHelper.saveAppLayout(app.id, newCol, newRow)
                         },
@@ -518,7 +519,7 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
 
         // Dock 栏
         // Dock 栏区域使用的应用列表（取前4个）
-        val dockApps = remember { appsList.take(4) }
+        val dockApps = remember(appsList) { appsList.take(4).toList() }
 
         Box(
             modifier = Modifier
@@ -636,7 +637,7 @@ fun DraggableAppIcon(
             modifier = Modifier
                 .size(70.dp)
                 .clip(RoundedCornerShape(15.dp))
-                .background(if (app.useImage) Color.Transparent else app.color, RoundedCornerShape(15.dp)),
+                .background(if (app.useImage) Color.Transparent else app.color, shape = RoundedCornerShape(15.dp)),
             contentAlignment = Alignment.Center
         ) {
             if (app.useImage) {
