@@ -127,8 +127,9 @@ struct HomeScreen: View {
     @State private var weather: WeatherInfo? = nil
     @State private var showSettings = false
     @State private var showActivation = false
-    @State private var isActivated = false
-    @State private var expiryDate = "2030-01-01"
+    // 从 LicenseManager 读取持久化的激活状态
+    @State private var isActivated = LicenseManager.shared.isActivated()
+    @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
 
     var body: some View {
         ZStack {
@@ -225,7 +226,7 @@ struct HomeScreen: View {
             }
             
             if showActivation {
-                ActivationView(showActivation: $showActivation, isActivated: $isActivated)
+                ActivationView(showActivation: $showActivation, isActivated: $isActivated, expiryDate: $expiryDate)
                     .transition(.move(edge: .trailing))
                     .zIndex(2)
             }
@@ -289,22 +290,24 @@ struct SettingsView: View {
 struct ActivationView: View {
     @Binding var showActivation: Bool
     @Binding var isActivated: Bool
+    @Binding var expiryDate: String
     @State private var licenseKey = ""
+    @State private var errorMessage: String? = nil
     @Environment(\.colorScheme) var colorScheme: ColorScheme
     
-    private var deviceId: String {
-        UIDevice.current.identifierForVendor?.uuidString ?? "UNKNOWN_DEVICE"
+    private var machineId: String {
+        LicenseManager.shared.getMachineId()
     }
     
     var body: some View {
         NavigationView {
             Form {
                 Section(header: Text("机器码")) {
-                    Text(deviceId)
+                    Text(machineId)
                         .foregroundColor(.gray)
                     
                     Button(action: {
-                        UIPasteboard.general.string = deviceId
+                        UIPasteboard.general.string = machineId
                     }) {
                         Text("复制机器码")
                             .frame(maxWidth: .infinity)
@@ -329,11 +332,28 @@ struct ActivationView: View {
                     .listRowBackground(Color.purple)
                 }
                 
+                // 显示错误信息
+                if let error = errorMessage {
+                    Section {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.caption)
+                    }
+                }
+                
                 Section {
                     Button(action: {
-                        if licenseKey.hasPrefix("WANGWANG-") {
-                            isActivated = true
-                            showActivation = false
+                        // 通过 LicenseManager 验证并持久化激活信息到数据库
+                        LicenseManager.shared.verifyLicense(licenseKey.trimmingCharacters(in: .whitespacesAndNewlines)) { result in
+                            switch result {
+                            case .success(_):
+                                errorMessage = nil
+                                isActivated = LicenseManager.shared.isActivated()
+                                expiryDate = LicenseManager.shared.getExpirationDateString()
+                                showActivation = false
+                            case .error(let message):
+                                errorMessage = message
+                            }
                         }
                     }) {
                         Text("激活")

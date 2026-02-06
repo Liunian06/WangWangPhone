@@ -19,10 +19,14 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.WangWangPhone.core.LicenseManager
+import com.WangWangPhone.core.LicenseResult
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -255,6 +259,11 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
     val cardColor = if (isDark) Color(0xFF2C2C2E) else Color.White
     val textColor = if (isDark) Color.White else Color.Black
     var licenseKey by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val licenseManager = remember { LicenseManager.getInstance(context) }
+    val coroutineScope = rememberCoroutineScope()
     
     Column(
         modifier = Modifier
@@ -285,10 +294,7 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
             )
         }
 
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val androidId = remember {
-            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID) ?: "UNKNOWN_DEVICE"
-        }
+        val machineId = remember { licenseManager.getMachineId() }
         val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
 
         Column(modifier = Modifier.padding(20.dp)) {
@@ -302,13 +308,13 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
                     .background(cardColor)
                     .padding(12.dp)
             ) {
-                Text(androidId, color = textColor)
+                Text(machineId, color = textColor)
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
             androidx.compose.material3.Button(
-                onClick = { clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(androidId)) },
+                onClick = { clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(machineId)) },
                 modifier = Modifier.fillMaxWidth().height(40.dp),
                 shape = RoundedCornerShape(10.dp),
                 colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))
@@ -348,15 +354,29 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
                 Text("粘贴激活码", color = Color.White, fontSize = 14.sp)
             }
 
+            // 显示错误信息
+            errorMessage?.let { msg ->
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(msg, color = Color.Red, fontSize = 13.sp)
+            }
+
             Spacer(modifier = Modifier.height(30.dp))
 
             androidx.compose.material3.Button(
                 onClick = {
-                    // 模拟激活逻辑
-                    if (licenseKey.startsWith("WANGWANG-")) {
-                        // 激活成功反馈 (这里由于是 UI 演示，不涉及底层 C++ 调用成功后的持久化)
-                        onActivated()
-                        onBack()
+                    // 通过 LicenseManager 验证并持久化激活信息到数据库
+                    coroutineScope.launch {
+                        val result = licenseManager.verifyLicense(licenseKey.trim())
+                        when (result) {
+                            is LicenseResult.Success -> {
+                                errorMessage = null
+                                onActivated()
+                                onBack()
+                            }
+                            is LicenseResult.Error -> {
+                                errorMessage = result.message
+                            }
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
@@ -373,8 +393,12 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
 fun HomeScreen() {
     var showSettings by remember { mutableStateOf(false) }
     var showActivation by remember { mutableStateOf(false) }
-    var isActivated by remember { mutableStateOf(false) }
-    var expiryDate by remember { mutableStateOf("2030-01-01") } // 模拟获取到的过期时间
+
+    // 从 LicenseManager 读取持久化的激活状态
+    val context = LocalContext.current
+    val licenseManager = remember { LicenseManager.getInstance(context) }
+    var isActivated by remember { mutableStateOf(licenseManager.isActivated()) }
+    var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
 
     val isDark = isSystemInDarkTheme()
     val apps = listOf(
@@ -405,7 +429,11 @@ fun HomeScreen() {
         if (showActivation) {
             ActivationScreen(
                 onBack = { showActivation = false },
-                onActivated = { isActivated = true }
+                onActivated = {
+                    // 激活成功后，从 LicenseManager 刷新持久化状态
+                    isActivated = licenseManager.isActivated()
+                    expiryDate = licenseManager.getExpirationDateString()
+                }
             )
         }
     }

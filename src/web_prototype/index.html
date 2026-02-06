@@ -524,6 +524,24 @@
 <script type="module">
     import { getLocation } from './js/location.js';
     import { getWeather } from './js/weather.js';
+    import { licenseManager } from './js/license.js';
+
+    // 初始化授权管理器，从 IndexedDB 恢复激活状态
+    await licenseManager.initialize();
+
+    // 恢复已持久化的激活状态到 UI
+    function refreshActivationUI() {
+        if (licenseManager.isActivated()) {
+            const statusEls = document.querySelectorAll('.status-val');
+            statusEls.forEach(el => el.textContent = "已查看 >");
+            const expiryEl = document.getElementById('expiry-date-web');
+            if (expiryEl) {
+                expiryEl.textContent = `有效期至: ${licenseManager.getExpirationDateString()}`;
+                expiryEl.style.display = 'block';
+            }
+        }
+    }
+    refreshActivationUI();
 
     window.unlock = function() {
         document.getElementById('lock-screen').classList.add('unlocked');
@@ -538,18 +556,10 @@
     }
 
     window.showActivation = function() {
-        // 先隐藏设置界面，或者确保激活界面层级更高
-        // document.getElementById('settings-overlay').style.display = 'none';
         document.getElementById('activation-overlay').style.zIndex = 300;
         document.getElementById('activation-overlay').style.display = 'flex';
-        // 模拟 Web 端获取 Machine ID (使用简单的浏览器指纹)
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        ctx.textBaseline = "top";
-        ctx.font = "14px 'Arial'";
-        ctx.fillText("WWJ-WEB-PROTOTYPE", 2, 2);
-        const webId = btoa(canvas.toDataURL()).substring(100, 116);
-        document.getElementById('web-machine-id').textContent = "WEB-" + webId;
+        // 使用 LicenseManager 获取机器码
+        document.getElementById('web-machine-id').textContent = licenseManager.getMachineId();
     }
 
     window.copyMachineId = function() {
@@ -573,7 +583,6 @@
     window.addEventListener('popstate', function(event) {
         if (document.getElementById('activation-overlay').style.display === 'flex') {
             hideActivation();
-            // 注意：不调用 hideSettings，这样激活界面关闭后，设置界面仍然可见
             history.pushState(null, null, null);
         } else if (document.getElementById('settings-overlay').style.display === 'flex') {
             hideSettings();
@@ -582,18 +591,21 @@
     });
     history.pushState(null, null, null);
 
-    window.submitActivation = function() {
-        const license = document.getElementById('license-key-input').value;
-        if (license && license.startsWith("WANGWANG-")) {
+    window.submitActivation = async function() {
+        const license = document.getElementById('license-key-input').value?.trim();
+        if (!license) {
+            alert('请输入激活码。');
+            return;
+        }
+
+        // 通过 LicenseManager 验证并持久化激活信息到 IndexedDB
+        const result = await licenseManager.verifyLicense(license);
+        if (result.success) {
             alert('软件激活成功！');
-            // 更新设置界面的激活状态文本
-            const statusEls = document.querySelectorAll('.status-val');
-            statusEls.forEach(el => el.textContent = "已查看 >");
-            const expiryEl = document.getElementById('expiry-date-web');
-            if (expiryEl) expiryEl.style.display = 'block';
+            refreshActivationUI();
             hideActivation();
         } else {
-            alert('激活码无效，请检查后重试。');
+            alert(`激活失败: ${result.error}`);
         }
     }
 

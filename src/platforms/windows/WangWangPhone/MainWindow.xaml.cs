@@ -3,12 +3,14 @@ using System.Management;
 using System.Windows;
 using System.Windows.Threading;
 using System.Threading.Tasks;
+using WangWangPhone.Core;
 
 namespace WangWangPhone
 {
     public partial class MainWindow : Window
     {
         private DispatcherTimer _timer;
+        private readonly LicenseManager _licenseManager = LicenseManager.Instance;
 
         public MainWindow()
         {
@@ -16,7 +18,7 @@ namespace WangWangPhone
             SetupTimer();
             UpdateDateTime();
             _ = LoadWeatherData();
-            LoadMachineId();
+            InitializeLicense();
             ApplyThemeIcons();
         }
 
@@ -32,24 +34,23 @@ namespace WangWangPhone
             SettingsIconDark.Visibility = Visibility.Collapsed;
         }
 
-        private void LoadMachineId()
+        /// <summary>
+        /// 初始化授权管理器，从数据库恢复激活状态，并设置机器码
+        /// </summary>
+        private void InitializeLicense()
         {
-            try
+            // 初始化 LicenseManager（内部会打开数据库并恢复缓存）
+            _licenseManager.Initialize();
+
+            // 显示机器码
+            MachineIdTextBox.Text = _licenseManager.GetMachineId();
+
+            // 从数据库恢复的激活状态刷新到 UI
+            if (_licenseManager.IsActivated())
             {
-                string cpuId = string.Empty;
-                using (var mc = new ManagementClass("win32_processor"))
-                {
-                    foreach (var mo in mc.GetInstances())
-                    {
-                        cpuId = mo.Properties["ProcessorId"].Value.ToString();
-                        break;
-                    }
-                }
-                MachineIdTextBox.Text = string.IsNullOrEmpty(cpuId) ? "WIN-UNKNOWN-ID" : cpuId;
-            }
-            catch
-            {
-                MachineIdTextBox.Text = "WIN-ACCESS-DENIED";
+                ActivationStatusText.Text = "已查看 >";
+                ExpiryDateText.Text = $"有效期至: {_licenseManager.GetExpirationDateString()}";
+                ExpiryDateText.Visibility = Visibility.Visible;
             }
         }
 
@@ -145,23 +146,30 @@ namespace WangWangPhone
             base.OnKeyDown(e);
         }
 
-        private void OnActivateSubmit(object sender, RoutedEventArgs e)
+        private async void OnActivateSubmit(object sender, RoutedEventArgs e)
         {
-            string licenseKey = LicenseKeyTextBox.Text;
-            string mid = MachineIdTextBox.Text;
+            string licenseKey = LicenseKeyTextBox.Text?.Trim();
 
-            // 统一模拟校验逻辑：必须以 WANGWANG- 开头
-            if (!string.IsNullOrEmpty(licenseKey) && licenseKey.StartsWith("WANGWANG-"))
+            if (string.IsNullOrEmpty(licenseKey))
+            {
+                MessageBox.Show("请输入激活码。", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // 通过 LicenseManager 验证并持久化激活信息到数据库
+            var result = await _licenseManager.VerifyLicenseAsync(licenseKey);
+
+            if (result.IsSuccess)
             {
                 ActivationStatusText.Text = "已查看 >";
-                ExpiryDateText.Text = "有效期至: 2030-01-01";
+                ExpiryDateText.Text = $"有效期至: {_licenseManager.GetExpirationDateString()}";
                 ExpiryDateText.Visibility = Visibility.Visible;
                 MessageBox.Show("软件激活成功！", "授权管理", MessageBoxButton.OK, MessageBoxImage.Information);
                 ActivationOverlay.Visibility = Visibility.Collapsed;
             }
             else
             {
-                MessageBox.Show("激活码格式错误或无效，请检查后重试。", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show($"激活失败: {result.ErrorMessage}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
     }
