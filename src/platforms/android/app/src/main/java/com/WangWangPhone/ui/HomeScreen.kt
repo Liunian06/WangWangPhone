@@ -637,7 +637,10 @@ fun DraggableAppIcon(
             modifier = Modifier
                 .size(70.dp)
                 .clip(RoundedCornerShape(15.dp))
-                .background(if (app.useImage) Color.Transparent else app.color, shape = RoundedCornerShape(15.dp)),
+                .then(
+                    if (app.useImage) Modifier.background(Color.Transparent, shape = RoundedCornerShape(15.dp))
+                    else Modifier.background(app.color, shape = RoundedCornerShape(15.dp))
+                ),
             contentAlignment = Alignment.Center
         ) {
             if (app.useImage) {
