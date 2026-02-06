@@ -593,7 +593,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit) {
                     val col = index % columns
 
                     val baseX = col * cellWidth
-                    val baseY = with(density) { (row * (itemSizeDp + spacingDp)).toPx() }
+                    val baseY = with(density) { ((itemSizeDp + spacingDp) * row).toPx() }
 
                     val isDragged = draggedIndex == index
 
@@ -646,11 +646,12 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit) {
                                         dragOffsetY += dragAmount.y
 
                                         // 计算拖拽目标位置
-                                        val currentCenterX = baseX + cellWidth / 2f + dragOffsetX
-                                        val currentCenterY = baseY + with(density) { (itemSizeDp + spacingDp).toPx() } / 2f + dragOffsetY
+                                        val cellHeightPx = with(density) { (itemSizeDp + spacingDp).toPx() }
+                                        val currentCenterX = baseX.toFloat() + cellWidth.toFloat() / 2f + dragOffsetX
+                                        val currentCenterY = baseY + cellHeightPx / 2f + dragOffsetY
 
-                                        val targetCol = (currentCenterX / cellWidth).toInt().coerceIn(0, columns - 1)
-                                        val targetRow = (currentCenterY / with(density) { (itemSizeDp + spacingDp).toPx() }).toInt().coerceAtLeast(0)
+                                        val targetCol = (currentCenterX / cellWidth.toFloat()).toInt().coerceIn(0, columns - 1)
+                                        val targetRow = (currentCenterY / cellHeightPx).toInt().coerceAtLeast(0)
                                         val targetIndex = (targetRow * columns + targetCol).coerceIn(0, apps.size - 1)
 
                                         if (targetIndex != draggedIndex && targetIndex >= 0 && targetIndex < apps.size) {
@@ -664,8 +665,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit) {
                                             val oldCol = draggedIndex % columns
                                             val newRow = targetIndex / columns
                                             val newCol = targetIndex % columns
-                                            dragOffsetX += (oldCol - newCol) * cellWidth
-                                            dragOffsetY += (oldRow - newRow) * with(density) { (itemSizeDp + spacingDp).toPx() }
+                                            dragOffsetX += (oldCol - newCol).toFloat() * cellWidth.toFloat()
+                                            dragOffsetY += (oldRow - newRow).toFloat() * cellHeightPx
 
                                             draggedIndex = targetIndex
                                         }
