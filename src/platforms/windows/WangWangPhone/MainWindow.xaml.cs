@@ -62,6 +62,7 @@ namespace WangWangPhone
             InitializeLicense();
             InitializeLayout();
             ApplyThemeIcons();
+            ApplyWallpapers();
         }
 
         #region 初始化
@@ -659,6 +660,70 @@ namespace WangWangPhone
         private void OnBackClick(object sender, RoutedEventArgs e)
         {
             SettingsOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void OnDisplaySettingsClick(object sender, RoutedEventArgs e)
+        {
+            DisplaySettingsOverlay.Visibility = Visibility.Visible;
+            UpdateWallpaperUI();
+        }
+
+        private void OnDisplaySettingsBackClick(object sender, RoutedEventArgs e)
+        {
+            DisplaySettingsOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void OnSelectLockWallpaperClick(object sender, RoutedEventArgs e)
+        {
+            SelectWallpaper("lock");
+        }
+
+        private void OnSelectHomeWallpaperClick(object sender, RoutedEventArgs e)
+        {
+            SelectWallpaper("home");
+        }
+
+        private void SelectWallpaper(string type)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog();
+            dialog.Filter = "Image files (*.png;*.jpeg;*.jpg)|*.png;*.jpeg;*.jpg|All files (*.*)|*.*";
+            if (dialog.ShowDialog() == true)
+            {
+                string fileName = WallpaperManager.Instance.CopyImageToStorage(dialog.FileName);
+                if (fileName != null)
+                {
+                    WallpaperManager.Instance.SaveWallpaper(type, fileName);
+                    UpdateWallpaperUI();
+                    ApplyWallpapers();
+                }
+            }
+        }
+
+        private void UpdateWallpaperUI()
+        {
+            string lockPath = WallpaperManager.Instance.GetWallpaperFilePath("lock");
+            if (lockPath != null)
+            {
+                LockWpStatusText.Text = "已设置，点击更换";
+                LockWpPreview.Child = new Image { Source = new BitmapImage(new Uri(lockPath)), Stretch = Stretch.UniformToFill };
+            }
+
+            string homePath = WallpaperManager.Instance.GetWallpaperFilePath("home");
+            if (homePath != null)
+            {
+                HomeWpStatusText.Text = "已设置，点击更换";
+                HomeWpPreview.Child = new Image { Source = new BitmapImage(new Uri(homePath)), Stretch = Stretch.UniformToFill };
+            }
+        }
+
+        private void ApplyWallpapers()
+        {
+            string homePath = WallpaperManager.Instance.GetWallpaperFilePath("home");
+            if (homePath != null)
+            {
+                this.Background = new ImageBrush(new BitmapImage(new Uri(homePath))) { Stretch = Stretch.UniformToFill };
+            }
+            // 锁屏逻辑暂略，可在主界面状态切换时处理
         }
 
         private void OnActivationClickUI(object sender, RoutedEventArgs e)

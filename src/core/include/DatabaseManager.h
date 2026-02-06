@@ -25,6 +25,13 @@ struct LayoutItem {
     std::string area;             // 区域标识: "grid" = 主网格, "dock" = 底部 Dock 栏
 };
 
+// 壁纸记录结构
+struct WallpaperRecord {
+    std::string wallpaper_type;   // 壁纸类型: "lock" = 锁屏壁纸, "home" = 桌面壁纸
+    std::string file_name;        // 持久化存储的文件名
+    long long updated_at;         // 更新时间戳
+};
+
 class DatabaseManager {
 public:
     static DatabaseManager& getInstance();
@@ -47,6 +54,11 @@ public:
     bool saveLayout(const std::vector<LayoutItem>& items);
     std::vector<LayoutItem> getLayout();
     bool clearLayout();
+
+    // 壁纸相关操作
+    bool saveWallpaperRecord(const WallpaperRecord& record);
+    bool getWallpaperRecord(const std::string& wallpaperType, WallpaperRecord& outRecord);
+    bool clearWallpaperRecord(const std::string& wallpaperType);
 
     // 获取数据库路径
     std::string getDatabasePath() const;

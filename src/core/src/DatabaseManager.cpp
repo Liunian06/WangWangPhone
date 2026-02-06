@@ -97,6 +97,17 @@ bool DatabaseManager::createTables() {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_layout_app ON app_layout(app_id, area);
     )";
 
+    // 创建壁纸信息表
+    const char* createWallpaperTableSQL = R"(
+        CREATE TABLE IF NOT EXISTS wallpaper (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            wallpaper_type TEXT NOT NULL UNIQUE,
+            file_name TEXT NOT NULL,
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+        );
+    )";
+
     if (!executeSQL(createLicenseTableSQL)) {
         std::cerr << "创建 license 表失败" << std::endl;
         return false;
@@ -114,6 +125,11 @@ bool DatabaseManager::createTables() {
 
     if (!executeSQL(createLayoutIndexSQL)) {
         std::cerr << "创建布局索引失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(createWallpaperTableSQL)) {
+        std::cerr << "创建 wallpaper 表失败" << std::endl;
         return false;
     }
 
@@ -301,6 +317,108 @@ std::vector<LayoutItem> DatabaseManager::getLayout() {
 
 bool DatabaseManager::clearLayout() {
     return executeSQL("DELETE FROM app_layout;");
+}
+
+bool DatabaseManager::saveWallpaperRecord(const WallpaperRecord& record) {
+    if (!db) return false;
+
+    // 使用 INSERT OR REPLACE 实现 upsert（按 wallpaper_type 唯一）
+    const char* upsertSQL = R"(
+        INSERT OR REPLACE INTO wallpaper (wallpaper_type, file_name, updated_at)
+        VALUES (?, ?, strftime('%s', 'now'));
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), upsertSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) {
+        std::cerr << "准备壁纸 SQL 语句失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1,
+        record.wallpaper_type.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2,
+        record.file_name.c_str(), -1, SQLITE_TRANSIENT);
+
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (result != SQLITE_DONE) {
+        std::cerr << "保存壁纸记录失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    std::cout << "壁纸记录已保存: type=" << record.wallpaper_type
+              << ", file=" << record.file_name << std::endl;
+    return true;
+}
+
+bool DatabaseManager::getWallpaperRecord(
+    const std::string& wallpaperType, WallpaperRecord& outRecord) {
+    if (!db) return false;
+
+    const char* selectSQL = R"(
+        SELECT wallpaper_type, file_name, updated_at
+        FROM wallpaper
+        WHERE wallpaper_type = ?
+        LIMIT 1;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), selectSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) {
+        std::cerr << "准备壁纸查询语句失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1,
+        wallpaperType.c_str(), -1, SQLITE_TRANSIENT);
+
+    result = sqlite3_step(stmt);
+
+    if (result == SQLITE_ROW) {
+        outRecord.wallpaper_type = reinterpret_cast<const char*>(
+            sqlite3_column_text(stmt, 0));
+        outRecord.file_name = reinterpret_cast<const char*>(
+            sqlite3_column_text(stmt, 1));
+        outRecord.updated_at = sqlite3_column_int64(stmt, 2);
+
+        sqlite3_finalize(stmt);
+        return true;
+    }
+
+    sqlite3_finalize(stmt);
+    return false;
+}
+
+bool DatabaseManager::clearWallpaperRecord(
+    const std::string& wallpaperType) {
+    if (!db) return false;
+
+    const char* deleteSQL = R"(
+        DELETE FROM wallpaper WHERE wallpaper_type = ?;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), deleteSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) return false;
+
+    sqlite3_bind_text(stmt, 1,
+        wallpaperType.c_str(), -1, SQLITE_TRANSIENT);
+
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return result == SQLITE_DONE;
 }
 
 } // namespace wwj_core

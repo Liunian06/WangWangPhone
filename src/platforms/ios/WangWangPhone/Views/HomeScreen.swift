@@ -275,11 +275,13 @@ struct DraggableAppIconView: View {
 struct HomeScreen: View {
     @State private var apps: [AppIconData] = []
     @State private var isEditMode = false
+    @State private var homeWallpaper: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .home)
     
     @State private var city: String = "..."
     @State private var weather: WeatherInfo? = nil
     @State private var showSettings = false
     @State private var showActivation = false
+    @State private var showDisplaySettings = false
     @State private var isActivated = LicenseManager.shared.isActivated()
     @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
     
@@ -290,7 +292,14 @@ struct HomeScreen: View {
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            if let wallpaper = homeWallpaper {
+                Image(uiImage: wallpaper)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+            }
             
             VStack {
                 // 小组件区域
@@ -303,6 +312,9 @@ struct HomeScreen: View {
                 .onAppear {
                     loadData()
                     loadLayout()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WallpaperChanged"))) { _ in
+                    self.homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
                 }
                 
                 // 编辑模式提示栏
@@ -394,9 +406,15 @@ struct HomeScreen: View {
             }
 
             if showSettings {
-                SettingsView(showSettings: $showSettings, showActivation: $showActivation, isActivated: $isActivated, expiryDate: expiryDate)
+                SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, isActivated: $isActivated, expiryDate: expiryDate)
                     .transition(.move(edge: .trailing))
                     .zIndex(1)
+            }
+
+            if showDisplaySettings {
+                DisplaySettingsView(showDisplaySettings: $showDisplaySettings)
+                    .transition(.move(edge: .trailing))
+                    .zIndex(1.5)
             }
             
             if showActivation {
@@ -460,6 +478,7 @@ struct HomeScreen: View {
 struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var showActivation: Bool
+    @Binding var showDisplaySettings: Bool
     @Binding var isActivated: Bool
     var expiryDate: String
     @Environment(\.colorScheme) var colorScheme: ColorScheme
@@ -484,6 +503,19 @@ struct SettingsView: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         showActivation = true
+                    }
+                }
+
+                Section(header: Text("外观")) {
+                    HStack {
+                        Text("显示设置")
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .foregroundColor(.gray)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        showDisplaySettings = true
                     }
                 }
             }
@@ -547,6 +579,118 @@ struct ActivationView: View {
                         Text(error)
                             .foregroundColor(.red)
                             .font(.caption)
+                    }
+                }
+                
+                // MARK: - 显示设置视图
+                struct DisplaySettingsView: View {
+                    @Binding var showDisplaySettings: Bool
+                    @State private var lockWallpaper: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .lock)
+                    @State private var homeWallpaper: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .home)
+                    @State private var showingImagePicker = false
+                    @State private var pickerType: WallpaperType = .lock
+                
+                    var body: some View {
+                        NavigationView {
+                            List {
+                                Section(header: Text("锁屏壁纸")) {
+                                    HStack {
+                                        VStack(alignment: .leading) {
+                                            Text("锁屏壁纸设置")
+                                            Text(lockWallpaper != nil ? "已设置" : "点击选择图片")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        if let image = lockWallpaper {
+                                            Image(uiImage: image)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 60, height: 60)
+                                                .cornerRadius(8)
+                                        } else {
+                                            Text("🖼️").font(.largeTitle)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        pickerType = .lock
+                                        showingImagePicker = true
+                                    }
+                                }
+                
+                                Section(header: Text("桌面壁纸")) {
+                                    HStack {
+                                        VStack(alignment: .leading) {
+                                            Text("桌面壁纸设置")
+                                            Text(homeWallpaper != nil ? "已设置" : "点击选择图片")
+                                                .font(.caption)
+                                                .foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        if let image = homeWallpaper {
+                                            Image(uiImage: image)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 60, height: 60)
+                                                .cornerRadius(8)
+                                        } else {
+                                            Text("🖼️").font(.largeTitle)
+                                        }
+                                    }
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        pickerType = .home
+                                        showingImagePicker = true
+                                    }
+                                }
+                            }
+                            .listStyle(InsetGroupedListStyle())
+                            .navigationTitle("显示设置")
+                            .navigationBarItems(leading: Button("返回") {
+                                showDisplaySettings = false
+                            })
+                            .sheet(isPresented: $showingImagePicker) {
+                                ImagePicker(selectedImage: pickerType == .lock ? $lockWallpaper : $homeWallpaper, type: pickerType)
+                            }
+                        }
+                    }
+                }
+                
+                // MARK: - 图片选择器适配器
+                struct ImagePicker: UIViewControllerRepresentable {
+                    @Binding var selectedImage: UIImage?
+                    let type: WallpaperType
+                    @Environment(\.presentationMode) var presentationMode
+                
+                    func makeUIViewController(context: Context) -> UIImagePickerController {
+                        let picker = UIImagePickerController()
+                        picker.delegate = context.coordinator
+                        return picker
+                    }
+                
+                    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+                
+                    func makeCoordinator() -> Coordinator {
+                        Coordinator(self)
+                    }
+                
+                    class Coordinator: NSObject, UINavigationControllerDelegate, UIImagePickerControllerDelegate {
+                        let parent: ImagePicker
+                        init(_ parent: ImagePicker) { self.parent = parent }
+                
+                        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+                            if let image = info[.originalImage] as? UIImage {
+                                if let fileName = WallpaperManager.shared.copyImageToStorage(image) {
+                                    if WallpaperManager.shared.saveWallpaper(type: parent.type, fileName: fileName) {
+                                        parent.selectedImage = image
+                                        // 通知主界面更新
+                                        NotificationCenter.default.post(name: NSNotification.Name("WallpaperChanged"), object: nil)
+                                    }
+                                }
+                            }
+                            parent.presentationMode.wrappedValue.dismiss()
+                        }
                     }
                 }
                 

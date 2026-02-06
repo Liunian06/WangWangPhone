@@ -477,6 +477,15 @@
                     </div>
                 </div>
             </div>
+            <div class="settings-section">
+                <div class="section-title">外观</div>
+                <div class="settings-list">
+                    <div class="settings-item" onclick="showDisplaySettings()">
+                        <span>显示设置</span>
+                        <span class="status-val">></span>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -498,6 +507,41 @@
                 <button class="btn-primary" style="background: #5856D6; margin-bottom: 20px; padding: 10px; font-size: 14px;" onclick="pasteLicenseKey()">粘贴激活码</button>
             </div>
             <button class="btn-primary" onclick="submitActivation()">激活</button>
+        </div>
+    </div>
+
+    <!-- 显示设置 Overlay -->
+    <div id="display-settings-overlay" class="overlay">
+        <div class="overlay-header">
+            <div class="back-btn" onclick="hideDisplaySettings()">返回</div>
+            <div style="font-weight: 600;">显示设置</div>
+        </div>
+        <div class="overlay-content">
+            <div class="settings-section">
+                <div class="section-title">锁屏壁纸</div>
+                <div class="settings-list">
+                    <div class="settings-item" onclick="selectWallpaper('lock')">
+                        <div style="display: flex; flex-direction: column;">
+                            <span>锁屏壁纸设置</span>
+                            <span id="lock-wp-status" style="font-size: 11px; color: #8E8E93;">点击更换</span>
+                        </div>
+                        <div id="lock-wp-preview" style="width: 50px; height: 50px; background: #eee; border-radius: 5px; overflow: hidden; display: flex; align-items: center; justify-content: center;">🖼️</div>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-section">
+                <div class="section-title">桌面壁纸</div>
+                <div class="settings-list">
+                    <div class="settings-item" onclick="selectWallpaper('home')">
+                        <div style="display: flex; flex-direction: column;">
+                            <span>桌面壁纸设置</span>
+                            <span id="home-wp-status" style="font-size: 11px; color: #8E8E93;">点击更换</span>
+                        </div>
+                        <div id="home-wp-preview" style="width: 50px; height: 50px; background: #eee; border-radius: 5px; overflow: hidden; display: flex; align-items: center; justify-content: center;">🖼️</div>
+                    </div>
+                </div>
+            </div>
+            <input type="file" id="wallpaper-input" style="display: none;" accept="image/*" onchange="handleWallpaperUpload(this)">
         </div>
     </div>
 </div>
@@ -936,6 +980,62 @@
     window.hideSettings = function() {
         document.getElementById('settings-overlay').style.display = 'none';
     }
+
+    window.showDisplaySettings = function() {
+        document.getElementById('display-settings-overlay').style.display = 'flex';
+        updateWallpaperPreviews();
+    }
+
+    window.hideDisplaySettings = function() {
+        document.getElementById('display-settings-overlay').style.display = 'none';
+    }
+
+    let pendingWallpaperType = 'lock';
+    window.selectWallpaper = function(type) {
+        pendingWallpaperType = type;
+        document.getElementById('wallpaper-input').click();
+    }
+
+    window.handleWallpaperUpload = function(input) {
+        const file = input.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const imageData = e.target.result;
+            localStorage.setItem(`wallpaper_${pendingWallpaperType}`, imageData);
+            updateWallpaperPreviews();
+            applyWallpapers();
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function updateWallpaperPreviews() {
+        ['lock', 'home'].forEach(type => {
+            const data = localStorage.getItem(`wallpaper_${type}`);
+            const preview = document.getElementById(`${type}-wp-preview`);
+            const status = document.getElementById(`${type}-wp-status`);
+            if (data) {
+                preview.innerHTML = `<img src="${data}" style="width: 100%; height: 100%; object-fit: cover;">`;
+                status.textContent = "已设置，点击更换";
+            }
+        });
+    }
+
+    function applyWallpapers() {
+        const lockWp = localStorage.getItem('wallpaper_lock');
+        const homeWp = localStorage.getItem('wallpaper_home');
+        
+        if (lockWp) {
+            document.getElementById('lock-screen').style.background = `url(${lockWp}) no-repeat center center`;
+            document.getElementById('lock-screen').style.backgroundSize = 'cover';
+        }
+        if (homeWp) {
+            document.getElementById('phone-container').style.background = `url(${homeWp}) no-repeat center center`;
+            document.getElementById('phone-container').style.backgroundSize = 'cover';
+        }
+    }
+    applyWallpapers();
 
     window.showActivation = function() {
         document.getElementById('activation-overlay').style.zIndex = 300;

@@ -1,5 +1,6 @@
 package com.WangWangPhone.ui
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.layout.*
@@ -13,6 +14,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -21,7 +24,7 @@ import java.util.*
 
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
-fun LockScreen(onUnlock: () -> Unit) {
+fun LockScreen(onUnlock: () -> Unit, lockWallpaperPath: String? = null) {
     var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
     
     LaunchedEffect(Unit) {
@@ -61,6 +64,21 @@ fun LockScreen(onUnlock: () -> Unit) {
             )
             .offset(y = (swipeableState.offset.value / 3).dp) // Visual feedback
     ) {
+        // 锁屏壁纸背景
+        if (lockWallpaperPath != null) {
+            val bitmap = remember(lockWallpaperPath) {
+                android.graphics.BitmapFactory.decodeFile(lockWallpaperPath)
+            }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "锁屏壁纸",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            }
+        }
+
         Column(
             modifier = Modifier
                 .fillMaxWidth()

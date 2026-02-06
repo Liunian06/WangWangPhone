@@ -4,11 +4,19 @@ struct LockScreen: View {
     var onUnlock: () -> Void
     @State private var currentTime = Date()
     @State private var dragOffset: CGFloat = 0
+    @State private var lockWallpaper: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .lock)
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            if let wallpaper = lockWallpaper {
+                Image(uiImage: wallpaper)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .ignoresSafeArea()
+            } else {
+                Color.black.ignoresSafeArea()
+            }
             
             VStack(spacing: 0) {
                 Text(currentTime, style: .time)
@@ -50,6 +58,9 @@ struct LockScreen: View {
         )
         .onReceive(timer) { input in
             currentTime = input
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WallpaperChanged"))) { _ in
+            self.lockWallpaper = WallpaperManager.shared.getWallpaperImage(type: .lock)
         }
     }
     

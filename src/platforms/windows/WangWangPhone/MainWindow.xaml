@@ -108,6 +108,16 @@
                                 </Grid>
                             </Button>
                         </Border>
+
+                        <TextBlock Text="外观" FontSize="13" Foreground="#8E8E93" Margin="10,20,10,5"/>
+                        <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10" Padding="0">
+                            <Button HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" Background="Transparent" BorderThickness="0" Click="OnDisplaySettingsClick">
+                                <Grid Padding="15">
+                                    <TextBlock Text="显示设置" FontSize="16" Foreground="{DynamicResource SystemTextBrush}" VerticalAlignment="Center"/>
+                                    <TextBlock Text=">" Foreground="#8E8E93" FontSize="16" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                </Grid>
+                            </Button>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
@@ -159,6 +169,55 @@
                         </Button.Resources>
                     </Button>
                 </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Display Settings Overlay -->
+        <Border x:Name="DisplaySettingsOverlay" Grid.Row="0" Grid.RowSpan="3" Background="{DynamicResource SettingsBackgroundBrush}" Visibility="Collapsed" Panel.ZIndex="120">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <Grid Height="60" Background="{DynamicResource HeaderBackgroundBrush}">
+                    <TextBlock Text="显示设置" FontSize="18" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{DynamicResource SystemTextBrush}"/>
+                    <Button Content="返回" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="15,0" Background="Transparent" BorderThickness="0" Foreground="#007AFF" Click="OnDisplaySettingsBackClick"/>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1">
+                    <StackPanel Margin="15">
+                        <TextBlock Text="锁屏壁纸" FontSize="13" Foreground="#8E8E93" Margin="10,0,10,5"/>
+                        <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10">
+                            <Button Background="Transparent" BorderThickness="0" Click="OnSelectLockWallpaperClick">
+                                <Grid Padding="15">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="锁屏壁纸设置" FontSize="16" Foreground="{DynamicResource SystemTextBrush}"/>
+                                        <TextBlock x:Name="LockWpStatusText" Text="点击从本地导入" FontSize="12" Foreground="#8E8E93"/>
+                                    </StackPanel>
+                                    <Border x:Name="LockWpPreview" Width="50" Height="50" HorizontalAlignment="Right" Background="#EEE" CornerRadius="5" Overflow="Hidden">
+                                        <TextBlock Text="🖼️" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20"/>
+                                    </Border>
+                                </Grid>
+                            </Button>
+                        </Border>
+
+                        <TextBlock Text="桌面壁纸" FontSize="13" Foreground="#8E8E93" Margin="10,20,10,5"/>
+                        <Border Background="{DynamicResource CardBackgroundBrush}" CornerRadius="10">
+                            <Button Background="Transparent" BorderThickness="0" Click="OnSelectHomeWallpaperClick">
+                                <Grid Padding="15">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="桌面壁纸设置" FontSize="16" Foreground="{DynamicResource SystemTextBrush}"/>
+                                        <TextBlock x:Name="HomeWpStatusText" Text="点击从本地导入" FontSize="12" Foreground="#8E8E93"/>
+                                    </StackPanel>
+                                    <Border x:Name="HomeWpPreview" Width="50" Height="50" HorizontalAlignment="Right" Background="#EEE" CornerRadius="5" Overflow="Hidden">
+                                        <TextBlock Text="🖼️" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="20"/>
+                                    </Border>
+                                </Grid>
+                            </Button>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
         </Border>
 

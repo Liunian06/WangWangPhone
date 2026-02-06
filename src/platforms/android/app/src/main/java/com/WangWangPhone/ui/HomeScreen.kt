@@ -1,7 +1,10 @@
 package com.WangWangPhone.ui
 
+import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -24,8 +27,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
@@ -37,6 +42,8 @@ import com.WangWangPhone.core.LayoutDbHelper
 import com.WangWangPhone.core.LayoutItem
 import com.WangWangPhone.core.LicenseManager
 import com.WangWangPhone.core.LicenseResult
+import com.WangWangPhone.core.WallpaperDbHelper
+import com.WangWangPhone.core.WallpaperType
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -208,7 +215,13 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 }
 
 @Composable
-fun SettingsScreen(isActivated: Boolean, expiryDate: String, onBack: () -> Unit, onNavigateToActivation: () -> Unit) {
+fun SettingsScreen(
+    isActivated: Boolean,
+    expiryDate: String,
+    onBack: () -> Unit,
+    onNavigateToActivation: () -> Unit,
+    onNavigateToDisplay: () -> Unit
+) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
     val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
@@ -271,6 +284,32 @@ fun SettingsScreen(isActivated: Boolean, expiryDate: String, onBack: () -> Unit,
                     }
                 }
                 Text(if (isActivated) "已查看 >" else "未激活 >", color = Color.Gray, fontSize = 16.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text(
+            "外观",
+            modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp),
+            fontSize = 13.sp,
+            color = Color.Gray
+        )
+        Box(
+            modifier = Modifier
+                .padding(horizontal = 16.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(10.dp))
+                .background(cardColor)
+                .clickable(onClick = onNavigateToDisplay)
+                .padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("显示设置", fontSize = 16.sp, color = textColor)
+                Text(">", color = Color.Gray, fontSize = 16.sp)
             }
         }
     }
@@ -415,18 +454,25 @@ fun ActivationScreen(onBack: () -> Unit, onActivated: () -> Unit) {
 fun HomeScreen() {
     var showSettings by remember { mutableStateOf(false) }
     var showActivation by remember { mutableStateOf(false) }
+    var showDisplaySettings by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val licenseManager = remember { LicenseManager.getInstance(context) }
+    val wallpaperDbHelper = remember { com.WangWangPhone.core.WallpaperDbHelper(context) }
     var isActivated by remember { mutableStateOf(licenseManager.isActivated()) }
     var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
+
+    // 壁纸状态：存储壁纸文件路径
+    var lockWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(com.WangWangPhone.core.WallpaperType.LOCK)) }
+    var homeWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(com.WangWangPhone.core.WallpaperType.HOME)) }
 
     val isDark = isSystemInDarkTheme()
 
     Box(modifier = Modifier.fillMaxSize()) {
         HomeScreenContent(
             isDark = isDark,
-            onSettingsClick = { showSettings = true }
+            onSettingsClick = { showSettings = true },
+            homeWallpaperPath = homeWallpaperPath
         )
 
         if (showSettings) {
@@ -434,8 +480,18 @@ fun HomeScreen() {
                 isActivated = isActivated,
                 expiryDate = expiryDate,
                 onBack = { showSettings = false },
-                onNavigateToActivation = {
-                    showActivation = true
+                onNavigateToActivation = { showActivation = true },
+                onNavigateToDisplay = { showDisplaySettings = true }
+            )
+        }
+
+        if (showDisplaySettings) {
+            DisplaySettingsScreen(
+                wallpaperDbHelper = wallpaperDbHelper,
+                onBack = { showDisplaySettings = false },
+                onWallpaperChanged = {
+                    lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(com.WangWangPhone.core.WallpaperType.LOCK)
+                    homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(com.WangWangPhone.core.WallpaperType.HOME)
                 }
             )
         }
@@ -453,7 +509,7 @@ fun HomeScreen() {
 }
 
 @Composable
-fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit) {
+fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, homeWallpaperPath: String? = null) {
     val context = LocalContext.current
     val layoutDbHelper = remember { LayoutDbHelper(context) }
     val coroutineScope = rememberCoroutineScope()
@@ -515,8 +571,24 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 背景
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+        // 背景（支持自定义壁纸）
+        if (homeWallpaperPath != null) {
+            val bitmap = remember(homeWallpaperPath) {
+                android.graphics.BitmapFactory.decodeFile(homeWallpaperPath)
+            }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "桌面壁纸",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+            }
+        } else {
+            Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+        }
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // 小组件区域
@@ -774,5 +846,185 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit) {
                 .clip(RoundedCornerShape(5.dp))
                 .background(Color.White.copy(alpha = 0.8f))
         )
+    }
+}
+
+/**
+ * 显示设置页面（二级菜单）
+ * 包含锁屏壁纸设置和桌面壁纸设置
+ */
+@Composable
+fun DisplaySettingsScreen(
+    wallpaperDbHelper: WallpaperDbHelper,
+    onBack: () -> Unit,
+    onWallpaperChanged: () -> Unit
+) {
+    BackHandler { onBack() }
+    val isDark = isSystemInDarkTheme()
+    val backgroundColor = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val cardColor = if (isDark) Color(0xFF2C2C2E) else Color.White
+    val textColor = if (isDark) Color.White else Color.Black
+
+    // 壁纸预览状态
+    var lockPreviewPath by remember {
+        mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK))
+    }
+    var homePreviewPath by remember {
+        mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME))
+    }
+
+    // 图片选择器 - 锁屏壁纸
+    val lockWallpaperLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val fileName = wallpaperDbHelper.copyImageToStorage(it)
+            if (fileName != null) {
+                wallpaperDbHelper.saveWallpaper(WallpaperType.LOCK, fileName)
+                lockPreviewPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)
+                onWallpaperChanged()
+            }
+        }
+    }
+
+    // 图片选择器 - 桌面壁纸
+    val homeWallpaperLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val fileName = wallpaperDbHelper.copyImageToStorage(it)
+            if (fileName != null) {
+                wallpaperDbHelper.saveWallpaper(WallpaperType.HOME, fileName)
+                homePreviewPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
+                onWallpaperChanged()
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundColor)
+            .statusBarsPadding()
+    ) {
+        // 顶部导航栏
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
+                .background(cardColor)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text(
+                "返回",
+                color = Color(0xFF007AFF),
+                modifier = Modifier.clickable { onBack() }
+            )
+            Text(
+                "显示设置",
+                modifier = Modifier.align(Alignment.Center),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                color = textColor
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // 锁屏壁纸设置
+        Text(
+            "锁屏壁纸",
+            modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp),
+            fontSize = 13.sp,
+            color = Color.Gray
+        )
+        WallpaperSettingCard(
+            title = "锁屏壁纸设置",
+            previewPath = lockPreviewPath,
+            cardColor = cardColor,
+            textColor = textColor,
+            onSelectImage = { lockWallpaperLauncher.launch("image/*") }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // 桌面壁纸设置
+        Text(
+            "桌面壁纸",
+            modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp),
+            fontSize = 13.sp,
+            color = Color.Gray
+        )
+        WallpaperSettingCard(
+            title = "桌面壁纸设置",
+            previewPath = homePreviewPath,
+            cardColor = cardColor,
+            textColor = textColor,
+            onSelectImage = { homeWallpaperLauncher.launch("image/*") }
+        )
+    }
+}
+
+/**
+ * 壁纸设置卡片组件
+ */
+@Composable
+fun WallpaperSettingCard(
+    title: String,
+    previewPath: String?,
+    cardColor: Color,
+    textColor: Color,
+    onSelectImage: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(cardColor)
+            .clickable(onClick = onSelectImage)
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 16.sp, color = textColor)
+                Text(
+                    if (previewPath != null) "已设置，点击更换" else "点击从相册选择图片",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+            // 壁纸缩略图预览
+            if (previewPath != null) {
+                val bitmap = remember(previewPath) {
+                    android.graphics.BitmapFactory.decodeFile(previewPath)
+                }
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = title,
+                        modifier = Modifier
+                            .size(60.dp)
+                            .clip(RoundedCornerShape(8.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color.Gray.copy(alpha = 0.3f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🖼️", fontSize = 24.sp)
+                }
+            }
+        }
     }
 }
