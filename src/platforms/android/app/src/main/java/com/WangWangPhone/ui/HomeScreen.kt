@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.WangWangPhone.core.LicenseManager
 import com.WangWangPhone.core.LicenseResult
+import com.WangWangPhone.core.LicenseDbHelper
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -414,15 +415,15 @@ fun HomeScreen() {
     var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
 
     val isDark = isSystemInDarkTheme()
-    val apps = listOf(
-        AppIcon("电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
-        AppIcon("信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
-        AppIcon("Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
-        AppIcon("音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
-        AppIcon("相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
-        AppIcon("汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
+    val appsList = listOf(
+        AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
+        AppIcon("msg", "信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
+        AppIcon("safari", "Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
+        AppIcon("music", "音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
+        AppIcon("camera", "相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+        AppIcon("calendar", "日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+        AppIcon("settings", "设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
+        AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -516,6 +517,9 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
         }
 
         // Dock 栏
+        // Dock 栏区域使用的应用列表（取前4个）
+        val dockApps = remember { appsList.take(4) }
+
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -538,7 +542,7 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                apps.take(4).forEach { app ->
+                dockApps.forEach { app ->
                     Box(
                         modifier = Modifier
                             .size(70.dp),
@@ -586,8 +590,8 @@ fun DraggableAppIcon(
     val density = androidx.compose.ui.platform.LocalDensity.current
     
     // 计算基于列和行的目标偏移
-    val targetOffsetX = with(density) { (app.col * (itemSize + spacing)).toPx() }
-    val targetOffsetY = with(density) { (app.row * (itemSize + spacing)).toPx() }
+    val targetOffsetX = with(density) { (app.col.toFloat() * (itemSize + spacing).toPx()) }
+    val targetOffsetY = with(density) { (app.row.toFloat() * (itemSize + spacing).toPx()) }
 
     var offsetX by remember { mutableStateOf(0f) }
     var offsetY by remember { mutableStateOf(0f) }
@@ -612,8 +616,9 @@ fun DraggableAppIcon(
                     onDragEnd = {
                         isDragging = false
                         // 计算落点在哪一列哪一行
-                        val finalCol = (offsetX / (with(density) { (itemSize + spacing).toPx() })).roundToInt().coerceIn(0, 3)
-                        val finalRow = (offsetY / (with(density) { (itemSize + spacing).toPx() })).roundToInt().coerceIn(0, 5)
+                        val stepPx = with(density) { (itemSize + spacing).toPx() }
+                        val finalCol = (offsetX / stepPx).roundToInt().coerceIn(0, 3)
+                        val finalRow = (offsetY / stepPx).roundToInt().coerceIn(0, 5)
                         onPositionChanged(finalCol, finalRow)
                     },
                     onDragCancel = { isDragging = false },
@@ -631,7 +636,7 @@ fun DraggableAppIcon(
             modifier = Modifier
                 .size(70.dp)
                 .clip(RoundedCornerShape(15.dp))
-                .background(if (app.useImage) Color.Transparent else app.color),
+                .background(if (app.useImage) Color.Transparent else app.color, RoundedCornerShape(15.dp)),
             contentAlignment = Alignment.Center
         ) {
             if (app.useImage) {
