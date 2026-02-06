@@ -1,11 +1,13 @@
 import SwiftUI
 
 struct AppIconData: Identifiable {
-    let id = UUID()
+    var id: String
     let name: String
     let icon: String
     let colors: [Color]
     var useImage: Bool = false
+    var col: Int = 0
+    var row: Int = 0
 }
 
 struct ClockWidget: View {
@@ -105,22 +107,15 @@ struct WeatherWidget: View {
 }
 
 struct HomeScreen: View {
-    let apps = [
-        AppIconData(name: "电话", icon: "📞", colors: [.pink, .orange]),
-        AppIconData(name: "信息", icon: "💬", colors: [.blue, .cyan]),
-        AppIconData(name: "Safari", icon: "🧭", colors: [.green, .blue]),
-        AppIconData(name: "音乐", icon: "🎵", colors: [.yellow, .red]),
-        AppIconData(name: "相机", icon: "📷", colors: [.white, .gray]),
-        AppIconData(name: "日历", icon: "📅", colors: [.white, .gray]),
-        AppIconData(name: "设置", icon: "SettingsIcon", colors: [.white, .gray], useImage: true),
-        AppIconData(name: "汪汪", icon: "🐶", colors: [.white, .gray])
-    ]
-
-    let columns = [
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible()),
-        GridItem(.flexible())
+    @State private var apps = [
+        AppIconData(id: "phone", name: "电话", icon: "📞", colors: [.pink, .orange], col: 0, row: 0),
+        AppIconData(id: "msg", name: "信息", icon: "💬", colors: [.blue, .cyan], col: 1, row: 0),
+        AppIconData(id: "safari", name: "Safari", icon: "🧭", colors: [.green, .blue], col: 2, row: 0),
+        AppIconData(id: "music", name: "音乐", icon: "🎵", colors: [.yellow, .red], col: 3, row: 0),
+        AppIconData(id: "camera", name: "相机", icon: "📷", colors: [.white, .gray], col: 0, row: 1),
+        AppIconData(id: "calendar", name: "日历", icon: "📅", colors: [.white, .gray], col: 1, row: 1),
+        AppIconData(id: "settings", name: "设置", icon: "SettingsIcon", colors: [.white, .gray], useImage: true, col: 2, row: 1),
+        AppIconData(id: "wangwang", name: "汪汪", icon: "🐶", colors: [.white, .gray], col: 3, row: 1)
     ]
 
     @State private var city: String = "..."
@@ -147,34 +142,26 @@ struct HomeScreen: View {
                     loadData()
                 }
 
-                // 应用网格
-                LazyVGrid(columns: columns, spacing: 25) {
-                    ForEach(apps) { app in
-                        VStack(spacing: 8) {
-                            ZStack {
-                                if app.useImage {
-                                        Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
-                                            .resizable()
-                                            .aspectRatio(contentMode: .fit)
-                                            .frame(width: 80, height: 80)
-                                    } else {
-                                        Text(app.icon)
-                                            .font(.system(size: 65))
-                                    }
+                // 应用网格 (自由拖动容器)
+                ZStack {
+                    ForEach(0..<apps.count, id: \.self) { index in
+                        DraggableAppIcon(
+                            app: $apps[index],
+                            onDragEnd: {
+                                // 保存到数据库逻辑
+                                let app = apps[index]
+                                _ = LicenseManager.shared.saveAppLayout(appId: app.id, col: app.col, row: app.row)
+                            },
+                            onTap: {
+                                if apps[index].id == "settings" {
+                                    showSettings = true
                                 }
-                                .frame(width: 80, height: 80)
-                            Text(app.name)
-                                .font(.caption)
-                                .foregroundColor(.white)
-                        }
-                        .onTapGesture {
-                            if app.name == "设置" {
-                                showSettings = true
                             }
-                        }
+                        )
                     }
                 }
                 .padding(20)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
 
                 Spacer()
 
@@ -243,6 +230,76 @@ struct HomeScreen: View {
                 icon: "⛅",
                 range: "H:29° L:21°"
             )
+            
+            // 加载保存的布局
+            let savedLayouts = LicenseManager.shared.getAppLayouts()
+            if !savedLayouts.isEmpty {
+                for layout in savedLayouts {
+                    if let index = self.apps.firstIndex(where: { $0.id == layout.appId }) {
+                        self.apps[index].col = layout.col
+                        self.apps[index].row = layout.row
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct DraggableAppIcon: View {
+    @Binding var app: AppIconData
+    var onDragEnd: () -> Void
+    var onTap: () -> Void
+    @Environment(\.colorScheme) var colorScheme: ColorScheme
+    
+    @State private var dragOffset = CGSize.zero
+    @State private var isDragging = false
+    
+    let iconSize: CGFloat = 80
+    let spacing: CGFloat = 20
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                if app.useImage {
+                    Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: iconSize, height: iconSize)
+                } else {
+                    Text(app.icon)
+                        .font(.system(size: 65))
+                }
+            }
+            .frame(width: iconSize, height: iconSize)
+            
+            Text(app.name)
+                .font(.caption)
+                .foregroundColor(.white)
+        }
+        .offset(x: CGFloat(app.col) * (iconSize + spacing) + dragOffset.width,
+                y: CGFloat(app.row) * (iconSize + spacing) + dragOffset.height)
+        .zIndex(isDragging ? 1 : 0)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    isDragging = true
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    isDragging = false
+                    // 计算落点网格
+                    let totalSpacing = iconSize + spacing
+                    let col = Int((CGFloat(app.col) * totalSpacing + value.translation.width + totalSpacing/2) / totalSpacing)
+                    let row = Int((CGFloat(app.row) * totalSpacing + value.translation.height + totalSpacing/2) / totalSpacing)
+                    
+                    app.col = max(0, min(col, 3))
+                    app.row = max(0, min(row, 5))
+                    dragOffset = .zero
+                    onDragEnd()
+                }
+        )
+        .onTapGesture {
+            onTap()
         }
     }
 }

@@ -192,17 +192,28 @@
         }
 
         .app-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            grid-gap: 20px;
+            position: relative;
+            height: 400px;
             padding: 20px;
         }
 
         .app-icon-wrapper {
+            position: absolute;
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 5px;
+            width: 80px;
+            cursor: pointer;
+            transition: transform 0.1s ease-out;
+            user-select: none;
+        }
+
+        .app-icon-wrapper.dragging {
+            z-index: 1000;
+            transition: none;
+            opacity: 0.8;
+            transform: scale(1.1);
         }
 
         .app-icon {
@@ -427,44 +438,8 @@
             </div>
         </div>
 
-        <div class="app-grid">
-            <div class="app-icon-wrapper">
-                <div class="app-icon">📞</div>
-                <div class="app-name">电话</div>
-            </div>
-            <div class="app-icon-wrapper">
-                <div class="app-icon">💬</div>
-                <div class="app-name">信息</div>
-            </div>
-            <div class="app-icon-wrapper">
-                <div class="app-icon">🧭</div>
-                <div class="app-name">Safari</div>
-            </div>
-            <div class="app-icon-wrapper">
-                <div class="app-icon">🎵</div>
-                <div class="app-name">音乐</div>
-            </div>
-            <div class="app-icon-wrapper">
-                <div class="app-icon">📷</div>
-                <div class="app-name">相机</div>
-            </div>
-            <div class="app-icon-wrapper">
-                <div class="app-icon">📅</div>
-                <div class="app-name">日历</div>
-            </div>
-            <div class="app-icon-wrapper" onclick="showSettings()">
-                <div class="app-icon">
-                    <picture>
-                        <source srcset="Setting_Dark.png" media="(prefers-color-scheme: dark)">
-                        <img src="Setting_Light.png" alt="设置" class="settings-icon-img">
-                    </picture>
-                </div>
-                <div class="app-name">设置</div>
-            </div>
-            <div class="app-icon-wrapper">
-                <div class="app-icon">🐶</div>
-                <div class="app-name">汪汪</div>
-            </div>
+        <div class="app-grid" id="main-app-grid">
+            <!-- 动态生成 -->
         </div>
 
         <!-- Dock 栏 -->
@@ -608,6 +583,122 @@
             alert(`激活失败: ${result.error}`);
         }
     }
+
+    // 拖拽布局逻辑
+    const gridEl = document.getElementById('main-app-grid');
+    let apps = [
+        { id: 'phone', name: '电话', icon: '📞', col: 0, row: 0 },
+        { id: 'msg', name: '信息', icon: '💬', col: 1, row: 0 },
+        { id: 'safari', name: 'Safari', icon: '🧭', col: 2, row: 0 },
+        { id: 'music', name: '音乐', icon: '🎵', col: 3, row: 0 },
+        { id: 'camera', name: '相机', icon: '📷', col: 0, row: 1 },
+        { id: 'calendar', name: '日历', icon: '📅', col: 1, row: 1 },
+        { id: 'settings', name: '设置', icon: 'Setting_Light.png', useImage: true, col: 2, row: 1 },
+        { id: 'wangwang', name: '汪汪', icon: '🐶', col: 3, row: 1 },
+    ];
+
+    function saveLayout() {
+        const layoutData = apps.map(a => ({ id: a.id, col: a.col, row: a.row }));
+        localStorage.setItem('wwj_app_layout', JSON.stringify(layoutData));
+    }
+
+    function loadLayout() {
+        const saved = localStorage.getItem('wwj_app_layout');
+        if (saved) {
+            const layoutData = JSON.parse(saved);
+            layoutData.forEach(l => {
+                const app = apps.find(a => a.id === l.id);
+                if (app) {
+                    app.col = l.col;
+                    app.row = l.row;
+                }
+            });
+        }
+    }
+
+    function renderApps() {
+        gridEl.innerHTML = '';
+        apps.forEach(app => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'app-icon-wrapper';
+            wrapper.style.left = `${app.col * 85 + 20}px`;
+            wrapper.style.top = `${app.row * 100 + 20}px`;
+            wrapper.dataset.id = app.id;
+
+            let iconHtml = '';
+            if (app.useImage) {
+                iconHtml = `<div class="app-icon"><img src="${app.icon}" class="settings-icon-img"></div>`;
+            } else {
+                iconHtml = `<div class="app-icon">${app.icon}</div>`;
+            }
+
+            wrapper.innerHTML = `${iconHtml}<div class="app-name">${app.name}</div>`;
+            
+            wrapper.addEventListener('mousedown', onMouseDown);
+            if (app.id === 'settings') {
+                wrapper.addEventListener('click', (e) => {
+                    if (!wrapper.classList.contains('moved')) showSettings();
+                });
+            }
+
+            gridEl.appendChild(wrapper);
+        });
+    }
+
+    let dragEl = null;
+    let startX, startY, initialLeft, initialTop;
+
+    function onMouseDown(e) {
+        dragEl = e.currentTarget;
+        dragEl.classList.add('dragging');
+        dragEl.classList.remove('moved');
+        
+        startX = e.clientX;
+        startY = e.clientY;
+        initialLeft = parseInt(dragEl.style.left);
+        initialTop = parseInt(dragEl.style.top);
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    function onMouseMove(e) {
+        if (!dragEl) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        dragEl.style.left = `${initialLeft + dx}px`;
+        dragEl.style.top = `${initialTop + dy}px`;
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            dragEl.classList.add('moved');
+        }
+    }
+
+    function onMouseUp(e) {
+        if (!dragEl) return;
+        dragEl.classList.remove('dragging');
+        
+        const finalLeft = parseInt(dragEl.style.left);
+        const finalTop = parseInt(dragEl.style.top);
+        
+        const col = Math.round((finalLeft - 20) / 85);
+        const row = Math.round((finalTop - 20) / 100);
+        
+        const appId = dragEl.dataset.id;
+        const app = apps.find(a => a.id === appId);
+        if (app) {
+            app.col = Math.max(0, Math.min(col, 3));
+            app.row = Math.max(0, Math.min(row, 5));
+            saveLayout();
+        }
+
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        dragEl = null;
+        renderApps();
+    }
+
+    loadLayout();
+    renderApps();
 
     // 更新时间
     function updateTime() {

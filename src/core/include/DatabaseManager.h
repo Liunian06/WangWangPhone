@@ -17,6 +17,15 @@ struct LicenseRecord {
     long long qqID;               // QQ ID
 };
 
+// 软件/组件布局信息
+struct AppLayout {
+    std::string app_id;    // 软件唯一标识
+    int column;            // 所在列
+    int row;               // 所在行
+    int span_x;            // 跨列数
+    int span_y;            // 跨行数
+};
+
 class DatabaseManager {
 public:
     static DatabaseManager& getInstance();
@@ -34,6 +43,11 @@ public:
     bool saveLicenseRecord(const LicenseRecord& record);
     bool getLicenseRecord(LicenseRecord& outRecord);
     bool clearLicenseRecord();
+
+    // 布局相关操作
+    bool saveAppLayout(const AppLayout& layout);
+    bool getAppLayouts(std::vector<AppLayout>& outLayouts);
+    bool clearAppLayouts();
 
     // 获取数据库路径
     std::string getDatabasePath() const;

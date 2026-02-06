@@ -20,6 +20,15 @@ namespace WangWangPhone.Core
         public long ActivationTime { get; set; }
     }
 
+    public class AppLayoutRecord
+    {
+        public string AppId { get; set; }
+        public int Col { get; set; }
+        public int Row { get; set; }
+        public int SpanX { get; set; }
+        public int SpanY { get; set; }
+    }
+
     /// <summary>
     /// 授权载荷
     /// </summary>
@@ -270,6 +279,64 @@ namespace WangWangPhone.Core
             return ClearLicenseRecord();
         }
 
+        /// <summary>
+        /// 保存布局信息
+        /// </summary>
+        public bool SaveAppLayout(string appId, int col, int row, int spanX = 1, int spanY = 1)
+        {
+            try
+            {
+                string replaceSQL = @"
+                    INSERT OR REPLACE INTO app_layout (app_id, col, row, span_x, span_y, updated_at)
+                    VALUES (@appId, @col, @row, @spanX, @spanY, strftime('%s', 'now'));
+                ";
+
+                using (var command = new SQLiteCommand(replaceSQL, _connection))
+                {
+                    command.Parameters.AddWithValue("@appId", appId);
+                    command.Parameters.AddWithValue("@col", col);
+                    command.Parameters.AddWithValue("@row", row);
+                    command.Parameters.AddWithValue("@spanX", spanX);
+                    command.Parameters.AddWithValue("@spanY", spanY);
+                    command.ExecuteNonQuery();
+                }
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 获取所有布局信息
+        /// </summary>
+        public System.Collections.Generic.List<AppLayoutRecord> GetAppLayouts()
+        {
+            var layouts = new System.Collections.Generic.List<AppLayoutRecord>();
+            try
+            {
+                string selectSQL = "SELECT app_id, col, row, span_x, span_y FROM app_layout;";
+                using (var command = new SQLiteCommand(selectSQL, _connection))
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        layouts.Add(new AppLayoutRecord
+                        {
+                            AppId = reader.GetString(0),
+                            Col = reader.GetInt32(1),
+                            Row = reader.GetInt32(2),
+                            SpanX = reader.GetInt32(3),
+                            SpanY = reader.GetInt32(4)
+                        });
+                    }
+                }
+            }
+            catch { }
+            return layouts;
+        }
+
         #region 私有方法
 
         private string GetDatabasePath()
@@ -300,9 +367,24 @@ namespace WangWangPhone.Core
                 );
             ";
 
+            string createLayoutTableSQL = @"
+                CREATE TABLE IF NOT EXISTS app_layout (
+                    app_id TEXT PRIMARY KEY,
+                    col INTEGER NOT NULL,
+                    row INTEGER NOT NULL,
+                    span_x INTEGER DEFAULT 1,
+                    span_y INTEGER DEFAULT 1,
+                    updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+                );
+            ";
+
             try
             {
                 using (var command = new SQLiteCommand(createTableSQL, _connection))
+                {
+                    command.ExecuteNonQuery();
+                }
+                using (var command = new SQLiteCommand(createLayoutTableSQL, _connection))
                 {
                     command.ExecuteNonQuery();
                 }

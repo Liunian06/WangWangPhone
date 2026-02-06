@@ -30,8 +30,21 @@ import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.zIndex
+import kotlin.math.roundToInt
 
-data class AppIcon(val name: String, val icon: String, val color: Brush, val useImage: Boolean = false)
+data class AppIcon(
+    val id: String,
+    val name: String,
+    val icon: String,
+    val color: Brush,
+    val useImage: Boolean = false,
+    var col: Int = 0,
+    var row: Int = 0
+)
 
 // Mock Location & Weather Logic (In real app this would be in Repository/ViewModel)
 suspend fun fetchLocation(): String {
@@ -442,16 +455,35 @@ fun HomeScreen() {
 @Composable
 fun HomeScreenContent(onSettingsClick: () -> Unit) {
     val isDark = isSystemInDarkTheme()
-    val apps = listOf(
-        AppIcon("电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
-        AppIcon("信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
-        AppIcon("Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
-        AppIcon("音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
-        AppIcon("相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
-        AppIcon("设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
-        AppIcon("汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
-    )
+    val context = LocalContext.current
+    val licenseDbHelper = remember { LicenseDbHelper(context) }
+    
+    // Initial apps with default positions
+    val initialApps = remember {
+        mutableStateListOf(
+            AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF))), col = 0, row = 0),
+            AppIcon("msg", "信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB))), col = 1, row = 0),
+            AppIcon("safari", "Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4))), col = 2, row = 0),
+            AppIcon("music", "音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085))), col = 3, row = 0),
+            AppIcon("camera", "相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray)), col = 0, row = 1),
+            AppIcon("calendar", "日历", "📅", Brush.linearGradient(listOf(Color.White, Color.LightGray)), col = 1, row = 1),
+            AppIcon("settings", "设置", if (isDark) "ic_settings_dark" else "ic_settings_light", Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true, col = 2, row = 1),
+            AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)), col = 3, row = 1)
+        )
+    }
+
+    // Load saved layouts if any
+    LaunchedEffect(Unit) {
+        val savedLayouts = licenseDbHelper.getAppLayouts()
+        if (savedLayouts.isNotEmpty()) {
+            savedLayouts.forEach { layout ->
+                val index = initialApps.indexOfFirst { it.id == layout.appId }
+                if (index != -1) {
+                    initialApps[index] = initialApps[index].copy(col = layout.col, row = layout.row)
+                }
+            }
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 背景 (实际应为 Live2D 或壁纸)
@@ -461,17 +493,24 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
             // 小组件区域
             WidgetsSection()
 
-            // 应用网格
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(4),
-                contentPadding = PaddingValues(20.dp),
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp)
+            // 应用区域 (使用 Box 配合自定义布局实现自由拖拽)
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(20.dp)
             ) {
-                items(apps) { app ->
-                    AppIconItem(app, onClick = {
-                        if (app.name == "设置") onSettingsClick()
-                    })
+                initialApps.forEachIndexed { index, app ->
+                    DraggableAppIcon(
+                        app = app,
+                        onPositionChanged = { newCol, newRow ->
+                            initialApps[index] = app.copy(col = newCol, row = newRow)
+                            // 保存到数据库
+                            licenseDbHelper.saveAppLayout(app.id, newCol, newRow)
+                        },
+                        onClick = {
+                            if (app.id == "settings") onSettingsClick()
+                        }
+                    )
                 }
             }
         }
@@ -537,31 +576,79 @@ fun HomeScreenContent(onSettingsClick: () -> Unit) {
 }
 
 @Composable
-fun AppIconItem(app: AppIcon, onClick: () -> Unit = {}) {
+fun DraggableAppIcon(
+    app: AppIcon,
+    onPositionChanged: (Int, Int) -> Unit,
+    onClick: () -> Unit
+) {
+    val itemSize = 85.dp
+    val spacing = 15.dp
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    
+    // 计算基于列和行的目标偏移
+    val targetOffsetX = with(density) { (app.col * (itemSize + spacing)).toPx() }
+    val targetOffsetY = with(density) { (app.row * (itemSize + spacing)).toPx() }
+
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    // 当位置改变时同步偏移（非拖拽状态）
+    LaunchedEffect(app.col, app.row, isDragging) {
+        if (!isDragging) {
+            offsetX = targetOffsetX
+            offsetY = targetOffsetY
+        }
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }
+        modifier = Modifier
+            .offset { IntOffset(offsetX.roundToInt(), offsetY.roundToInt()) }
+            .zIndex(if (isDragging) 1f else 0f)
+            .pointerInput(Unit) {
+                detectDragGesturesAfterLongPress(
+                    onDragStart = { isDragging = true },
+                    onDragEnd = {
+                        isDragging = false
+                        // 计算落点在哪一列哪一行
+                        val finalCol = (offsetX / (with(density) { (itemSize + spacing).toPx() })).roundToInt().coerceIn(0, 3)
+                        val finalRow = (offsetY / (with(density) { (itemSize + spacing).toPx() })).roundToInt().coerceIn(0, 5)
+                        onPositionChanged(finalCol, finalRow)
+                    },
+                    onDragCancel = { isDragging = false },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        offsetX += dragAmount.x
+                        offsetY += dragAmount.y
+                    }
+                )
+            }
+            .clickable { if (!isDragging) onClick() }
+            .width(itemSize)
     ) {
         Box(
             modifier = Modifier
-                .size(80.dp),
+                .size(70.dp)
+                .clip(RoundedCornerShape(15.dp))
+                .background(if (app.useImage) Color.Transparent else app.color),
             contentAlignment = Alignment.Center
         ) {
             if (app.useImage) {
-                val context = androidx.compose.ui.platform.LocalContext.current
+                val context = LocalContext.current
                 val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
                 if (resId != 0) {
                     Image(
                         painter = androidx.compose.ui.res.painterResource(id = resId),
                         contentDescription = app.name,
-                        modifier = Modifier.size(60.dp)
+                        modifier = Modifier.size(50.dp)
                     )
                 }
             } else {
-                Text(app.icon, fontSize = 50.sp)
+                Text(app.icon, fontSize = 40.sp)
             }
         }
-        Spacer(modifier = Modifier.height(5.dp))
-        Text(app.name, color = Color.White, fontSize = 12.sp)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(app.name, color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium)
     }
 }

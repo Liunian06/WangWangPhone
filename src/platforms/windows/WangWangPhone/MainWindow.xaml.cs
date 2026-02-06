@@ -4,13 +4,31 @@ using System.Windows;
 using System.Windows.Threading;
 using System.Threading.Tasks;
 using WangWangPhone.Core;
+using System.Collections.Generic;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 
 namespace WangWangPhone
 {
+    public class AppIconData
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string Icon { get; set; }
+        public int Col { get; set; }
+        public int Row { get; set; }
+        public bool UseImage { get; set; }
+    }
+
     public partial class MainWindow : Window
     {
         private DispatcherTimer _timer;
         private readonly LicenseManager _licenseManager = LicenseManager.Instance;
+        private List<AppIconData> _apps;
+        private UIElement _draggedElement;
+        private Point _dragStart;
+        private AppIconData _draggedApp;
 
         public MainWindow()
         {
@@ -19,19 +37,128 @@ namespace WangWangPhone
             UpdateDateTime();
             _ = LoadWeatherData();
             InitializeLicense();
-            ApplyThemeIcons();
+            InitializeApps();
         }
 
-        private void ApplyThemeIcons()
+        private void InitializeApps()
         {
-            // Simple logic to detect "dark" theme by checking a system color or just hardcode for this prototype
-            // In WPF, we can use Registry or SystemParameters
-            bool isDark = SystemParameters.HighContrast; // Placeholder logic
+            _apps = new List<AppIconData>
+            {
+                new AppIconData { Id = "phone", Name = "电话", Icon = "📞", Col = 0, Row = 0 },
+                new AppIconData { Id = "msg", Name = "信息", Icon = "💬", Col = 1, Row = 0 },
+                new AppIconData { Id = "music", Name = "音乐", Icon = "🎵", Col = 2, Row = 0 },
+                new AppIconData { Id = "camera", Name = "相机", Icon = "📷", Col = 3, Row = 0 },
+                new AppIconData { Id = "settings", Name = "设置", Icon = "Assets/Setting_Light.png", UseImage = true, Col = 0, Row = 1 },
+                new AppIconData { Id = "wangwang", Name = "汪汪", Icon = "🐶", Col = 1, Row = 1 }
+            };
+
+            // 加载保存的布局
+            var savedLayouts = _licenseManager.GetAppLayouts();
+            foreach (var layout in savedLayouts)
+            {
+                var app = _apps.Find(a => a.Id == layout.AppId);
+                if (app != null)
+                {
+                    app.Col = layout.Col;
+                    app.Row = layout.Row;
+                }
+            }
+
+            RenderApps();
+        }
+
+        private void RenderApps()
+        {
+            AppCanvas.Children.Clear();
+            foreach (var app in _apps)
+            {
+                var appItem = CreateAppItem(app);
+                AppCanvas.Children.Add(appItem);
+                UpdateElementPosition(appItem, app.Col, app.Row);
+            }
+        }
+
+        private UIElement CreateAppItem(AppIconData app)
+        {
+            var stack = new StackPanel { Width = 80, Margin = new Thickness(5), Tag = app };
+            var border = new Border { Width = 80, Height = 80 };
             
-            // For now, let's just make it toggleable or check background
-            // Actually, let's just default to Light since it's a prototype
-            SettingsIconLight.Visibility = Visibility.Visible;
-            SettingsIconDark.Visibility = Visibility.Collapsed;
+            if (app.UseImage)
+            {
+                border.Child = new Image { Source = new System.Windows.Media.Imaging.BitmapImage(new Uri(app.Icon, UriKind.RelativeOrAbsolute)), Width = 80, Height = 80 };
+            }
+            else
+            {
+                border.Child = new TextBlock { Text = app.Icon, FontSize = 65, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+            }
+
+            stack.Children.Add(border);
+            stack.Children.Add(new TextBlock { Text = app.Name, Foreground = Brushes.White, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 0) });
+
+            stack.MouseLeftButtonDown += OnAppMouseDown;
+            stack.MouseMove += OnAppMouseMove;
+            stack.MouseLeftButtonUp += OnAppMouseUp;
+
+            return stack;
+        }
+
+        private void OnAppMouseDown(object sender, MouseButtonEventArgs e)
+        {
+            _draggedElement = sender as UIElement;
+            _dragStart = e.GetPosition(AppCanvas);
+            _draggedApp = (sender as StackPanel).Tag as AppIconData;
+            _draggedElement.CaptureMouse();
+            Panel.SetZIndex(_draggedElement, 1000);
+        }
+
+        private void OnAppMouseMove(object sender, MouseEventArgs e)
+        {
+            if (_draggedElement != null)
+            {
+                Point current = e.GetPosition(AppCanvas);
+                double left = Canvas.GetLeft(_draggedElement) + (current.X - _dragStart.X);
+                double top = Canvas.GetTop(_draggedElement) + (current.Y - _dragStart.Y);
+                
+                Canvas.SetLeft(_draggedElement, left);
+                Canvas.SetTop(_draggedElement, top);
+                _dragStart = current;
+            }
+        }
+
+        private void OnAppMouseUp(object sender, MouseButtonEventArgs e)
+        {
+            if (_draggedElement != null)
+            {
+                _draggedElement.ReleaseMouseCapture();
+                
+                // 计算落点网格
+                double left = Canvas.GetLeft(_draggedElement);
+                double top = Canvas.GetTop(_draggedElement);
+                
+                int col = (int)Math.Round(left / 100);
+                int row = (int)Math.Round(top / 100);
+                
+                _draggedApp.Col = Math.Max(0, Math.Min(col, 3));
+                _draggedApp.Row = Math.Max(0, Math.Min(row, 5));
+                
+                UpdateElementPosition(_draggedElement, _draggedApp.Col, _draggedApp.Row);
+                
+                // 持久化
+                _licenseManager.SaveAppLayout(_draggedApp.Id, _draggedApp.Col, _draggedApp.Row);
+                
+                if (left < 5 && top < 5 && _draggedApp.Id == "settings") {
+                    OnSettingsClick(null, null);
+                }
+
+                _draggedElement = null;
+                _draggedApp = null;
+            }
+        }
+
+        private void UpdateElementPosition(UIElement element, int col, int row)
+        {
+            Canvas.SetLeft(element, col * 100);
+            Canvas.SetTop(element, row * 100);
         }
 
         /// <summary>
