@@ -99,14 +99,26 @@ struct DraggableAppGrid: View {
     @Environment(\.colorScheme) var colorScheme
     
     let columns = 4
-    let rows = 6
+    let rows = 7
     
+    @State private var highlightCellIndex: Int = -1
+
     var body: some View {
         GeometryReader { geometry in
             let cellWidth = geometry.size.width / CGFloat(columns)
             let cellHeight = geometry.size.height / CGFloat(rows)
             
             ZStack {
+                // 高亮目标格子
+                if highlightCellIndex >= 0 && highlightCellIndex < columns * rows {
+                    let col = highlightCellIndex % columns
+                    let row = highlightCellIndex / columns
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.white.opacity(0.5), lineWidth: 2)
+                        .frame(width: cellWidth - 10, height: cellHeight - 10)
+                        .position(x: CGFloat(col) * cellWidth + cellWidth / 2, y: CGFloat(row) * cellHeight + cellHeight / 2)
+                }
+
                 ForEach(0..<(columns * rows), id: \.self) { cellIndex in
                     if let app = gridPositions[cellIndex] {
                         let col = cellIndex % columns
@@ -179,16 +191,37 @@ struct DraggableAppGrid: View {
                         let tCol = max(0, min(columns - 1, curCol + colOffset))
                         let tRow = max(0, min(rows - 1, curRow + rowOffset))
                         let targetCell = tRow * columns + tCol
+
+                        highlightCellIndex = targetCell
+                    }
+                }
+                .onEnded { value in
+                    if isDraggingOverDock && dockApps.count < maxDockApps {
+                        gridPositions.removeValue(forKey: cellIndex)
+                        dockApps.append(app)
+                    } else {
+                        let colOffset = Int(round(value.translation.width / cellWidth))
+                        let rowOffset = Int(round(value.translation.height / cellHeight))
+                        let curRow = cellIndex / columns
+                        let curCol = cellIndex % columns
+                        let tCol = max(0, min(columns - 1, curCol + colOffset))
+                        let tRow = max(0, min(rows - 1, curRow + rowOffset))
+                        let targetCell = tRow * columns + tCol
                         
+                        // 自由摆放，不挤压，如果有图标则交换
                         if targetCell != cellIndex && targetCell >= 0 && targetCell < columns * rows {
-                            let targetApp = gridPositions[targetCell]
+                            let existingApp = gridPositions[targetCell]
                             gridPositions.removeValue(forKey: cellIndex)
-                            if let targetApp = targetApp { gridPositions[cellIndex] = targetApp }
                             gridPositions[targetCell] = app
+                            
+                            // 如果目标位置有应用，交换到原位置
+                            if let existing = existingApp {
+                                gridPositions[cellIndex] = existing
+                            }
                         }
                     }
                     withAnimation(.spring()) {
-                        draggingApp = nil; draggingOffset = .zero; draggingFromCell = -1; isDraggingOverDock = false
+                        draggingApp = nil; draggingOffset = .zero; draggingFromCell = -1; isDraggingOverDock = false; highlightCellIndex = -1
                     }
                     onLayoutChanged()
                 }
@@ -315,7 +348,7 @@ struct HomeScreen: View {
     private let defaultApps = getDefaultApps()
     private let maxDockApps = 4
     private let gridCols = 4
-    private let gridRows = 6
+    private let gridRows = 7
 
     var body: some View {
         ZStack {
@@ -375,23 +408,7 @@ struct HomeScreen: View {
                     self.homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
                 }
                 
-                // 编辑模式 - 只有完成按钮
-                if isEditMode {
-                    HStack {
-                        Spacer()
-                        Button("完成") {
-                            withAnimation(.spring()) { isEditMode = false }
-                            saveLayout()
-                        }
-                        .font(.headline).foregroundColor(.blue)
-                    }
-                    .padding(.horizontal, 24).padding(.vertical, 10)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.white.opacity(0.15)))
-                    .padding(.horizontal, 20).padding(.bottom, 4)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-                
-                // 4x6 网格
+                // 4x7 网格
                 DraggableAppGrid(
                     gridPositions: $gridPositions, dockApps: $dockApps,
                     isEditMode: $isEditMode, isDraggingOverDock: $isDraggingOverDock,
@@ -475,7 +492,7 @@ struct HomeScreen: View {
                         withAnimation(.spring()) { isEditMode = false }
                         saveLayout()
                     }
-                    .zIndex(-1)
+                    .zIndex(1) // 确保在壁纸之上，但在图标之下
             }
 
             if showSettings {

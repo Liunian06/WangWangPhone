@@ -69,7 +69,7 @@ fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
 )
 
 const val GRID_COLUMNS = 4
-const val GRID_ROWS = 6
+const val GRID_ROWS = 7
 const val TOTAL_CELLS = GRID_COLUMNS * GRID_ROWS
 
 data class WeatherInfo(val temp: String, val description: String, val icon: String, val range: String)
@@ -419,24 +419,17 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
             WidgetsSection(isEditMode = isEditMode, widgetOrder = widgetOrder.toList(),
                 onWidgetOrderChanged = { widgetOrder.clear(); widgetOrder.addAll(it); saveCurrentLayout() })
 
-            // 编辑模式：只显示"完成"按钮
-            if (isEditMode) {
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 8.dp)
-                    .clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = 0.15f))
-                    .padding(horizontal = 16.dp, vertical = 10.dp), contentAlignment = Alignment.CenterEnd) {
-                    Text("完成", color = Color(0xFF007AFF), fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.clickable { isEditMode = false; saveCurrentLayout() })
-                }
-            }
-
-            // 4x6 网格
+            // 4x7 网格
             BoxWithConstraints(
                 modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)
                     .onGloballyPositioned { gridAreaOffset = it.positionInRoot(); gridAreaSize = it.size }
-                    .then(if (!isEditMode) Modifier else Modifier.clickable(
+                    // 点击空白处退出编辑模式
+                    .clickable(
                         indication = null,
                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                    ) { isEditMode = false; saveCurrentLayout() })
+                    ) {
+                        if (isEditMode) { isEditMode = false; saveCurrentLayout() }
+                    }
             ) {
                 val density = LocalDensity.current
                 val twPx = constraints.maxWidth; val thPx = constraints.maxHeight
@@ -487,10 +480,17 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                             if (dockApps.size < maxDockApps) { gridPositions.remove(dragSourceCellIndex); dockApps.add(currentApp) }
                                         } else {
                                             val tc = getCellFromGlobal(dragOverlayX, dragOverlayY)
-                                            if (tc in 0 until TOTAL_CELLS && tc != dragSourceCellIndex) {
+                                            if (tc in 0 until TOTAL_CELLS) {
+                                                // 自由摆放，不自动挤压其他图标，如果有图标则交换
                                                 val existing = gridPositions[tc]
-                                                gridPositions.remove(dragSourceCellIndex); gridPositions[tc] = currentApp
-                                                if (existing != null) gridPositions[dragSourceCellIndex] = existing
+                                                if (tc != dragSourceCellIndex) {
+                                                    gridPositions.remove(dragSourceCellIndex)
+                                                    gridPositions[tc] = currentApp
+                                                    if (existing != null) {
+                                                        // 交换位置：原位置放入现有图标
+                                                        gridPositions[dragSourceCellIndex] = existing
+                                                    }
+                                                }
                                             }
                                         }
                                         saveCurrentLayout()
@@ -582,17 +582,19 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                 dockApps.removeAt(dragSourceDockIndex)
                                                 val existing = gridPositions[tc]
                                                 gridPositions[tc] = currentApp
+                                                // 如果目标位置有应用，尝试找空位或放回 Dock
                                                 if (existing != null) {
-                                                    val empty = (0 until TOTAL_CELLS).firstOrNull { it !in gridPositions }
-                                                    if (empty != null) gridPositions[empty] = existing
-                                                    else if (dockApps.size < maxDockApps) dockApps.add(existing)
+                                                    if (dockApps.size < maxDockApps) {
+                                                        dockApps.add(dragSourceDockIndex.coerceAtMost(dockApps.size), existing)
+                                                    } else {
+                                                        // Dock 满了，尝试找网格空位
+                                                        val empty = (0 until TOTAL_CELLS).firstOrNull { it !in gridPositions }
+                                                        if (empty != null) gridPositions[empty] = existing
+                                                    }
                                                 }
-                                            } else {
-                                                dockApps.removeAt(dragSourceDockIndex)
-                                                val empty = (0 until TOTAL_CELLS).firstOrNull { it !in gridPositions }
-                                                if (empty != null) gridPositions[empty] = currentApp
-                                                else dockApps.add(dragSourceDockIndex.coerceIn(0, dockApps.size), currentApp)
                                             }
+                                        } else {
+                                             // 在 Dock 内部排序逻辑保持不变
                                         }
                                         saveCurrentLayout()
                                     }
