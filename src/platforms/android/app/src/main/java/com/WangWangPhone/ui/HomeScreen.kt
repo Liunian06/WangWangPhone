@@ -1,4 +1,3 @@
-
 package com.WangWangPhone.ui
 
 import android.net.Uri
@@ -51,10 +50,34 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.roundToInt
 
+// 定义统一的网格项类型
+interface GridItem {
+    val id: String
+    val type: String // "app" or "widget"
+    val spanX: Int
+    val spanY: Int
+}
+
 data class AppIcon(
-    val id: String, val name: String, val icon: String,
-    val color: Brush, val useImage: Boolean = false
-)
+    override val id: String, 
+    val name: String, 
+    val icon: String,
+    val color: Brush, 
+    val useImage: Boolean = false,
+    override val spanX: Int = 1,
+    override val spanY: Int = 1
+) : GridItem {
+    override val type = "app"
+}
+
+data class WidgetItem(
+    override val id: String,
+    val widgetType: String, // "clock", "weather"
+    override val spanX: Int = 2,
+    override val spanY: Int = 2
+) : GridItem {
+    override val type = "widget"
+}
 
 fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
     AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
@@ -66,6 +89,11 @@ fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
     AppIcon("settings", "设置", if (isDark) "ic_settings_dark" else "ic_settings_light",
         Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
     AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray)))
+)
+
+fun getDefaultWidgets(): List<WidgetItem> = listOf(
+    WidgetItem("clock_widget", "clock"),
+    WidgetItem("weather_widget", "weather")
 )
 
 const val GRID_COLUMNS = 4
@@ -80,71 +108,19 @@ suspend fun fetchWeather(city: String): WeatherInfo {
 }
 
 @Composable
-fun WidgetsSection(
-    isEditMode: Boolean = false,
-    widgetOrder: List<String> = listOf("clock", "weather"),
-    onWidgetOrderChanged: (List<String>) -> Unit = {}
-) {
+fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
     var city by remember { mutableStateOf("...") }
     var weather by remember { mutableStateOf<WeatherInfo?>(null) }
-    var widgetDragIndex by remember { mutableStateOf(-1) }
-    var widgetDragOffsetX by remember { mutableStateOf(0f) }
-    var widgetDragOffsetY by remember { mutableStateOf(0f) }
-
+    
     LaunchedEffect(Unit) {
         city = fetchLocation()
         if (city.isNotEmpty()) weather = fetchWeather(city)
     }
 
-    val density = LocalDensity.current
-
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.spacedBy(15.dp)
-    ) {
-        widgetOrder.forEachIndexed { index, widgetId ->
-            val isDragged = widgetDragIndex == index
-            val wiggleTransition = rememberInfiniteTransition(label = "ww_$index")
-            val wiggleAngle by wiggleTransition.animateFloat(
-                initialValue = if (index % 2 == 0) -1.5f else 1.5f,
-                targetValue = if (index % 2 == 0) 1.5f else -1.5f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(durationMillis = 200, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse
-                ), label = "wa_$index"
-            )
-            Box(
-                modifier = Modifier.weight(1f).zIndex(if (isDragged) 10f else 0f)
-                    .graphicsLayer {
-                        if (isEditMode) rotationZ = if (isDragged) 0f else wiggleAngle
-                        scaleX = if (isDragged) 1.05f else 1f
-                        scaleY = if (isDragged) 1.05f else 1f
-                        alpha = if (isDragged) 0.85f else 1f
-                        if (isDragged) { translationX = widgetDragOffsetX; translationY = widgetDragOffsetY }
-                    }
-                    .pointerInput(isEditMode, index) {
-                        if (isEditMode) {
-                            detectDragGestures(
-                                onDragStart = { widgetDragIndex = index; widgetDragOffsetX = 0f; widgetDragOffsetY = 0f },
-                                onDrag = { change, dragAmount ->
-                                    change.consume(); widgetDragOffsetX += dragAmount.x; widgetDragOffsetY += dragAmount.y
-                                },
-                                onDragEnd = {
-                                    val threshold = with(density) { 60.dp.toPx() }
-                                    if (kotlin.math.abs(widgetDragOffsetX) > threshold && widgetOrder.size == 2) {
-                                        onWidgetOrderChanged(widgetOrder.reversed())
-                                    }
-                                    widgetDragIndex = -1; widgetDragOffsetX = 0f; widgetDragOffsetY = 0f
-                                },
-                                onDragCancel = { widgetDragIndex = -1; widgetDragOffsetX = 0f; widgetDragOffsetY = 0f }
-                            )
-                        }
-                    }
-            ) {
-                if (widgetId == "clock") ClockWidget(city = city, modifier = Modifier.fillMaxWidth())
-                else WeatherWidget(city = city, weather = weather, modifier = Modifier.fillMaxWidth())
-            }
-        }
+    if (widgetType == "clock") {
+        ClockWidget(city = city, modifier = modifier)
+    } else if (widgetType == "weather") {
+        WeatherWidget(city = city, weather = weather, modifier = modifier)
     }
 }
 
@@ -154,7 +130,7 @@ fun ClockWidget(city: String, modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) { while (true) { currentTime = LocalDateTime.now(); delay(1000) } }
     val timeFormatter = DateTimeFormatter.ofPattern("HH:mm")
     val dateFormatter = DateTimeFormatter.ofPattern("M月d日 EEEE", Locale.CHINA)
-    Box(modifier = modifier.height(150.dp).clip(RoundedCornerShape(20.dp))
+    Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
         .background(Brush.linearGradient(listOf(Color(0xFFE0C3FC), Color(0xFF8EC5FC)))).padding(15.dp)) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center) {
             Text(currentTime.format(dateFormatter), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
@@ -167,7 +143,7 @@ fun ClockWidget(city: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modifier) {
-    Box(modifier = modifier.height(150.dp).clip(RoundedCornerShape(20.dp))
+    Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
         .background(Brush.linearGradient(listOf(Color(0xFF4FACFE), Color(0xFF00F2FE)))).padding(15.dp)) {
         Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             Column {
@@ -335,16 +311,16 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     val context = LocalContext.current
     val layoutDbHelper = remember { LayoutDbHelper(context) }
     val defaultApps = remember(isDark) { getDefaultApps(isDark) }
+    val defaultWidgets = remember { getDefaultWidgets() }
 
-    // 4x6 网格: cellIndex -> AppIcon (稀疏字典)
-    val gridPositions = remember { mutableStateMapOf<Int, AppIcon>() }
+    // 统一网格位置: cellIndex -> GridItem
+    val gridPositions = remember { mutableStateMapOf<Int, GridItem>() }
     val dockApps = remember { mutableStateListOf<AppIcon>() }
     val maxDockApps = 4
-    val widgetOrder = remember { mutableStateListOf("clock", "weather") }
     var isEditMode by remember { mutableStateOf(false) }
 
     // 拖拽状态
-    var draggedApp by remember { mutableStateOf<AppIcon?>(null) }
+    var draggedItem by remember { mutableStateOf<GridItem?>(null) }
     var dragSource by remember { mutableStateOf("grid") }
     var dragSourceCellIndex by remember { mutableStateOf(-1) }
     var dragSourceDockIndex by remember { mutableStateOf(-1) }
@@ -360,32 +336,71 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     LaunchedEffect(isDark) {
         val savedLayout = layoutDbHelper.getLayout()
         gridPositions.clear(); dockApps.clear()
+        
         if (savedLayout.isNotEmpty()) {
             savedLayout.filter { it.area == "grid" }.forEach { li ->
-                defaultApps.find { it.id == li.appId }?.let { gridPositions[li.position.coerceIn(0, TOTAL_CELLS - 1)] = it }
+                val app = defaultApps.find { it.id == li.appId }
+                if (app != null) {
+                    gridPositions[li.position] = app
+                } else {
+                    val widget = defaultWidgets.find { it.id == li.appId }
+                    if (widget != null) {
+                        gridPositions[li.position] = widget
+                    }
+                }
             }
             savedLayout.filter { it.area == "dock" }.sortedBy { it.position }.forEach { li ->
                 defaultApps.find { it.id == li.appId }?.let { dockApps.add(it) }
             }
-            val wi = savedLayout.filter { it.area == "widget" }.sortedBy { it.position }
-            if (wi.isNotEmpty()) { widgetOrder.clear(); widgetOrder.addAll(wi.map { it.appId }) }
+            
+            // 确保默认应用和组件存在
             val allSavedIds = savedLayout.map { it.appId }.toSet()
+            
+            // 添加缺失的 Widget
+            for (widget in defaultWidgets) {
+                if (widget.id !in allSavedIds) {
+                    // 寻找空位 (2x2)
+                    for (i in 0 until TOTAL_CELLS) {
+                        if (checkOccupancy(gridPositions, i, widget.spanX, widget.spanY, null)) {
+                            gridPositions[i] = widget
+                            break
+                        }
+                    }
+                }
+            }
+            
+            // 添加缺失的 App
             for (app in defaultApps) {
                 if (app.id !in allSavedIds) {
-                    val empty = (0 until TOTAL_CELLS).firstOrNull { it !in gridPositions }
-                    if (empty != null) gridPositions[empty] = app
+                    for (i in 0 until TOTAL_CELLS) {
+                        if (checkOccupancy(gridPositions, i, 1, 1, null)) {
+                            gridPositions[i] = app
+                            break
+                        }
+                    }
                 }
             }
         } else {
-            defaultApps.forEachIndexed { i, app -> if (i < TOTAL_CELLS) gridPositions[i] = app }
+            // 默认布局
+            // 前两个 2x2 Widget
+            gridPositions[0] = defaultWidgets[0] // Clock at 0
+            gridPositions[2] = defaultWidgets[1] // Weather at 2
+            
+            // Apps fill the rest, starting from row 2 (index 8)
+            var currentPos = 8
+            defaultApps.forEach { app ->
+                if (currentPos < TOTAL_CELLS) {
+                     gridPositions[currentPos] = app
+                     currentPos++
+                }
+            }
         }
     }
 
     fun saveCurrentLayout() {
         val items = mutableListOf<LayoutItem>()
-        gridPositions.forEach { (ci, app) -> items.add(LayoutItem(appId = app.id, position = ci, area = "grid")) }
+        gridPositions.forEach { (ci, item) -> items.add(LayoutItem(appId = item.id, position = ci, area = "grid")) }
         dockApps.forEachIndexed { i, app -> items.add(LayoutItem(appId = app.id, position = i, area = "dock")) }
-        widgetOrder.forEachIndexed { i, wid -> items.add(LayoutItem(appId = wid, position = i, area = "widget")) }
         layoutDbHelper.saveLayout(items)
     }
 
@@ -416,14 +431,11 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         } else Box(modifier = Modifier.fillMaxSize().background(Color.Black))
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            WidgetsSection(isEditMode = isEditMode, widgetOrder = widgetOrder.toList(),
-                onWidgetOrderChanged = { widgetOrder.clear(); widgetOrder.addAll(it); saveCurrentLayout() })
-
-            // 4x7 网格
+            
+            // 4x7 网格区域 (包含 Widget 和 App)
             BoxWithConstraints(
-                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp)
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp, vertical = 20.dp)
                     .onGloballyPositioned { gridAreaOffset = it.positionInRoot(); gridAreaSize = it.size }
-                    // 点击空白处退出编辑模式
                     .clickable(
                         indication = null,
                         interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
@@ -436,220 +448,312 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                 val cwPx = twPx / GRID_COLUMNS; val chPx = thPx / GRID_ROWS
 
                 // 高亮目标格子
-                if (highlightCellIndex in 0 until TOTAL_CELLS && draggedApp != null) {
+                if (highlightCellIndex in 0 until TOTAL_CELLS && draggedItem != null) {
                     val hr = highlightCellIndex / GRID_COLUMNS; val hc = highlightCellIndex % GRID_COLUMNS
-                    Box(modifier = Modifier
-                        .offset { IntOffset(hc * cwPx + 4, hr * chPx + 4) }
-                        .width(with(density) { (cwPx - 8).toDp() })
-                        .height(with(density) { (chPx - 8).toDp() })
-                        .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp)))
+                    val spanX = draggedItem!!.spanX
+                    val spanY = draggedItem!!.spanY
+                    
+                    // 检查边界
+                    if (hc + spanX <= GRID_COLUMNS && hr + spanY <= GRID_ROWS) {
+                        Box(modifier = Modifier
+                            .offset { IntOffset(hc * cwPx + 4, hr * chPx + 4) }
+                            .width(with(density) { (cwPx * spanX - 8).toDp() })
+                            .height(with(density) { (chPx * spanY - 8).toDp() })
+                            .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp)))
+                    }
                 }
 
-                // 渲染网格图标
-                for ((cellIndex, app) in gridPositions) {
-                    if (draggedApp?.id == app.id && dragSource == "grid") continue
+                // 渲染网格内容
+                gridPositions.forEach { (cellIndex, item) ->
+                    // 如果正在被拖动，仅在原位显示占位（或者完全隐藏，这里选择完全隐藏，拖动体在 overlay）
+                    if (draggedItem?.id == item.id && dragSource == "grid") return@forEach
+                    
                     val row = cellIndex / GRID_COLUMNS; val col = cellIndex % GRID_COLUMNS
-                    val infT = rememberInfiniteTransition(label = "w_${app.id}")
+                    val infT = rememberInfiniteTransition(label = "w_${item.id}")
                     val wAngle by infT.animateFloat(
                         initialValue = if (cellIndex % 2 == 0) -1.5f else 1.5f,
                         targetValue = if (cellIndex % 2 == 0) 1.5f else -1.5f,
                         animationSpec = infiniteRepeatable(tween(150 + (cellIndex % 3) * 50, easing = LinearEasing),
-                            RepeatMode.Reverse), label = "wa_${app.id}")
+                            RepeatMode.Reverse), label = "wa_${item.id}")
 
+                    val itemWidth = cwPx * item.spanX
+                    val itemHeight = chPx * item.spanY
+                    
                     Box(modifier = Modifier
                         .offset { IntOffset(col * cwPx, row * chPx) }
-                        .width(with(density) { cwPx.toDp() }).height(with(density) { chPx.toDp() })
+                        .width(with(density) { itemWidth.toDp() }).height(with(density) { itemHeight.toDp() })
                         .graphicsLayer { if (isEditMode) rotationZ = wAngle }
-                        .pointerInput(isEditMode, cellIndex, app.id) {
+                        .pointerInput(isEditMode, cellIndex, item.id) {
                             detectDragGesturesAfterLongPress(
                                 onDragStart = { offset ->
                                     if (!isEditMode) isEditMode = true
-                                    draggedApp = app; dragSource = "grid"; dragSourceCellIndex = cellIndex
+                                    draggedItem = item; dragSource = "grid"; dragSourceCellIndex = cellIndex
                                     dragOverlayX = gridAreaOffset.x + col * cwPx.toFloat() + offset.x
                                     dragOverlayY = gridAreaOffset.y + row * chPx.toFloat() + offset.y
                                 },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
                                     dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
-                                    highlightCellIndex = if (isOverDock(dragOverlayX, dragOverlayY)) -1
-                                        else getCellFromGlobal(dragOverlayX, dragOverlayY).let { if (it >= 0 && it != dragSourceCellIndex) it else -1 }
+                                    
+                                    // 计算当前中心点所在的格子作为目标格子
+                                    val centerX = dragOverlayX // 简化：使用触摸点作为判断基准，优化体验可能需要减去 item 尺寸一半
+                                    val centerY = dragOverlayY 
+                                    val rawCell = getCellFromGlobal(centerX, centerY)
+                                    
+                                    // 修正目标格子，使其不超过边界
+                                    if (rawCell >= 0) {
+                                        val targetCol = rawCell % GRID_COLUMNS
+                                        val targetRow = rawCell / GRID_COLUMNS
+                                        val safeCol = (targetCol).coerceAtMost(GRID_COLUMNS - item.spanX)
+                                        val safeRow = (targetRow).coerceAtMost(GRID_ROWS - item.spanY)
+                                        highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
+                                    } else {
+                                        highlightCellIndex = -1
+                                    }
+                                    
+                                    if (isOverDock(dragOverlayX, dragOverlayY)) highlightCellIndex = -1
                                 },
                                 onDragEnd = {
-                                    draggedApp?.let { currentApp ->
-                                        if (isOverDock(dragOverlayX, dragOverlayY)) {
-                                            if (dockApps.size < maxDockApps) { gridPositions.remove(dragSourceCellIndex); dockApps.add(currentApp) }
-                                        } else {
-                                            val tc = getCellFromGlobal(dragOverlayX, dragOverlayY)
-                                            if (tc in 0 until TOTAL_CELLS) {
-                                                // 自由摆放，不自动挤压其他图标，如果有图标则交换
-                                                val existing = gridPositions[tc]
-                                                if (tc != dragSourceCellIndex) {
+                                    draggedItem?.let { currentItem ->
+                                        if (isOverDock(dragOverlayX, dragOverlayY) && currentItem is AppIcon) {
+                                            if (dockApps.size < maxDockApps) { 
+                                                gridPositions.remove(dragSourceCellIndex)
+                                                dockApps.add(currentItem) 
+                                            }
+                                        } else if (highlightCellIndex != -1) {
+                                            // 尝试放置
+                                            val targetCell = highlightCellIndex
+                                            // 检查目标区域是否有其他物体（忽略自己）
+                                            // 这里的逻辑简化为：如果目标位置（左上角）有物体，则交换；如果目标区域重叠，则暂不支持（或挤开）
+                                            // 目前实现：如果目标位置非空且是相同尺寸，交换；否则仅当目标区域完全空闲时移动
+                                            
+                                            val targetOccupant = gridPositions[targetCell]
+                                            
+                                            if (targetOccupant != null && targetOccupant.spanX == currentItem.spanX && targetOccupant.spanY == currentItem.spanY) {
+                                                // 交换逻辑
+                                                if (targetCell != dragSourceCellIndex) {
                                                     gridPositions.remove(dragSourceCellIndex)
-                                                    gridPositions[tc] = currentApp
-                                                    if (existing != null) {
-                                                        // 交换位置：原位置放入现有图标
-                                                        gridPositions[dragSourceCellIndex] = existing
-                                                    }
+                                                    gridPositions[targetCell] = currentItem
+                                                    gridPositions[dragSourceCellIndex] = targetOccupant
+                                                }
+                                            } else {
+                                                // 检查区域是否空闲（除了自己）
+                                                if (checkOccupancy(gridPositions, targetCell, currentItem.spanX, currentItem.spanY, dragSourceCellIndex)) {
+                                                    gridPositions.remove(dragSourceCellIndex)
+                                                    gridPositions[targetCell] = currentItem
                                                 }
                                             }
                                         }
                                         saveCurrentLayout()
                                     }
-                                    draggedApp = null; highlightCellIndex = -1; dragSourceCellIndex = -1
+                                    draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1
                                 },
-                                onDragCancel = { draggedApp = null; highlightCellIndex = -1; dragSourceCellIndex = -1 }
+                                onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1 }
                             )
-                        },
-                        contentAlignment = Alignment.TopCenter
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier
-                                .clickable(enabled = !isEditMode) {
-                                    if (app.id == "settings") onSettingsClick()
-                                    else if (app.id == "chat") onChatClick()
-                                }
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Box(modifier = Modifier.size(60.dp), contentAlignment = Alignment.Center) {
-                                if (app.useImage) {
-                                    val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
-                                    if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
-                                        contentDescription = app.name, modifier = Modifier.size(60.dp))
-                                } else Text(app.icon, fontSize = 48.sp)
-                            }
-                            Spacer(modifier = Modifier.height(5.dp))
-                            Text(app.name, color = Color.White, fontSize = 12.sp)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Dock 栏
-        Box(
-            modifier = Modifier.align(Alignment.BottomCenter)
-                .padding(bottom = 20.dp, start = 15.dp, end = 15.dp)
-                .fillMaxWidth().height(90.dp).clip(RoundedCornerShape(30.dp))
-                .zIndex(20f)
-                .onGloballyPositioned { dockAreaOffset = it.positionInRoot(); dockAreaSize = it.size }
-        ) {
-            val isDraggingOverDock = draggedApp != null && dragSource == "grid" &&
-                isOverDock(dragOverlayX, dragOverlayY) && dockApps.size < maxDockApps
-            Box(modifier = Modifier.fillMaxSize().background(
-                if (isDraggingOverDock) Color(0xFF007AFF).copy(alpha = 0.4f) else Color.White.copy(alpha = 0.3f)
-            ).blur(20.dp))
-
-            Row(modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = if (dockApps.isEmpty()) Arrangement.Center else Arrangement.SpaceAround,
-                verticalAlignment = Alignment.CenterVertically) {
-                if (dockApps.isEmpty() && !isEditMode) Text("长按拖入应用", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
-                if (dockApps.isEmpty() && isEditMode) Text("拖拽应用到此处", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
-
-                dockApps.forEachIndexed { dockIndex, app ->
-                    if (draggedApp?.id == app.id && dragSource == "dock") {
-                        Spacer(modifier = Modifier.size(60.dp)); return@forEachIndexed
-                    }
-                    val dwt = rememberInfiniteTransition(label = "dw_$dockIndex")
-                    val dwa by dwt.animateFloat(
-                        initialValue = if (dockIndex % 2 == 0) -1.5f else 1.5f,
-                        targetValue = if (dockIndex % 2 == 0) 1.5f else -1.5f,
-                        animationSpec = infiniteRepeatable(tween(150 + (dockIndex % 3) * 50, easing = LinearEasing),
-                            RepeatMode.Reverse), label = "dwa_$dockIndex")
-
-                    Box(modifier = Modifier.size(60.dp)
-                        .graphicsLayer { if (isEditMode) rotationZ = dwa }
-                        .pointerInput(isEditMode, dockIndex) {
-                            detectDragGesturesAfterLongPress(
-                                onDragStart = { offset ->
-                                    if (!isEditMode) isEditMode = true
-                                    draggedApp = app; dragSource = "dock"; dragSourceDockIndex = dockIndex
-                                    dragOverlayX = dockAreaOffset.x + offset.x + dockIndex * 85f
-                                    dragOverlayY = dockAreaOffset.y + offset.y
-                                },
-                                onDrag = { change, dragAmount ->
-                                    change.consume()
-                                    dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
-                                    highlightCellIndex = if (!isOverDock(dragOverlayX, dragOverlayY)) {
-                                        getCellFromGlobal(dragOverlayX, dragOverlayY).let { if (it >= 0) it else -1 }
-                                    } else -1
-                                },
-                                onDragEnd = {
-                                    draggedApp?.let { currentApp ->
-                                        if (!isOverDock(dragOverlayX, dragOverlayY)) {
-                                            val tc = getCellFromGlobal(dragOverlayX, dragOverlayY)
-                                            if (tc in 0 until TOTAL_CELLS) {
-                                                dockApps.removeAt(dragSourceDockIndex)
-                                                val existing = gridPositions[tc]
-                                                gridPositions[tc] = currentApp
-                                                // 如果目标位置有应用，尝试找空位或放回 Dock
-                                                if (existing != null) {
-                                                    if (dockApps.size < maxDockApps) {
-                                                        dockApps.add(dragSourceDockIndex.coerceAtMost(dockApps.size), existing)
-                                                    } else {
-                                                        // Dock 满了，尝试找网格空位
-                                                        val empty = (0 until TOTAL_CELLS).firstOrNull { it !in gridPositions }
-                                                        if (empty != null) gridPositions[empty] = existing
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                             // 在 Dock 内部排序逻辑保持不变
-                                        }
-                                        saveCurrentLayout()
-                                    }
-                                    draggedApp = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
-                                },
-                                onDragCancel = { draggedApp = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid" }
-                            )
-                        }
-                        .clickable(enabled = !isEditMode) {
-                            if (app.id == "settings") onSettingsClick()
-                            else if (app.id == "chat") onChatClick()
                         },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (app.useImage) {
-                            val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
-                            if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
-                                contentDescription = app.name, modifier = Modifier.size(60.dp))
-                        } else Text(app.icon, fontSize = 48.sp)
+                        if (item is WidgetItem) {
+                            WidgetContent(widgetType = item.widgetType, modifier = Modifier.fillMaxSize().padding(8.dp))
+                        } else if (item is AppIcon) {
+                             Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clickable(enabled = !isEditMode) {
+                                        if (item.id == "settings") onSettingsClick()
+                                        else if (item.id == "chat") onChatClick()
+                                    }
+                                    .padding(vertical = 4.dp)
+                            ) {
+                                Box(modifier = Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                                    if (item.useImage) {
+                                        val resId = context.resources.getIdentifier(item.icon, "drawable", context.packageName)
+                                        if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
+                                            contentDescription = item.name, modifier = Modifier.size(60.dp))
+                                    } else Text(item.icon, fontSize = 48.sp)
+                                }
+                                Spacer(modifier = Modifier.height(5.dp))
+                                Text(item.name, color = Color.White, fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }
-        }
 
-        // Home Indicator
-        Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
-            .width(120.dp).height(5.dp).clip(RoundedCornerShape(5.dp))
-            .background(Color.White.copy(alpha = 0.8f)))
-
-        // 拖拽浮动覆盖层 - 最高层级
-        if (draggedApp != null) {
-            val density = LocalDensity.current
+            // Dock 栏
             Box(
-                modifier = Modifier.fillMaxSize().zIndex(10000f),
-                contentAlignment = Alignment.TopStart
+                modifier = Modifier.align(Alignment.BottomCenter)
+                    .padding(bottom = 20.dp, start = 15.dp, end = 15.dp)
+                    .fillMaxWidth().height(90.dp).clip(RoundedCornerShape(30.dp))
+                    .zIndex(20f)
+                    .onGloballyPositioned { dockAreaOffset = it.positionInRoot(); dockAreaSize = it.size }
             ) {
+                val isDraggingOverDock = draggedItem != null && dragSource == "grid" &&
+                    isOverDock(dragOverlayX, dragOverlayY) && dockApps.size < maxDockApps && draggedItem is AppIcon
+                Box(modifier = Modifier.fillMaxSize().background(
+                    if (isDraggingOverDock) Color(0xFF007AFF).copy(alpha = 0.4f) else Color.White.copy(alpha = 0.3f)
+                ).blur(20.dp))
+
+                Row(modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = if (dockApps.isEmpty()) Arrangement.Center else Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically) {
+                    if (dockApps.isEmpty() && !isEditMode) Text("长按拖入应用", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+                    if (dockApps.isEmpty() && isEditMode) Text("拖拽应用到此处", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+
+                    dockApps.forEachIndexed { dockIndex, app ->
+                        if (draggedItem?.id == app.id && dragSource == "dock") {
+                            Spacer(modifier = Modifier.size(60.dp)); return@forEachIndexed
+                        }
+                        val dwt = rememberInfiniteTransition(label = "dw_$dockIndex")
+                        val dwa by dwt.animateFloat(
+                            initialValue = if (dockIndex % 2 == 0) -1.5f else 1.5f,
+                            targetValue = if (dockIndex % 2 == 0) 1.5f else -1.5f,
+                            animationSpec = infiniteRepeatable(tween(150 + (dockIndex % 3) * 50, easing = LinearEasing),
+                                RepeatMode.Reverse), label = "dwa_$dockIndex")
+
+                        Box(modifier = Modifier.size(60.dp)
+                            .graphicsLayer { if (isEditMode) rotationZ = dwa }
+                            .pointerInput(isEditMode, dockIndex) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { offset ->
+                                        if (!isEditMode) isEditMode = true
+                                        draggedItem = app; dragSource = "dock"; dragSourceDockIndex = dockIndex
+                                        dragOverlayX = dockAreaOffset.x + offset.x + dockIndex * 85f
+                                        dragOverlayY = dockAreaOffset.y + offset.y
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
+                                        
+                                        if (!isOverDock(dragOverlayX, dragOverlayY)) {
+                                            val centerX = dragOverlayX
+                                            val centerY = dragOverlayY
+                                            val rawCell = getCellFromGlobal(centerX, centerY)
+                                             if (rawCell >= 0) {
+                                                val targetCol = rawCell % GRID_COLUMNS
+                                                val targetRow = rawCell / GRID_COLUMNS
+                                                val safeCol = (targetCol).coerceAtMost(GRID_COLUMNS - 1)
+                                                val safeRow = (targetRow).coerceAtMost(GRID_ROWS - 1)
+                                                highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
+                                            } else { highlightCellIndex = -1 }
+                                        } else { highlightCellIndex = -1 }
+                                    },
+                                    onDragEnd = {
+                                        draggedItem?.let { currentItem ->
+                                            if (!isOverDock(dragOverlayX, dragOverlayY)) {
+                                                if (highlightCellIndex != -1 && currentItem is AppIcon) {
+                                                    val targetCell = highlightCellIndex
+                                                    val targetOccupant = gridPositions[targetCell]
+                                                    
+                                                    // Dock item moved to Grid
+                                                    if (targetOccupant == null) {
+                                                        dockApps.removeAt(dragSourceDockIndex)
+                                                        gridPositions[targetCell] = currentItem
+                                                    } else if (targetOccupant is AppIcon) {
+                                                        // Swap
+                                                        dockApps.removeAt(dragSourceDockIndex)
+                                                        gridPositions[targetCell] = currentItem
+                                                        if (dockApps.size < maxDockApps) {
+                                                             dockApps.add(dragSourceDockIndex.coerceAtMost(dockApps.size), targetOccupant)
+                                                        } else {
+                                                            // Dock full, try to find empty grid slot for swapped item
+                                                            val empty = (0 until TOTAL_CELLS).firstOrNull { checkOccupancy(gridPositions, it, 1, 1, null) }
+                                                            if (empty != null) gridPositions[empty] = targetOccupant
+                                                        }
+                                                    }
+                                                }
+                                            } else {
+                                                // Reorder in Dock (simplified)
+                                                dockApps.removeAt(dragSourceDockIndex)
+                                                dockApps.add(dragSourceDockIndex.coerceIn(0, dockApps.size), currentItem as AppIcon)
+                                            }
+                                            saveCurrentLayout()
+                                        }
+                                        draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
+                                    },
+                                    onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid" }
+                                )
+                            }
+                            .clickable(enabled = !isEditMode) {
+                                if (app.id == "settings") onSettingsClick()
+                                else if (app.id == "chat") onChatClick()
+                            },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (app.useImage) {
+                                val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+                                if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
+                                    contentDescription = app.name, modifier = Modifier.size(60.dp))
+                            } else Text(app.icon, fontSize = 48.sp)
+                        }
+                    }
+                }
+            }
+
+            // Home Indicator
+            Box(modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp)
+                .width(120.dp).height(5.dp).clip(RoundedCornerShape(5.dp))
+                .background(Color.White.copy(alpha = 0.8f)))
+
+            // 拖拽浮动覆盖层 - 最高层级
+            if (draggedItem != null) {
+                val density = LocalDensity.current
+                val itemWidth = if (draggedItem!!.type == "widget") 300.dp else 60.dp // 粗略估计
+                val itemHeight = if (draggedItem!!.type == "widget") 150.dp else 60.dp
+                
                 Box(
-                    modifier = Modifier
-                        .offset { IntOffset((dragOverlayX - 30 * density.density).roundToInt(),
-                            (dragOverlayY - 30 * density.density).roundToInt()) }
-                        .size(60.dp)
-                        .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f; alpha = 0.85f },
-                    contentAlignment = Alignment.Center
+                    modifier = Modifier.fillMaxSize().zIndex(10000f),
+                    contentAlignment = Alignment.TopStart
                 ) {
-                    draggedApp?.let { app ->
-                        if (app.useImage) {
-                            val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
-                            if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
-                                contentDescription = app.name, modifier = Modifier.size(60.dp))
-                        } else Text(app.icon, fontSize = 48.sp)
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset((dragOverlayX - 30 * density.density).roundToInt(),
+                                (dragOverlayY - 30 * density.density).roundToInt()) }
+                            .size(itemWidth, itemHeight)
+                            .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f; alpha = 0.85f },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (draggedItem is WidgetItem) {
+                             WidgetContent((draggedItem as WidgetItem).widgetType, modifier = Modifier.fillMaxSize())
+                        } else {
+                            val app = draggedItem as AppIcon
+                            if (app.useImage) {
+                                val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+                                if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
+                                    contentDescription = app.name, modifier = Modifier.size(60.dp))
+                            } else Text(app.icon, fontSize = 48.sp)
+                        }
                     }
                 }
             }
         }
     }
+}
+
+fun checkOccupancy(positions: Map<Int, GridItem>, startCell: Int, spanX: Int, spanY: Int, ignoreCell: Int?): Boolean {
+    val startRow = startCell / GRID_COLUMNS
+    val startCol = startCell % GRID_COLUMNS
+    
+    // Check boundary
+    if (startCol + spanX > GRID_COLUMNS || startRow + spanY > GRID_ROWS) return false
+    
+    // Check intersection with existing items
+    for (r in 0 until spanY) {
+        for (c in 0 until spanX) {
+            val cell = (startRow + r) * GRID_COLUMNS + (startCol + c)
+            // Check if any item occupies this cell
+            for ((pos, item) in positions) {
+                if (pos == ignoreCell) continue
+                val itemRow = pos / GRID_COLUMNS
+                val itemCol = pos % GRID_COLUMNS
+                if (startRow + r >= itemRow && startRow + r < itemRow + item.spanY &&
+                    startCol + c >= itemCol && startCol + c < itemCol + item.spanX) {
+                    return false
+                }
+            }
+        }
+    }
+    return true
 }
 
 @Composable
