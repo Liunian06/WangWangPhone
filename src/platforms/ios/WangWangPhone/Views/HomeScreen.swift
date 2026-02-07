@@ -281,44 +281,55 @@ struct PageGridView: View {
         }
         .rotationEffect(isEditMode ? .degrees(wiggle) : .degrees(0))
         .animation(isEditMode ? Animation.easeInOut(duration: 0.12 + Double(cellIndex % 3) * 0.03).repeatForever(autoreverses: true) : .default, value: isEditMode)
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.5).onEnded { _ in
-                if !isEditMode {
-                    withAnimation(.spring()) { isEditMode = true }
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                }
-            }
-        )
         .gesture(
-            isEditMode ?
-            DragGesture(coordinateSpace: .global)
+            LongPressGesture(minimumDuration: 0.5)
+                .sequenced(before: DragGesture(coordinateSpace: .global))
                 .onChanged { value in
-                    if draggingItem == nil {
-                        draggingItem = AnyGridItem(item: item)
-                        draggingFromCell = cellIndex
-                        draggingFromPage = pageIndex
-                    }
-                    draggingOffset = value.translation
-                    
-                    if item.type == "app" {
-                        isDraggingOverDock = value.location.y > UIScreen.main.bounds.height - 150
-                    } else {
-                        isDraggingOverDock = false
-                    }
-                    
-                    let colOffset = Int(round(value.translation.width / cellWidth))
-                    let rowOffset = Int(round(value.translation.height / cellHeight))
-                    let curRow = cellIndex / gridColumns
-                    let curCol = cellIndex % gridColumns
-                    
-                    let tCol = max(0, min(gridColumns - item.spanX, curCol + colOffset))
-                    let tRow = max(0, min(gridRows - item.spanY, curRow + rowOffset))
-                    let targetCell = tRow * gridColumns + tCol
-                    
-                    if !isDraggingOverDock {
-                        highlightCellIndex = targetCell
-                    } else {
-                        highlightCellIndex = -1
+                    switch value {
+                    case .first(true):
+                        // 长按识别成功，进入编辑模式
+                        if !isEditMode {
+                            withAnimation(.spring()) { isEditMode = true }
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        }
+                        if draggingItem == nil {
+                            draggingItem = AnyGridItem(item: item)
+                            draggingFromCell = cellIndex
+                            draggingFromPage = pageIndex
+                        }
+                    case .second(true, let drag):
+                        // 长按后开始拖动
+                        if let drag = drag {
+                            if draggingItem == nil {
+                                draggingItem = AnyGridItem(item: item)
+                                draggingFromCell = cellIndex
+                                draggingFromPage = pageIndex
+                            }
+                            draggingOffset = drag.translation
+                            
+                            if item.type == "app" {
+                                isDraggingOverDock = drag.location.y > UIScreen.main.bounds.height - 150
+                            } else {
+                                isDraggingOverDock = false
+                            }
+                            
+                            let colOffset = Int(round(drag.translation.width / cellWidth))
+                            let rowOffset = Int(round(drag.translation.height / cellHeight))
+                            let curRow = cellIndex / gridColumns
+                            let curCol = cellIndex % gridColumns
+                            
+                            let tCol = max(0, min(gridColumns - item.spanX, curCol + colOffset))
+                            let tRow = max(0, min(gridRows - item.spanY, curRow + rowOffset))
+                            let targetCell = tRow * gridColumns + tCol
+                            
+                            if !isDraggingOverDock {
+                                highlightCellIndex = targetCell
+                            } else {
+                                highlightCellIndex = -1
+                            }
+                        }
+                    default:
+                        break
                     }
                 }
                 .onEnded { value in
@@ -350,7 +361,6 @@ struct PageGridView: View {
                     }
                     onLayoutChanged()
                 }
-            : nil
         )
     }
 }
@@ -417,25 +427,46 @@ struct DraggableDockIconView: View {
         .onAppear { if isEditMode { wiggleAmount = dockIndex % 2 == 0 ? -1.5 : 1.5 } }
         .onChange(of: isEditMode) { nv in wiggleAmount = nv ? (dockIndex % 2 == 0 ? -1.5 : 1.5) : 0 }
         .onTapGesture { onTap() }
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.5).onEnded { _ in
-                withAnimation(.spring()) { isEditMode = true }
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-            }
-        )
-        .simultaneousGesture(
-            isEditMode ?
-            DragGesture()
+        .gesture(
+            LongPressGesture(minimumDuration: 0.5)
+                .sequenced(before: DragGesture())
                 .onChanged { value in
-                    if !isDragging {
-                        isDragging = true
-                        draggingItem = AnyGridItem(item: app)
+                    switch value {
+                    case .first(true):
+                        // 长按识别成功，进入编辑模式
+                        if !isEditMode {
+                            withAnimation(.spring()) { isEditMode = true }
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        }
+                        if !isDragging {
+                            isDragging = true
+                            draggingItem = AnyGridItem(item: app)
+                        }
+                    case .second(true, let drag):
+                        // 长按后开始拖动
+                        if let drag = drag {
+                            if !isDragging {
+                                isDragging = true
+                                draggingItem = AnyGridItem(item: app)
+                            }
+                            dragOffset = drag.translation
+                            draggingOffset = drag.translation
+                        }
+                    default:
+                        break
                     }
-                    dragOffset = value.translation
-                    draggingOffset = value.translation
                 }
                 .onEnded { value in
-                    if value.translation.height < -50 && dockIndex >= 0 && dockIndex < dockApps.count {
+                    // 提取最终的拖动值
+                    let finalTranslation: CGSize
+                    switch value {
+                    case .second(true, let drag):
+                        finalTranslation = drag?.translation ?? .zero
+                    default:
+                        finalTranslation = .zero
+                    }
+                    
+                    if finalTranslation.height < -50 && dockIndex >= 0 && dockIndex < dockApps.count {
                         let movedApp = dockApps.remove(at: dockIndex)
                         var placed = false
                         // 尝试放入当前页面
@@ -453,7 +484,7 @@ struct DraggableDockIconView: View {
                         }
                     } else {
                         let dockCellWidth: CGFloat = 85
-                        let colOffset = Int(round(value.translation.width / dockCellWidth))
+                        let colOffset = Int(round(finalTranslation.width / dockCellWidth))
                         if colOffset != 0 {
                             let targetIdx = max(0, min(dockApps.count - 1, dockIndex + colOffset))
                             if targetIdx != dockIndex {
@@ -469,7 +500,6 @@ struct DraggableDockIconView: View {
                     }
                     onLayoutChanged()
                 }
-            : nil
         )
     }
 }

@@ -634,7 +634,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 .offset { IntOffset(col * cwPx, row * chPx) }
                                 .width(with(density) { itemWidth.toDp() }).height(with(density) { itemHeight.toDp() })
                                 .graphicsLayer { if (isEditMode) rotationZ = wAngle }
-                                .pointerInput(isEditMode, cellIndex, item.id, pageIndex) {
+                                .pointerInput(cellIndex, item.id, pageIndex) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { offset ->
                                             if (!isEditMode) isEditMode = true
@@ -707,19 +707,18 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                         onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1 }
                                     )
                                 }
-                                .then(
-                                    // 只在非编辑模式下添加点击事件，且使用 pointerInput 避免与拖拽冲突
-                                    if (!isEditMode && item is AppIcon) {
-                                        Modifier.pointerInput(item.id) {
-                                            detectTapGestures(
-                                                onTap = {
-                                                    if (item.id == "settings") onSettingsClick()
-                                                    else if (item.id == "chat") onChatClick()
-                                                }
-                                            )
+                                .pointerInput(item.id, isEditMode) {
+                                    detectTapGestures(
+                                        onTap = {
+                                            if (!isEditMode && item is AppIcon) {
+                                                if (item.id == "settings") onSettingsClick()
+                                                else if (item.id == "chat") onChatClick()
+                                            } else if (isEditMode) {
+                                                isEditMode = false; saveCurrentLayout()
+                                            }
                                         }
-                                    } else Modifier
-                                ),
+                                    )
+                                },
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (item is WidgetItem) {
@@ -804,7 +803,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
 
                         Box(modifier = Modifier.size(60.dp)
                             .graphicsLayer { if (isEditMode) rotationZ = dwa }
-                            .pointerInput(isEditMode, dockIndex) {
+                            .pointerInput(dockIndex) {
                                 detectDragGesturesAfterLongPress(
                                     onDragStart = { offset ->
                                         if (!isEditMode) isEditMode = true
@@ -864,18 +863,18 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                     onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid" }
                                 )
                             }
-                            .then(
-                                if (!isEditMode) {
-                                    Modifier.pointerInput(app.id) {
-                                        detectTapGestures(
-                                            onTap = {
-                                                if (app.id == "settings") onSettingsClick()
-                                                else if (app.id == "chat") onChatClick()
-                                            }
-                                        )
+                            .pointerInput(app.id, isEditMode) {
+                                detectTapGestures(
+                                    onTap = {
+                                        if (!isEditMode) {
+                                            if (app.id == "settings") onSettingsClick()
+                                            else if (app.id == "chat") onChatClick()
+                                        } else {
+                                            isEditMode = false; saveCurrentLayout()
+                                        }
                                     }
-                                } else Modifier
-                            ),
+                                )
+                            },
                             contentAlignment = Alignment.Center
                         ) {
                             if (app.useImage) {
