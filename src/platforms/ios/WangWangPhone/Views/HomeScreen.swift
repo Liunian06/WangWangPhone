@@ -187,22 +187,22 @@ struct DraggableAppIconView: View {
     @State private var wiggleAmount: Double = 0
     
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             ZStack {
                 if app.useImage {
                     Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 80, height: 80)
+                        .frame(width: 60, height: 60)
                 } else {
                     Text(app.icon)
-                        .font(.system(size: 65))
+                        .font(.system(size: 48))
                 }
             }
-            .frame(width: 80, height: 80)
+            .frame(width: 60, height: 60)
             
             Text(app.name)
-                .font(.caption)
+                .font(.caption2)
                 .foregroundColor(.white)
         }
         .scaleEffect(isDragging ? 1.15 : 1.0)
@@ -312,32 +312,81 @@ struct DraggableDockIconView: View {
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     
+    // 抖动动画
+    @State private var wiggleAmount: Double = 0
+    
     var body: some View {
         ZStack {
             if app.useImage {
                 Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 70, height: 70)
+                    .frame(width: 60, height: 60)
             } else {
                 Text(app.icon)
-                    .font(.system(size: 55))
+                    .font(.system(size: 48))
             }
         }
-        .frame(width: 70, height: 70)
+        .frame(width: 60, height: 60)
         .scaleEffect(isDragging ? 1.15 : 1.0)
         .opacity(isDragging ? 0.85 : 1.0)
         .zIndex(isDragging ? 10 : 0)
         .offset(dragOffset)
+        .rotationEffect(isEditMode && !isDragging ? .degrees(wiggleAmount) : .degrees(0))
+        .animation(
+            isEditMode && !isDragging
+                ? Animation.easeInOut(duration: 0.12 + Double(dockIndex % 3) * 0.03).repeatForever(autoreverses: true)
+                : .default,
+            value: isEditMode
+        )
+        .onAppear {
+            if isEditMode {
+                wiggleAmount = dockIndex % 2 == 0 ? -1.5 : 1.5
+            }
+        }
+        .onChange(of: isEditMode) { newValue in
+            if newValue {
+                wiggleAmount = dockIndex % 2 == 0 ? -1.5 : 1.5
+            } else {
+                wiggleAmount = 0
+            }
+        }
         .onTapGesture {
             onTap()
         }
+        .simultaneousGesture(
+            LongPressGesture(minimumDuration: 0.5)
+                .onEnded { _ in
+                    withAnimation(.spring()) {
+                        isEditMode = true
+                    }
+                    // 触觉反馈
+                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                    impactFeedback.impactOccurred()
+                }
+        )
         .simultaneousGesture(
             isEditMode ?
             DragGesture()
                 .onChanged { value in
                     isDragging = true
                     dragOffset = value.translation
+                    
+                    // Dock内水平排序
+                    if abs(value.translation.height) < 50 {
+                        let dockCellWidth: CGFloat = 85 // 图标宽度 + 间距
+                        let colOffset = Int(round(value.translation.width / dockCellWidth))
+                        
+                        if colOffset != 0 {
+                            let targetIndex = max(0, min(dockApps.count - 1, dockIndex + colOffset))
+                            if targetIndex != dockIndex && targetIndex >= 0 && targetIndex < dockApps.count {
+                                withAnimation(.spring(response: 0.3)) {
+                                    let movedApp = dockApps.remove(at: dockIndex)
+                                    dockApps.insert(movedApp, at: targetIndex)
+                                }
+                            }
+                        }
+                    }
                 }
                 .onEnded { value in
                     // 如果向上拖出Dock区域，移回主屏幕

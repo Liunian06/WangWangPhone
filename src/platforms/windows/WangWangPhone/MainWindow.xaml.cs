@@ -223,8 +223,8 @@ namespace WangWangPhone
 
             var iconContainer = new Border
             {
-                Width = 80,
-                Height = 80,
+                Width = 60,
+                Height = 60,
                 HorizontalAlignment = HorizontalAlignment.Center
             };
 
@@ -236,8 +236,8 @@ namespace WangWangPhone
                     var lightImage = new Image
                     {
                         Source = new BitmapImage(new Uri("Assets/Setting_Light.png", UriKind.Relative)),
-                        Width = 80,
-                        Height = 80
+                        Width = 60,
+                        Height = 60
                     };
                     grid.Children.Add(lightImage);
                 }
@@ -249,7 +249,7 @@ namespace WangWangPhone
                 iconContainer.Child = new TextBlock
                 {
                     Text = app.Icon,
-                    FontSize = 65,
+                    FontSize = 48,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
@@ -327,7 +327,7 @@ namespace WangWangPhone
         {
             var panel = new StackPanel
             {
-                Width = 55,
+                Width = 60,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.Hand,
@@ -336,8 +336,8 @@ namespace WangWangPhone
 
             var container = new Border
             {
-                Width = 55,
-                Height = 55,
+                Width = 60,
+                Height = 60,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -349,8 +349,8 @@ namespace WangWangPhone
                     container.Child = new Image
                     {
                         Source = new BitmapImage(new Uri("Assets/Setting_Light.png", UriKind.Relative)),
-                        Width = 55,
-                        Height = 55
+                        Width = 60,
+                        Height = 60
                     };
                 }
                 catch { }
@@ -360,7 +360,7 @@ namespace WangWangPhone
                 container.Child = new TextBlock
                 {
                     Text = app.Icon,
-                    FontSize = 45,
+                    FontSize = 48,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };

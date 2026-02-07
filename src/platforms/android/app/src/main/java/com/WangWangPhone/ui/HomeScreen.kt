@@ -817,7 +817,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 .padding(vertical = 4.dp)
                         ) {
                             Box(
-                                modifier = Modifier.size(80.dp),
+                                modifier = Modifier.size(60.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (app.useImage) {
@@ -830,7 +830,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                         )
                                     }
                                 } else {
-                                    Text(app.icon, fontSize = 50.sp)
+                                    Text(app.icon, fontSize = 48.sp)
                                 }
                             }
                             Spacer(modifier = Modifier.height(5.dp))
@@ -888,44 +888,92 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                 }
 
                 dockApps.forEachIndexed { dockIndex, app ->
+                    val isDockDragged = draggedIndex == dockIndex && dragSource == "dock"
+
+                    // Dock栏抖动动画（编辑模式）
+                    val dockWiggleTransition = rememberInfiniteTransition(label = "dock_wiggle_$dockIndex")
+                    val dockWiggleAngle by dockWiggleTransition.animateFloat(
+                        initialValue = if (dockIndex % 2 == 0) -1.5f else 1.5f,
+                        targetValue = if (dockIndex % 2 == 0) 1.5f else -1.5f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(
+                                durationMillis = 150 + (dockIndex % 3) * 50,
+                                easing = LinearEasing
+                            ),
+                            repeatMode = RepeatMode.Reverse
+                        ),
+                        label = "dock_wiggle_angle_$dockIndex"
+                    )
+
                     Box(
                         modifier = Modifier
-                            .size(70.dp)
-                            .pointerInput(isEditMode, dockIndex) {
+                            .size(60.dp)
+                            .zIndex(if (isDockDragged) 10f else 0f)
+                            .graphicsLayer {
                                 if (isEditMode) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = {
-                                            draggedIndex = dockIndex
-                                            dragSource = "dock"
-                                            dragOffsetX = 0f
-                                            dragOffsetY = 0f
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragOffsetX += dragAmount.x
-                                            dragOffsetY += dragAmount.y
-                                        },
-                                        onDragEnd = {
-                                            // 如果向上拖出Dock区域，移回主屏幕
-                                            if (dragOffsetY < -50f && draggedIndex >= 0 && draggedIndex < dockApps.size) {
-                                                val app = dockApps[draggedIndex]
-                                                dockApps.removeAt(draggedIndex)
-                                                apps.add(app)
-                                            }
-                                            draggedIndex = -1
-                                            dragOffsetX = 0f
-                                            dragOffsetY = 0f
-                                            dragSource = "grid"
-                                            saveCurrentLayout()
-                                        },
-                                        onDragCancel = {
-                                            draggedIndex = -1
-                                            dragOffsetX = 0f
-                                            dragOffsetY = 0f
-                                            dragSource = "grid"
-                                        }
-                                    )
+                                    rotationZ = if (isDockDragged) 0f else dockWiggleAngle
                                 }
+                                scaleX = if (isDockDragged) 1.15f else 1f
+                                scaleY = if (isDockDragged) 1.15f else 1f
+                                alpha = if (isDockDragged) 0.85f else 1f
+                                if (isDockDragged) {
+                                    translationX = dragOffsetX
+                                    translationY = dragOffsetY
+                                }
+                            }
+                            .pointerInput(isEditMode, dockIndex) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = {
+                                        if (!isEditMode) {
+                                            isEditMode = true
+                                        }
+                                        draggedIndex = dockIndex
+                                        dragSource = "dock"
+                                        dragOffsetX = 0f
+                                        dragOffsetY = 0f
+                                    },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetX += dragAmount.x
+                                        dragOffsetY += dragAmount.y
+
+                                        // Dock内水平排序
+                                        if (kotlin.math.abs(dragOffsetY) < with(density) { 50.dp.toPx() } && dockApps.size > 1) {
+                                            val dockCellWidth = with(density) { 85.dp.toPx() }
+                                            val colOffset = (dragOffsetX / dockCellWidth).roundToInt()
+                                            if (colOffset != 0) {
+                                                val targetIdx = (draggedIndex + colOffset).coerceIn(0, dockApps.size - 1)
+                                                if (targetIdx != draggedIndex) {
+                                                    val draggedApp = dockApps[draggedIndex]
+                                                    dockApps.removeAt(draggedIndex)
+                                                    dockApps.add(targetIdx, draggedApp)
+                                                    // 调整偏移量
+                                                    dragOffsetX -= (targetIdx - draggedIndex) * dockCellWidth
+                                                    draggedIndex = targetIdx
+                                                }
+                                            }
+                                        }
+                                    },
+                                    onDragEnd = {
+                                        // 如果向上拖出Dock区域，移回主屏幕
+                                        if (dragOffsetY < -with(density) { 50.dp.toPx() } && draggedIndex >= 0 && draggedIndex < dockApps.size) {
+                                            val movedApp = dockApps[draggedIndex]
+                                            dockApps.removeAt(draggedIndex)
+                                            apps.add(movedApp)
+                                        }
+                                        draggedIndex = -1
+                                        dragOffsetX = 0f
+                                        dragOffsetY = 0f
+                                        dragSource = "grid"
+                                        saveCurrentLayout()
+                                    },
+                                    onDragCancel = {
+                                        draggedIndex = -1
+                                        dragOffsetX = 0f
+                                        dragOffsetY = 0f
+                                        dragSource = "grid"
+                                    }
+                                )
                             }
                             .clickable(enabled = !isEditMode) {
                                 if (app.id == "settings") onSettingsClick()
@@ -939,11 +987,11 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 Image(
                                     painter = androidx.compose.ui.res.painterResource(id = resId),
                                     contentDescription = app.name,
-                                    modifier = Modifier.size(50.dp)
+                                    modifier = Modifier.size(60.dp)
                                 )
                             }
                         } else {
-                            Text(app.icon, fontSize = 40.sp)
+                            Text(app.icon, fontSize = 48.sp)
                         }
                     }
                 }
