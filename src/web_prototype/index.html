@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>汪汪机 - iOS 桌面原型</title>
+    <link rel="stylesheet" href="css/chat.css">
     <style>
         :root {
             --ios-radius: 20px;
@@ -544,6 +545,8 @@
             <input type="file" id="wallpaper-input" style="display: none;" accept="image/*" onchange="handleWallpaperUpload(this)">
         </div>
     </div>
+    <!-- 聊天App容器 -->
+    <div id="chat-app-container" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:250;display:none;"></div>
 </div>
 
 <script type="module">
@@ -551,13 +554,17 @@
     import { getWeather } from './js/weather.js';
     import { licenseManager } from './js/license.js';
     import { layoutManager } from './js/layout.js';
+    import { ChatApp } from './js/chat.js';
+
+    // 聊天App实例管理
+    let chatAppInstance = null;
 
     // ============================================
     // 默认应用列表
     // ============================================
     const DEFAULT_APPS = [
         { id: 'phone', name: '电话', icon: '📞', useImage: false },
-        { id: 'message', name: '信息', icon: '💬', useImage: false },
+        { id: 'chat', name: '聊天', icon: '💬', useImage: false },
         { id: 'safari', name: 'Safari', icon: '🧭', useImage: false },
         { id: 'music', name: '音乐', icon: '🎵', useImage: false },
         { id: 'camera', name: '相机', icon: '📷', useImage: false },
@@ -812,6 +819,8 @@
             const app = currentApps[index];
             if (app && app.id === 'settings') {
                 showSettings();
+            } else if (app && app.id === 'chat') {
+                openChatApp();
             }
         }
     }
@@ -1146,6 +1155,19 @@
         }
     }
     initWeatherWidget();
+
+    // ============================================
+    // 聊天App
+    // ============================================
+    function openChatApp() {
+        const container = document.getElementById('chat-app-container');
+        container.style.display = 'block';
+        chatAppInstance = new ChatApp(container, () => {
+            container.style.display = 'none';
+            chatAppInstance = null;
+        });
+    }
+    window.openChatApp = openChatApp;
 </script>
 
 </body>

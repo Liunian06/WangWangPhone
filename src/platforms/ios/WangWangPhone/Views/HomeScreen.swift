@@ -16,7 +16,7 @@ struct AppIconData: Identifiable, Equatable {
 func getDefaultApps() -> [AppIconData] {
     return [
         AppIconData(id: "phone", name: "电话", icon: "📞", colors: [.pink, .orange]),
-        AppIconData(id: "message", name: "信息", icon: "💬", colors: [.blue, .cyan]),
+        AppIconData(id: "chat", name: "聊天", icon: "💬", colors: [Color(red: 0.03, green: 0.76, blue: 0.38), Color(red: 0.02, green: 0.68, blue: 0.34)]),
         AppIconData(id: "safari", name: "Safari", icon: "🧭", colors: [.green, .blue]),
         AppIconData(id: "music", name: "音乐", icon: "🎵", colors: [.yellow, .red]),
         AppIconData(id: "camera", name: "相机", icon: "📷", colors: [.white, .gray]),
@@ -126,8 +126,9 @@ struct WeatherWidget: View {
 struct DraggableAppGrid: View {
     @Binding var apps: [AppIconData]
     @Binding var isEditMode: Bool
-    var onSettingsClick: () -> Unit
-    var onLayoutChanged: () -> Unit
+    var onSettingsClick: () -> Void
+    var onChatClick: () -> Void
+    var onLayoutChanged: () -> Void
     @Environment(\.colorScheme) var colorScheme
     
     let columns = 4
@@ -144,8 +145,12 @@ struct DraggableAppGrid: View {
                     apps: $apps,
                     colorScheme: colorScheme,
                     onTap: {
-                        if !isEditMode && app.id == "settings" {
-                            onSettingsClick()
+                        if !isEditMode {
+                            if app.id == "settings" {
+                                onSettingsClick()
+                            } else if app.id == "chat" {
+                                onChatClick()
+                            }
                         }
                     },
                     onLayoutChanged: onLayoutChanged
@@ -280,6 +285,7 @@ struct HomeScreen: View {
     @State private var city: String = "..."
     @State private var weather: WeatherInfo? = nil
     @State private var showSettings = false
+    @State private var showChatApp = false
     @State private var showActivation = false
     @State private var showDisplaySettings = false
     @State private var isActivated = LicenseManager.shared.isActivated()
@@ -349,6 +355,7 @@ struct HomeScreen: View {
                     apps: $apps,
                     isEditMode: $isEditMode,
                     onSettingsClick: { showSettings = true },
+                    onChatClick: { showChatApp = true },
                     onLayoutChanged: { saveLayout() }
                 )
 
@@ -421,6 +428,12 @@ struct HomeScreen: View {
                 ActivationView(showActivation: $showActivation, isActivated: $isActivated, expiryDate: $expiryDate)
                     .transition(.move(edge: .trailing))
                     .zIndex(2)
+            }
+
+            if showChatApp {
+                ChatAppView(isPresented: $showChatApp)
+                    .transition(.move(edge: .trailing))
+                    .zIndex(3)
             }
         }
     }

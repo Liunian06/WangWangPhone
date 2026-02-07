@@ -1,0 +1,648 @@
+/* ============================================
+   聊天App样式 - 仿微信界面
+   ============================================ */
+
+.chat-app {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: #EDEDED;
+    display: flex;
+    flex-direction: column;
+    z-index: 200;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #000;
+    overflow: hidden;
+}
+
+/* 顶部导航栏 */
+.chat-header {
+    height: 50px;
+    background: #EDEDED;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border-bottom: 0.5px solid #D9D9D9;
+    flex-shrink: 0;
+}
+.chat-header-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #000;
+}
+.chat-header-left {
+    position: absolute;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    color: #000;
+    font-size: 22px;
+}
+.chat-header-right {
+    position: absolute;
+    right: 12px;
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+.chat-header-icon {
+    font-size: 20px;
+    cursor: pointer;
+    color: #000;
+}
+
+/* 底部Tab栏 */
+.chat-tab-bar {
+    height: 56px;
+    background: #F7F7F7;
+    display: flex;
+    border-top: 0.5px solid #D9D9D9;
+    flex-shrink: 0;
+}
+.chat-tab-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    cursor: pointer;
+    color: #999;
+    font-size: 10px;
+    position: relative;
+}
+.chat-tab-item.active {
+    color: #07C160;
+}
+.chat-tab-icon {
+    font-size: 22px;
+    line-height: 1;
+}
+.chat-tab-label {
+    font-size: 10px;
+}
+.chat-tab-badge {
+    position: absolute;
+    top: 4px;
+    right: calc(50% - 18px);
+    background: #FA5151;
+    color: white;
+    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+
+/* 内容区域 */
+.chat-content {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ==================== */
+/* 消息列表页 */
+/* ==================== */
+.msg-list-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: white;
+    border-bottom: 0.5px solid #ECECEC;
+    cursor: pointer;
+}
+.msg-list-item:active {
+    background: #ECECEC;
+}
+.msg-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    flex-shrink: 0;
+    margin-right: 12px;
+    position: relative;
+}
+.msg-avatar-badge {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    background: #FA5151;
+    color: white;
+    font-size: 10px;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+}
+.msg-info {
+    flex: 1;
+    min-width: 0;
+}
+.msg-top-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.msg-name {
+    font-size: 16px;
+    font-weight: 400;
+    color: #000;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 200px;
+}
+.msg-time {
+    font-size: 12px;
+    color: #B2B2B2;
+    flex-shrink: 0;
+}
+.msg-preview {
+    font-size: 14px;
+    color: #B2B2B2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.msg-muted-icon {
+    font-size: 14px;
+    color: #C0C0C0;
+    flex-shrink: 0;
+}
+
+/* ==================== */
+/* 通讯录页 */
+/* ==================== */
+.contacts-section-header {
+    padding: 6px 16px;
+    font-size: 13px;
+    color: #888;
+    background: #EDEDED;
+}
+.contact-func-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: white;
+    border-bottom: 0.5px solid #ECECEC;
+    cursor: pointer;
+}
+.contact-func-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    color: white;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+.contact-func-name {
+    font-size: 16px;
+    color: #000;
+}
+.contact-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px;
+    background: white;
+    border-bottom: 0.5px solid #ECECEC;
+    cursor: pointer;
+}
+.contact-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    background: #F5F5F5;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+.contact-name {
+    font-size: 16px;
+    color: #000;
+}
+.letter-index {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 10;
+}
+.letter-index-item {
+    font-size: 10px;
+    color: #07C160;
+    padding: 1px 4px;
+    cursor: pointer;
+}
+
+/* ==================== */
+/* 朋友圈页 */
+/* ==================== */
+.moments-cover {
+    width: 100%;
+    height: 300px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    position: relative;
+    display: flex;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 16px;
+    box-sizing: border-box;
+    flex-shrink: 0;
+}
+.moments-cover-user {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.moments-cover-name {
+    color: white;
+    font-size: 18px;
+    font-weight: 600;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.3);
+}
+.moments-cover-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    background: #F5F5DC;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    border: 2px solid white;
+}
+.moment-item {
+    padding: 12px 16px;
+    background: white;
+    border-bottom: 0.5px solid #ECECEC;
+}
+.moment-header {
+    display: flex;
+    gap: 10px;
+}
+.moment-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    background: #F5F5F5;
+    flex-shrink: 0;
+}
+.moment-body {
+    flex: 1;
+    min-width: 0;
+}
+.moment-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #576B95;
+    margin-bottom: 4px;
+}
+.moment-text {
+    font-size: 15px;
+    color: #000;
+    line-height: 1.5;
+    margin-bottom: 6px;
+    word-break: break-word;
+}
+.moment-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+}
+.moment-time {
+    font-size: 12px;
+    color: #B2B2B2;
+}
+.moment-action-btn {
+    width: 28px;
+    height: 20px;
+    background: #F7F7F7;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 14px;
+    color: #576B95;
+}
+.moment-interaction {
+    background: #F7F7F7;
+    border-radius: 4px;
+    padding: 6px 8px;
+    margin-top: 6px;
+}
+.moment-likes-text {
+    color: #576B95;
+    font-size: 13px;
+}
+.moment-comments {
+    padding-top: 4px;
+}
+.moment-comments.with-border {
+    border-top: 0.5px solid #DEDEDE;
+}
+.moment-comment {
+    font-size: 13px;
+    line-height: 1.5;
+    padding: 2px 0;
+}
+.moment-comment-name {
+    color: #576B95;
+    font-weight: 500;
+}
+
+/* ==================== */
+/* "我"的页面 */
+/* ==================== */
+.me-profile-card {
+    background: white;
+    padding: 24px 16px 16px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+.me-avatar {
+    width: 64px;
+    height: 64px;
+    border-radius: 10px;
+    background: #F5F5DC;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    flex-shrink: 0;
+    margin-right: 14px;
+}
+.me-info {
+    flex: 1;
+}
+.me-nickname {
+    font-size: 18px;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.me-account {
+    font-size: 14px;
+    color: #888;
+}
+.me-qrcode {
+    font-size: 20px;
+    color: #888;
+}
+.me-status-bar {
+    background: white;
+    padding: 8px 16px 16px;
+    display: flex;
+    gap: 10px;
+}
+.me-status-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px;
+    border: 0.5px solid #E0E0E0;
+    border-radius: 16px;
+    font-size: 13px;
+    color: #888;
+    cursor: pointer;
+}
+.me-menu-section {
+    margin-top: 8px;
+}
+.me-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    background: white;
+    border-bottom: 0.5px solid #ECECEC;
+    cursor: pointer;
+}
+.me-menu-item:last-child {
+    border-bottom: none;
+}
+.me-menu-item:active {
+    background: #ECECEC;
+}
+.me-menu-icon {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    margin-right: 14px;
+    flex-shrink: 0;
+}
+.me-menu-label {
+    flex: 1;
+    font-size: 16px;
+    color: #000;
+}
+.me-menu-arrow {
+    color: #C0C0C0;
+    font-size: 14px;
+}
+
+/* ==================== */
+/* 聊天详情页 */
+/* ==================== */
+.chat-detail-header {
+    height: 50px;
+    background: #EDEDED;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border-bottom: 0.5px solid #D9D9D9;
+    flex-shrink: 0;
+}
+.chat-detail-title {
+    font-size: 17px;
+    font-weight: 600;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.chat-detail-back {
+    position: absolute;
+    left: 12px;
+    font-size: 24px;
+    cursor: pointer;
+    color: #000;
+}
+.chat-detail-more {
+    position: absolute;
+    right: 12px;
+    font-size: 20px;
+    cursor: pointer;
+    color: #000;
+}
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px 16px;
+    background: #EDEDED;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.chat-msg-time {
+    text-align: center;
+    font-size: 12px;
+    color: #B2B2B2;
+    padding: 8px 0;
+}
+.chat-msg-row {
+    display: flex;
+    gap: 8px;
+    max-width: 80%;
+}
+.chat-msg-row.sent {
+    align-self: flex-end;
+    flex-direction: row-reverse;
+}
+.chat-msg-row.received {
+    align-self: flex-start;
+}
+.chat-msg-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    background: #F5F5F5;
+    flex-shrink: 0;
+}
+.chat-msg-content-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.chat-msg-sender-name {
+    font-size: 12px;
+    color: #888;
+    margin-bottom: 2px;
+}
+.chat-msg-bubble {
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 15px;
+    line-height: 1.5;
+    word-break: break-word;
+    position: relative;
+    max-width: 100%;
+}
+.chat-msg-row.sent .chat-msg-bubble {
+    background: #95EC69;
+    color: #000;
+    border-top-right-radius: 2px;
+}
+.chat-msg-row.received .chat-msg-bubble {
+    background: white;
+    color: #000;
+    border-top-left-radius: 2px;
+}
+
+/* 底部输入栏 */
+.chat-input-bar {
+    display: flex;
+    align-items: center;
+    padding: 8px 12px;
+    background: #F7F7F7;
+    border-top: 0.5px solid #D9D9D9;
+    gap: 8px;
+    flex-shrink: 0;
+}
+.chat-input-icon {
+    font-size: 24px;
+    cursor: pointer;
+    color: #000;
+    flex-shrink: 0;
+}
+.chat-input-field {
+    flex: 1;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 0.5px solid #DCDCDC;
+    background: white;
+    font-size: 15px;
+    outline: none;
+    font-family: inherit;
+}
+
+/* ==================== */
+/* 服务页绿色卡片 */
+/* ==================== */
+.service-green-card {
+    margin: 12px;
+    background: linear-gradient(135deg, #07C160, #06AD56);
+    border-radius: 12px;
+    padding: 28px 20px;
+    display: flex;
+    justify-content: space-around;
+}
+.service-card-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+.service-card-icon {
+    font-size: 32px;
+    color: white;
+}
+.service-card-label {
+    color: white;
+    font-size: 14px;
+}
+.service-card-sub {
+    color: rgba(255,255,255,0.7);
+    font-size: 12px;
+}
+.service-footer {
+    text-align: center;
+    color: #888;
+    font-size: 14px;
+    padding: 20px;
+    position: absolute;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+}

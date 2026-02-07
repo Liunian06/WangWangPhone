@@ -66,7 +66,7 @@ data class AppIcon(
 /** 默认应用列表（初始顺序） */
 fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
     AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
-    AppIcon("message", "信息", "💬", Brush.linearGradient(listOf(Color(0xFFA1C4FD), Color(0xFFC2E9FB)))),
+    AppIcon("chat", "聊天", "💬", Brush.linearGradient(listOf(Color(0xFF07C160), Color(0xFF06AD56)))),
     AppIcon("safari", "Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
     AppIcon("music", "音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
     AppIcon("camera", "相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
@@ -455,6 +455,7 @@ fun HomeScreen() {
     var showSettings by remember { mutableStateOf(false) }
     var showActivation by remember { mutableStateOf(false) }
     var showDisplaySettings by remember { mutableStateOf(false) }
+    var showChatApp by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val licenseManager = remember { LicenseManager.getInstance(context) }
@@ -472,6 +473,7 @@ fun HomeScreen() {
         HomeScreenContent(
             isDark = isDark,
             onSettingsClick = { showSettings = true },
+            onChatClick = { showChatApp = true },
             homeWallpaperPath = homeWallpaperPath
         )
 
@@ -496,6 +498,10 @@ fun HomeScreen() {
             )
         }
 
+        if (showChatApp) {
+            ChatAppScreen(onClose = { showChatApp = false })
+        }
+
         if (showActivation) {
             ActivationScreen(
                 onBack = { showActivation = false },
@@ -509,7 +515,7 @@ fun HomeScreen() {
 }
 
 @Composable
-fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, homeWallpaperPath: String? = null) {
+fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick: () -> Unit = {}, homeWallpaperPath: String? = null) {
     val context = LocalContext.current
     val layoutDbHelper = remember { LayoutDbHelper(context) }
     val coroutineScope = rememberCoroutineScope()
@@ -763,6 +769,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, homeWallpape
                             modifier = Modifier
                                 .clickable(enabled = !isEditMode) {
                                     if (app.id == "settings") onSettingsClick()
+                                    else if (app.id == "chat") onChatClick()
                                 }
                                 .padding(vertical = 4.dp)
                         ) {

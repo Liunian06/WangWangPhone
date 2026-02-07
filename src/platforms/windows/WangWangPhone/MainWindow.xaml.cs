@@ -63,6 +63,12 @@ namespace WangWangPhone
             InitializeLayout();
             ApplyThemeIcons();
             ApplyWallpapers();
+
+            // Wire up chat app close event
+            ChatAppControl.OnCloseRequested += () =>
+            {
+                ChatAppOverlay.Visibility = Visibility.Collapsed;
+            };
         }
 
         #region 初始化
@@ -138,7 +144,7 @@ namespace WangWangPhone
             return new List<AppIconModel>
             {
                 new AppIconModel { Id = "phone", Name = "电话", Icon = "📞", UseImage = false },
-                new AppIconModel { Id = "message", Name = "信息", Icon = "💬", UseImage = false },
+                new AppIconModel { Id = "chat", Name = "聊天", Icon = "💬", UseImage = false },
                 new AppIconModel { Id = "settings", Name = "设置", Icon = "settings", UseImage = true },
                 new AppIconModel { Id = "safari", Name = "Safari", Icon = "🧭", UseImage = false },
                 new AppIconModel { Id = "music", Name = "音乐", Icon = "🎵", UseImage = false },
@@ -324,9 +330,12 @@ namespace WangWangPhone
                 if (sender is StackPanel panel)
                 {
                     int index = (int)panel.Tag;
-                    if (index >= 0 && index < _apps.Count && _apps[index].Id == "settings")
+                    if (index >= 0 && index < _apps.Count)
                     {
-                        OnSettingsClick(sender, null);
+                        if (_apps[index].Id == "settings")
+                            OnSettingsClick(sender, null);
+                        else if (_apps[index].Id == "chat")
+                            OnChatClick();
                     }
                 }
             }
@@ -650,6 +659,15 @@ namespace WangWangPhone
 
         #endregion
 
+        #region 聊天App
+
+        private void OnChatClick()
+        {
+            ChatAppOverlay.Visibility = Visibility.Visible;
+        }
+
+        #endregion
+
         #region 设置与激活
 
         private void OnSettingsClick(object sender, MouseButtonEventArgs e)
@@ -761,6 +779,11 @@ namespace WangWangPhone
                 else if (ActivationOverlay.Visibility == Visibility.Visible)
                 {
                     ActivationOverlay.Visibility = Visibility.Collapsed;
+                    e.Handled = true;
+                }
+                else if (ChatAppOverlay.Visibility == Visibility.Visible)
+                {
+                    ChatAppOverlay.Visibility = Visibility.Collapsed;
                     e.Handled = true;
                 }
                 else if (SettingsOverlay.Visibility == Visibility.Visible)

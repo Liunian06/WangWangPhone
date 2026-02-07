@@ -221,6 +221,11 @@
             </Grid>
         </Border>
 
+        <!-- Chat App Overlay -->
+        <Border x:Name="ChatAppOverlay" Grid.Row="0" Grid.RowSpan="3" Visibility="Collapsed" Panel.ZIndex="200">
+            <local:ChatApp x:Name="ChatAppControl"/>
+        </Border>
+
         <!-- Dock (Placeholder) -->
         <Border Grid.Row="2" Height="90" Margin="15,0,15,20" CornerRadius="30" Background="#4DFFFFFF">
             <UniformGrid x:Name="DockPanel" Columns="4">
