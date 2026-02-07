@@ -95,9 +95,17 @@ suspend fun fetchWeather(city: String): WeatherInfo {
 }
 
 @Composable
-fun WidgetsSection() {
+fun WidgetsSection(
+    isEditMode: Boolean = false,
+    widgetOrder: List<String> = listOf("clock", "weather"),
+    onWidgetOrderChanged: (List<String>) -> Unit = {}
+) {
     var city by remember { mutableStateOf("...") }
     var weather by remember { mutableStateOf<WeatherInfo?>(null) }
+
+    // 小组件拖拽状态
+    var widgetDragIndex by remember { mutableStateOf(-1) }
+    var widgetDragOffsetX by remember { mutableStateOf(0f) }
 
     LaunchedEffect(Unit) {
         city = fetchLocation()
@@ -106,14 +114,83 @@ fun WidgetsSection() {
         }
     }
 
+    val density = LocalDensity.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 20.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.spacedBy(15.dp)
     ) {
-        ClockWidget(city = city, modifier = Modifier.weight(1f))
-        WeatherWidget(city = city, weather = weather, modifier = Modifier.weight(1f))
+        widgetOrder.forEachIndexed { index, widgetId ->
+            val isDragged = widgetDragIndex == index
+
+            // 抖动动画（编辑模式）
+            val wiggleTransition = rememberInfiniteTransition(label = "widget_wiggle_$index")
+            val wiggleAngle by wiggleTransition.animateFloat(
+                initialValue = if (index % 2 == 0) -1.5f else 1.5f,
+                targetValue = if (index % 2 == 0) 1.5f else -1.5f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(durationMillis = 200, easing = LinearEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "widget_wiggle_angle_$index"
+            )
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .zIndex(if (isDragged) 10f else 0f)
+                    .graphicsLayer {
+                        if (isEditMode) {
+                            rotationZ = if (isDragged) 0f else wiggleAngle
+                        }
+                        scaleX = if (isDragged) 1.05f else 1f
+                        scaleY = if (isDragged) 1.05f else 1f
+                        alpha = if (isDragged) 0.85f else 1f
+                        if (isDragged) {
+                            translationX = widgetDragOffsetX
+                        }
+                    }
+                    .pointerInput(isEditMode, index) {
+                        if (isEditMode) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    widgetDragIndex = index
+                                    widgetDragOffsetX = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    widgetDragOffsetX += dragAmount.x
+                                },
+                                onDragEnd = {
+                                    // 如果拖动超过一定距离，交换
+                                    val threshold = with(density) { 60.dp.toPx() }
+                                    if (kotlin.math.abs(widgetDragOffsetX) > threshold && widgetOrder.size == 2) {
+                                        val newOrder = widgetOrder.toMutableList()
+                                        val temp = newOrder[0]
+                                        newOrder[0] = newOrder[1]
+                                        newOrder[1] = temp
+                                        onWidgetOrderChanged(newOrder)
+                                    }
+                                    widgetDragIndex = -1
+                                    widgetDragOffsetX = 0f
+                                },
+                                onDragCancel = {
+                                    widgetDragIndex = -1
+                                    widgetDragOffsetX = 0f
+                                }
+                            )
+                        }
+                    }
+            ) {
+                if (widgetId == "clock") {
+                    ClockWidget(city = city, modifier = Modifier.fillMaxWidth())
+                } else {
+                    WeatherWidget(city = city, weather = weather, modifier = Modifier.fillMaxWidth())
+                }
+            }
+        }
     }
 }
 
@@ -531,6 +608,9 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     val dockApps = remember { mutableStateListOf<AppIcon>() }
     val maxDockApps = 4
 
+    // 小组件顺序
+    val widgetOrder = remember { mutableStateListOf("clock", "weather") }
+
     // 编辑模式状态
     var isEditMode by remember { mutableStateOf(false) }
 
@@ -571,6 +651,13 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                 }
             }
 
+            // 加载小组件顺序
+            val widgetItems = savedLayout.filter { it.area == "widget" }.sortedBy { it.position }
+            if (widgetItems.isNotEmpty()) {
+                widgetOrder.clear()
+                widgetOrder.addAll(widgetItems.map { it.appId })
+            }
+
             // 补充数据库中没有的新应用到主屏幕（排除已在dock中的）
             val allSavedIds = savedLayout.map { it.appId }.toSet()
             for (app in defaultApps) {
@@ -584,7 +671,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         }
     }
 
-    // 保存布局（同时保存grid和dock）
+    // 保存布局（同时保存grid、dock和widget）
     fun saveCurrentLayout() {
         val items = mutableListOf<LayoutItem>()
         // 保存主屏幕网格
@@ -594,6 +681,10 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         // 保存Dock栏
         dockApps.forEachIndexed { index, app ->
             items.add(LayoutItem(appId = app.id, position = index, area = "dock"))
+        }
+        // 保存小组件顺序
+        widgetOrder.forEachIndexed { index, widgetId ->
+            items.add(LayoutItem(appId = widgetId, position = index, area = "widget"))
         }
         layoutDbHelper.saveLayout(items)
     }
@@ -627,8 +718,16 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         }
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            // 小组件区域
-            WidgetsSection()
+            // 小组件区域（支持拖拽交换）
+            WidgetsSection(
+                isEditMode = isEditMode,
+                widgetOrder = widgetOrder.toList(),
+                onWidgetOrderChanged = { newOrder ->
+                    widgetOrder.clear()
+                    widgetOrder.addAll(newOrder)
+                    saveCurrentLayout()
+                }
+            )
 
             // 编辑模式提示栏
             if (isEditMode) {
@@ -728,7 +827,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 )
                             }
                             .width(with(density) { cellWidth.toDp() })
-                            .zIndex(if (isDragged) 10f else 0f)
+                            .zIndex(if (isDragged) 100f else 0f)
                             .graphicsLayer {
                                 if (isEditMode) {
                                     rotationZ = if (isDragged) 0f else wiggleAngle
@@ -908,7 +1007,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                     Box(
                         modifier = Modifier
                             .size(60.dp)
-                            .zIndex(if (isDockDragged) 10f else 0f)
+                            .zIndex(if (isDockDragged) 100f else 0f)
                             .graphicsLayer {
                                 if (isEditMode) {
                                     rotationZ = if (isDockDragged) 0f else dockWiggleAngle

@@ -207,7 +207,7 @@ struct DraggableAppIconView: View {
         }
         .scaleEffect(isDragging ? 1.15 : 1.0)
         .opacity(isDragging ? 0.85 : 1.0)
-        .zIndex(isDragging ? 10 : 0)
+        .zIndex(isDragging ? 100 : 0)
         .offset(dragOffset)
         .rotationEffect(isEditMode && !isDragging ? .degrees(wiggleAmount) : .degrees(0))
         .animation(
@@ -330,7 +330,7 @@ struct DraggableDockIconView: View {
         .frame(width: 60, height: 60)
         .scaleEffect(isDragging ? 1.15 : 1.0)
         .opacity(isDragging ? 0.85 : 1.0)
-        .zIndex(isDragging ? 10 : 0)
+        .zIndex(isDragging ? 100 : 0)
         .offset(dragOffset)
         .rotationEffect(isEditMode && !isDragging ? .degrees(wiggleAmount) : .degrees(0))
         .animation(
@@ -410,6 +410,7 @@ struct DraggableDockIconView: View {
 struct HomeScreen: View {
     @State private var apps: [AppIconData] = []
     @State private var dockApps: [AppIconData] = []  // Dock栏独立管理，初始为空
+    @State private var widgetOrder: [String] = ["clock", "weather"]  // 小组件顺序
     @State private var isEditMode = false
     @State private var isDraggingOverDock = false
     @State private var homeWallpaper: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .home)
@@ -422,6 +423,10 @@ struct HomeScreen: View {
     @State private var showDisplaySettings = false
     @State private var isActivated = LicenseManager.shared.isActivated()
     @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
+    
+    // 小组件拖拽状态
+    @State private var widgetDragIndex: Int = -1
+    @State private var widgetDragOffset: CGSize = .zero
     
     @Environment(\.colorScheme) var colorScheme
     
@@ -441,10 +446,66 @@ struct HomeScreen: View {
             }
             
             VStack {
-                // 小组件区域
+                // 小组件区域（支持拖拽交换）
                 HStack(spacing: 15) {
-                    ClockWidget(city: city)
-                    WeatherWidget(city: city, weather: weather)
+                    ForEach(Array(widgetOrder.enumerated()), id: \.element) { index, widgetId in
+                        let isDragged = widgetDragIndex == index
+                        
+                        Group {
+                            if widgetId == "clock" {
+                                ClockWidget(city: city)
+                            } else {
+                                WeatherWidget(city: city, weather: weather)
+                            }
+                        }
+                        .scaleEffect(isDragged ? 1.05 : 1.0)
+                        .opacity(isDragged ? 0.85 : 1.0)
+                        .zIndex(isDragged ? 100 : 0)
+                        .offset(isDragged ? widgetDragOffset : .zero)
+                        .rotationEffect(isEditMode && !isDragged ? .degrees(index % 2 == 0 ? -1.0 : 1.0) : .degrees(0))
+                        .animation(
+                            isEditMode && !isDragged
+                                ? Animation.easeInOut(duration: 0.15).repeatForever(autoreverses: true)
+                                : .default,
+                            value: isEditMode
+                        )
+                        .gesture(
+                            isEditMode ?
+                            DragGesture()
+                                .onChanged { value in
+                                    widgetDragIndex = index
+                                    widgetDragOffset = value.translation
+                                }
+                                .onEnded { value in
+                                    // 如果水平拖动超过阈值，交换
+                                    if abs(value.translation.width) > 60 && widgetOrder.count == 2 {
+                                        withAnimation(.spring()) {
+                                            let temp = widgetOrder[0]
+                                            widgetOrder[0] = widgetOrder[1]
+                                            widgetOrder[1] = temp
+                                        }
+                                        saveLayout()
+                                    }
+                                    withAnimation(.spring()) {
+                                        widgetDragIndex = -1
+                                        widgetDragOffset = .zero
+                                    }
+                                }
+                            : nil
+                        )
+                        .simultaneousGesture(
+                            LongPressGesture(minimumDuration: 0.5)
+                                .onEnded { _ in
+                                    if !isEditMode {
+                                        withAnimation(.spring()) {
+                                            isEditMode = true
+                                        }
+                                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                                        impactFeedback.impactOccurred()
+                                    }
+                                }
+                        )
+                    }
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 10)
@@ -631,6 +692,12 @@ struct HomeScreen: View {
                 }
             }
             
+            // 加载小组件顺序
+            let widgetItems = savedLayout.filter { $0.area == "widget" }.sorted { $0.position < $1.position }
+            if !widgetItems.isEmpty {
+                widgetOrder = widgetItems.map { $0.appId }
+            }
+            
             // 补充数据库中没有的新应用到主屏幕（排除已在dock中的）
             let allSavedIds = Set(savedLayout.map { $0.appId })
             for app in defaultApps {
@@ -647,7 +714,7 @@ struct HomeScreen: View {
         }
     }
     
-    /// 保存当前布局到数据库（同时保存grid和dock）
+    /// 保存当前布局到数据库（同时保存grid、dock和widget）
     func saveLayout() {
         var items: [LayoutItem] = []
         // 保存主屏幕网格
@@ -657,6 +724,10 @@ struct HomeScreen: View {
         // 保存Dock栏
         items += dockApps.enumerated().map { index, app in
             LayoutItem(appId: app.id, position: index, area: "dock")
+        }
+        // 保存小组件顺序
+        items += widgetOrder.enumerated().map { index, widgetId in
+            LayoutItem(appId: widgetId, position: index, area: "widget")
         }
         _ = layoutManager.saveLayout(items)
     }
