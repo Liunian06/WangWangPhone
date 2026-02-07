@@ -1,3 +1,4 @@
+
 package com.WangWangPhone.ui
 
 import android.net.Uri
@@ -523,8 +524,12 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     // 默认应用列表
     val defaultApps = remember(isDark) { getDefaultApps(isDark) }
 
-    // 当前应用排列（可变列表，支持拖拽重排）
+    // 当前主屏幕应用排列（可变列表，支持拖拽重排）
     val apps = remember { mutableStateListOf<AppIcon>() }
+
+    // Dock栏应用（独立管理，初始为空，最多4个）
+    val dockApps = remember { mutableStateListOf<AppIcon>() }
+    val maxDockApps = 4
 
     // 编辑模式状态
     var isEditMode by remember { mutableStateOf(false) }
@@ -536,12 +541,19 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     var dragOffsetX by remember { mutableStateOf(0f) }
     var dragOffsetY by remember { mutableStateOf(0f) }
 
+    // 拖拽来源: "grid" 或 "dock"
+    var dragSource by remember { mutableStateOf("grid") }
+
+    // 是否正在拖拽到Dock区域
+    var isDraggingOverDock by remember { mutableStateOf(false) }
+
     // 从数据库加载布局
     LaunchedEffect(isDark) {
         val savedLayout = layoutDbHelper.getLayout()
         apps.clear()
+        dockApps.clear()
         if (savedLayout.isNotEmpty()) {
-            // 根据数据库中保存的顺序排列应用
+            // 加载主屏幕网格
             val gridItems = savedLayout.filter { it.area == "grid" }.sortedBy { it.position }
             for (layoutItem in gridItems) {
                 val app = defaultApps.find { it.id == layoutItem.appId }
@@ -549,21 +561,39 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                     apps.add(app)
                 }
             }
-            // 如果数据库中缺少某些应用（新增的），追加到末尾
+
+            // 加载Dock栏
+            val dockItems = savedLayout.filter { it.area == "dock" }.sortedBy { it.position }
+            for (layoutItem in dockItems) {
+                val app = defaultApps.find { it.id == layoutItem.appId }
+                if (app != null) {
+                    dockApps.add(app)
+                }
+            }
+
+            // 补充数据库中没有的新应用到主屏幕（排除已在dock中的）
+            val allSavedIds = savedLayout.map { it.appId }.toSet()
             for (app in defaultApps) {
-                if (apps.none { it.id == app.id }) {
+                if (app.id !in allSavedIds) {
                     apps.add(app)
                 }
             }
         } else {
             apps.addAll(defaultApps)
+            // Dock初始为空
         }
     }
 
-    // 退出编辑模式时保存布局
+    // 保存布局（同时保存grid和dock）
     fun saveCurrentLayout() {
-        val items = apps.mapIndexed { index, app ->
-            LayoutItem(appId = app.id, position = index, area = "grid")
+        val items = mutableListOf<LayoutItem>()
+        // 保存主屏幕网格
+        apps.forEachIndexed { index, app ->
+            items.add(LayoutItem(appId = app.id, position = index, area = "grid"))
+        }
+        // 保存Dock栏
+        dockApps.forEachIndexed { index, app ->
+            items.add(LayoutItem(appId = app.id, position = index, area = "dock"))
         }
         layoutDbHelper.saveLayout(items)
     }
@@ -649,13 +679,12 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                     .padding(horizontal = 16.dp)
                     .then(
                         if (!isEditMode) {
-                            Modifier // 非编辑模式下，点击空白区域不做任何事
+                            Modifier
                         } else {
                             Modifier.clickable(
                                 indication = null,
                                 interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
                             ) {
-                                // 点击空白区域退出编辑模式
                                 isEditMode = false
                                 saveCurrentLayout()
                             }
@@ -673,7 +702,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                     val baseX = col * cellWidth
                     val baseY = with(density) { ((itemSizeDp + spacingDp) * row).toPx() }
 
-                    val isDragged = draggedIndex == index
+                    val isDragged = draggedIndex == index && dragSource == "grid"
 
                     // 抖动动画（编辑模式）
                     val infiniteTransition = rememberInfiniteTransition(label = "wiggle_$index")
@@ -715,6 +744,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                             isEditMode = true
                                         }
                                         draggedIndex = index
+                                        dragSource = "grid"
                                         dragOffsetX = 0f
                                         dragOffsetY = 0f
                                     },
@@ -723,42 +753,55 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                         dragOffsetX += dragAmount.x
                                         dragOffsetY += dragAmount.y
 
-                                        // 计算拖拽目标位置
-                                        val cellHeightPx = with(density) { (itemSizeDp + spacingDp).toPx() }
-                                        val currentCenterX = baseX.toFloat() + cellWidth.toFloat() / 2f + dragOffsetX
-                                        val currentCenterY = baseY + cellHeightPx / 2f + dragOffsetY
+                                        // 检查是否拖到了Dock区域（通过Y坐标判断）
+                                        val currentAbsY = baseY + dragOffsetY
+                                        val gridMaxY = with(density) { ((itemSizeDp + spacingDp) * ((apps.size + columns - 1) / columns)).toPx() }
+                                        isDraggingOverDock = currentAbsY > gridMaxY + with(density) { 50.dp.toPx() }
 
-                                        val targetCol = (currentCenterX / cellWidth.toFloat()).toInt().coerceIn(0, columns - 1)
-                                        val targetRow = (currentCenterY / cellHeightPx).toInt().coerceAtLeast(0)
-                                        val targetIndex = (targetRow * columns + targetCol).coerceIn(0, apps.size - 1)
+                                        // 仅在grid区域内排序
+                                        if (!isDraggingOverDock) {
+                                            val cellHeightPx = with(density) { (itemSizeDp + spacingDp).toPx() }
+                                            val currentCenterX = baseX.toFloat() + cellWidth.toFloat() / 2f + dragOffsetX
+                                            val currentCenterY = baseY + cellHeightPx / 2f + dragOffsetY
 
-                                        if (targetIndex != draggedIndex && targetIndex >= 0 && targetIndex < apps.size) {
-                                            // 交换位置
-                                            val draggedApp = apps[draggedIndex]
-                                            apps.removeAt(draggedIndex)
-                                            apps.add(targetIndex, draggedApp)
+                                            val targetCol = (currentCenterX / cellWidth.toFloat()).toInt().coerceIn(0, columns - 1)
+                                            val targetRow = (currentCenterY / cellHeightPx).toInt().coerceAtLeast(0)
+                                            val targetIndex = (targetRow * columns + targetCol).coerceIn(0, apps.size - 1)
 
-                                            // 更新偏移量以补偿位置变化
-                                            val oldRow = draggedIndex / columns
-                                            val oldCol = draggedIndex % columns
-                                            val newRow = targetIndex / columns
-                                            val newCol = targetIndex % columns
-                                            dragOffsetX += (oldCol - newCol).toFloat() * cellWidth.toFloat()
-                                            dragOffsetY += (oldRow - newRow).toFloat() * cellHeightPx
+                                            if (targetIndex != draggedIndex && targetIndex >= 0 && targetIndex < apps.size) {
+                                                val draggedApp = apps[draggedIndex]
+                                                apps.removeAt(draggedIndex)
+                                                apps.add(targetIndex, draggedApp)
 
-                                            draggedIndex = targetIndex
+                                                val oldRow = draggedIndex / columns
+                                                val oldCol = draggedIndex % columns
+                                                val newRow = targetIndex / columns
+                                                val newCol = targetIndex % columns
+                                                dragOffsetX += (oldCol - newCol).toFloat() * cellWidth.toFloat()
+                                                dragOffsetY += (oldRow - newRow).toFloat() * cellHeightPx
+
+                                                draggedIndex = targetIndex
+                                            }
                                         }
                                     },
                                     onDragEnd = {
+                                        // 如果拖到了Dock区域且Dock未满，移到Dock
+                                        if (isDraggingOverDock && dockApps.size < maxDockApps && draggedIndex >= 0 && draggedIndex < apps.size) {
+                                            val app = apps[draggedIndex]
+                                            apps.removeAt(draggedIndex)
+                                            dockApps.add(app)
+                                        }
                                         draggedIndex = -1
                                         dragOffsetX = 0f
                                         dragOffsetY = 0f
+                                        isDraggingOverDock = false
                                         saveCurrentLayout()
                                     },
                                     onDragCancel = {
                                         draggedIndex = -1
                                         dragOffsetX = 0f
                                         dragOffsetY = 0f
+                                        isDraggingOverDock = false
                                     }
                                 )
                             },
@@ -798,7 +841,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
             }
         }
 
-        // Dock 栏（始终显示前4个应用）
+        // Dock 栏（独立管理，不再自动取前4个）
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -807,23 +850,87 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                 .height(90.dp)
                 .clip(RoundedCornerShape(30.dp))
         ) {
-            // 磨砂玻璃背景层
+            // 磨砂玻璃背景层（拖拽到Dock时高亮）
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.3f))
+                    .background(
+                        if (isDraggingOverDock && dragSource == "grid" && dockApps.size < maxDockApps)
+                            Color(0xFF007AFF).copy(alpha = 0.4f)
+                        else
+                            Color.White.copy(alpha = 0.3f)
+                    )
                     .blur(20.dp)
             )
 
-            // 应用图标层
+            // Dock应用图标层
             Row(
                 modifier = Modifier.fillMaxSize(),
-                horizontalArrangement = Arrangement.SpaceAround,
+                horizontalArrangement = if (dockApps.isEmpty()) Arrangement.Center else Arrangement.SpaceAround,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                apps.take(4).forEach { app ->
+                if (dockApps.isEmpty() && !isEditMode) {
+                    // Dock为空时的提示
+                    Text(
+                        "长按拖入应用",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 12.sp
+                    )
+                }
+
+                if (dockApps.isEmpty() && isEditMode) {
+                    // 编辑模式下Dock为空时的占位提示
+                    Text(
+                        "拖拽应用到此处",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 13.sp
+                    )
+                }
+
+                dockApps.forEachIndexed { dockIndex, app ->
                     Box(
-                        modifier = Modifier.size(70.dp),
+                        modifier = Modifier
+                            .size(70.dp)
+                            .pointerInput(isEditMode, dockIndex) {
+                                if (isEditMode) {
+                                    detectDragGesturesAfterLongPress(
+                                        onDragStart = {
+                                            draggedIndex = dockIndex
+                                            dragSource = "dock"
+                                            dragOffsetX = 0f
+                                            dragOffsetY = 0f
+                                        },
+                                        onDrag = { change, dragAmount ->
+                                            change.consume()
+                                            dragOffsetX += dragAmount.x
+                                            dragOffsetY += dragAmount.y
+                                        },
+                                        onDragEnd = {
+                                            // 如果向上拖出Dock区域，移回主屏幕
+                                            if (dragOffsetY < -50f && draggedIndex >= 0 && draggedIndex < dockApps.size) {
+                                                val app = dockApps[draggedIndex]
+                                                dockApps.removeAt(draggedIndex)
+                                                apps.add(app)
+                                            }
+                                            draggedIndex = -1
+                                            dragOffsetX = 0f
+                                            dragOffsetY = 0f
+                                            dragSource = "grid"
+                                            saveCurrentLayout()
+                                        },
+                                        onDragCancel = {
+                                            draggedIndex = -1
+                                            dragOffsetX = 0f
+                                            dragOffsetY = 0f
+                                            dragSource = "grid"
+                                        }
+                                    )
+                                }
+                            }
+                            .clickable(enabled = !isEditMode) {
+                                if (app.id == "settings") onSettingsClick()
+                                else if (app.id == "chat") onChatClick()
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         if (app.useImage) {

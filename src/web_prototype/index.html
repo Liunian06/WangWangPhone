@@ -573,8 +573,12 @@
         { id: 'wangwang', name: '汪汪', icon: '🐶', useImage: false }
     ];
 
-    // 当前应用顺序（可变）
+    // 当前主屏幕应用顺序（可变）
     let currentApps = [...DEFAULT_APPS];
+
+    // Dock栏应用（独立管理，初始为空，最多4个）
+    let dockApps = [];
+    const MAX_DOCK_APPS = 4;
 
     // 编辑模式状态
     let isEditMode = false;
@@ -591,6 +595,7 @@
     let dragStartY = 0;
     let dragOffsetX = 0;
     let dragOffsetY = 0;
+    let dragSource = 'grid'; // 'grid' 或 'dock'，标记拖拽来源
 
     // ============================================
     // 初始化
@@ -601,15 +606,26 @@
     // 加载保存的布局
     const savedLayout = await layoutManager.getLayout();
     if (savedLayout.length > 0) {
+        // 加载主屏幕网格
         const gridItems = savedLayout.filter(i => i.area === 'grid').sort((a, b) => a.position - b.position);
         const orderedApps = [];
         for (const layoutItem of gridItems) {
             const app = DEFAULT_APPS.find(a => a.id === layoutItem.appId);
             if (app) orderedApps.push(app);
         }
-        // 补充没有保存的新应用
+
+        // 加载Dock栏
+        const dockItems = savedLayout.filter(i => i.area === 'dock').sort((a, b) => a.position - b.position);
+        dockApps = [];
+        for (const layoutItem of dockItems) {
+            const app = DEFAULT_APPS.find(a => a.id === layoutItem.appId);
+            if (app) dockApps.push(app);
+        }
+
+        // 补充没有保存的新应用到主屏幕（排除已在dock中的）
+        const allSavedIds = [...gridItems, ...dockItems].map(i => i.appId);
         for (const app of DEFAULT_APPS) {
-            if (!orderedApps.find(a => a.id === app.id)) {
+            if (!allSavedIds.includes(app.id)) {
                 orderedApps.push(app);
             }
         }
@@ -674,7 +690,15 @@
         const dock = document.getElementById('dock-bar');
         dock.innerHTML = '';
 
-        currentApps.slice(0, 4).forEach(app => {
+        // Dock栏独立管理，不再自动取前4个
+        dockApps.forEach((app, index) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'app-icon-wrapper' + (isEditMode ? ' edit-mode' : '');
+            wrapper.dataset.index = index;
+            wrapper.dataset.appId = app.id;
+            wrapper.dataset.area = 'dock';
+            wrapper.style.cursor = 'pointer';
+
             const iconDiv = document.createElement('div');
             iconDiv.className = 'app-icon';
 
@@ -694,24 +718,52 @@
                 iconDiv.textContent = app.icon;
             }
 
-            dock.appendChild(iconDiv);
+            wrapper.appendChild(iconDiv);
+
+            // Dock栏图标也绑定事件（支持拖拽和点击）
+            setupDockDragEvents(wrapper, index);
+
+            dock.appendChild(wrapper);
         });
+
+        // 编辑模式下，如果Dock未满，显示占位符提示
+        if (isEditMode && dockApps.length < MAX_DOCK_APPS) {
+            for (let i = dockApps.length; i < MAX_DOCK_APPS; i++) {
+                const placeholder = document.createElement('div');
+                placeholder.className = 'app-icon';
+                placeholder.style.opacity = '0.3';
+                placeholder.style.border = '2px dashed rgba(255,255,255,0.4)';
+                placeholder.style.borderRadius = '15px';
+                placeholder.style.width = '55px';
+                placeholder.style.height = '55px';
+                placeholder.style.display = 'flex';
+                placeholder.style.justifyContent = 'center';
+                placeholder.style.alignItems = 'center';
+                placeholder.style.fontSize = '20px';
+                placeholder.textContent = '+';
+                placeholder.style.color = 'rgba(255,255,255,0.5)';
+                dock.appendChild(placeholder);
+            }
+        }
     }
 
     // ============================================
     // 长按 + 拖拽事件
     // ============================================
-    function setupDragEvents(element, index) {
+    // ============================================
+    // Dock栏拖拽事件
+    // ============================================
+    function setupDockDragEvents(element, index) {
         // 鼠标事件
-        element.addEventListener('mousedown', (e) => onPointerDown(e, element, index));
+        element.addEventListener('mousedown', (e) => onPointerDown(e, element, index, 'dock'));
         element.addEventListener('mousemove', (e) => onPointerMove(e, element));
-        element.addEventListener('mouseup', (e) => onPointerUp(e, element, index));
+        element.addEventListener('mouseup', (e) => onPointerUp(e, element, index, 'dock'));
         element.addEventListener('mouseleave', (e) => onPointerCancel(e));
 
         // 触摸事件
         element.addEventListener('touchstart', (e) => {
             const touch = e.touches[0];
-            onPointerDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} }, element, index);
+            onPointerDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} }, element, index, 'dock');
         }, { passive: false });
 
         element.addEventListener('touchmove', (e) => {
@@ -721,7 +773,7 @@
         }, { passive: false });
 
         element.addEventListener('touchend', (e) => {
-            onPointerUp(e, element, index);
+            onPointerUp(e, element, index, 'dock');
         });
 
         element.addEventListener('touchcancel', (e) => {
@@ -729,10 +781,39 @@
         });
     }
 
-    function onPointerDown(e, element, index) {
+    function setupDragEvents(element, index) {
+        // 鼠标事件
+        element.addEventListener('mousedown', (e) => onPointerDown(e, element, index, 'grid'));
+        element.addEventListener('mousemove', (e) => onPointerMove(e, element));
+        element.addEventListener('mouseup', (e) => onPointerUp(e, element, index, 'grid'));
+        element.addEventListener('mouseleave', (e) => onPointerCancel(e));
+
+        // 触摸事件
+        element.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            onPointerDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} }, element, index, 'grid');
+        }, { passive: false });
+
+        element.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            onPointerMove({ clientX: touch.clientX, clientY: touch.clientY }, element);
+        }, { passive: false });
+
+        element.addEventListener('touchend', (e) => {
+            onPointerUp(e, element, index, 'grid');
+        });
+
+        element.addEventListener('touchcancel', (e) => {
+            onPointerCancel(e);
+        });
+    }
+
+    function onPointerDown(e, element, index, source = 'grid') {
         dragStartX = e.clientX;
         dragStartY = e.clientY;
         draggedIndex = index;
+        dragSource = source;
 
         // 启动长按计时器
         clearTimeout(longPressTimer);
@@ -741,16 +822,36 @@
                 enterEditMode();
             }
             // 开始拖拽
-            startDrag(element, index);
+            startDrag(element, index, source);
         }, LONG_PRESS_DURATION);
 
         // 如果已经在编辑模式，准备立即拖拽
         if (isEditMode) {
             clearTimeout(longPressTimer);
             longPressTimer = setTimeout(() => {
-                startDrag(element, index);
+                startDrag(element, index, source);
             }, 150); // 编辑模式下更短的延迟
         }
+    }
+
+    /**
+     * 判断当前指针是否在Dock栏区域内
+     */
+    function isPointerInDock(clientX, clientY) {
+        const dock = document.getElementById('dock-bar');
+        const dockRect = dock.getBoundingClientRect();
+        return clientY >= dockRect.top && clientY <= dockRect.bottom &&
+               clientX >= dockRect.left && clientX <= dockRect.right;
+    }
+
+    /**
+     * 判断当前指针是否在主屏幕网格区域内
+     */
+    function isPointerInGrid(clientX, clientY) {
+        const grid = document.getElementById('app-grid');
+        const gridRect = grid.getBoundingClientRect();
+        return clientY >= gridRect.top && clientY <= gridRect.bottom + 50 &&
+               clientX >= gridRect.left && clientX <= gridRect.right;
     }
 
     function onPointerMove(e, element) {
@@ -768,55 +869,115 @@
             draggedElement.style.transform = `translate(${dragOffsetX}px, ${dragOffsetY}px) scale(1.15)`;
             draggedElement.style.zIndex = '100';
 
-            // 计算目标位置
-            const grid = document.getElementById('app-grid');
-            const gridRect = grid.getBoundingClientRect();
-            const cellWidth = gridRect.width / 4;
-            const cellHeight = 105;
+            const inDock = isPointerInDock(e.clientX, e.clientY);
+            const inGrid = isPointerInGrid(e.clientX, e.clientY);
 
-            const currentCenterX = e.clientX - gridRect.left;
-            const currentCenterY = e.clientY - gridRect.top;
+            // 高亮Dock栏（当从grid拖入dock时）
+            const dock = document.getElementById('dock-bar');
+            if (inDock && dragSource === 'grid') {
+                dock.style.outline = '2px solid rgba(0,122,255,0.6)';
+                dock.style.outlineOffset = '-2px';
+            } else {
+                dock.style.outline = '';
+                dock.style.outlineOffset = '';
+            }
 
-            const targetCol = Math.max(0, Math.min(3, Math.floor(currentCenterX / cellWidth)));
-            const targetRow = Math.max(0, Math.floor(currentCenterY / cellHeight));
-            const targetIndex = Math.min(currentApps.length - 1, Math.max(0, targetRow * 4 + targetCol));
+            // 如果在grid区域内拖拽（且来源是grid），执行grid内排序
+            if (inGrid && dragSource === 'grid') {
+                const grid = document.getElementById('app-grid');
+                const gridRect = grid.getBoundingClientRect();
+                const cellWidth = gridRect.width / 4;
+                const cellHeight = 105;
 
-            // 高亮目标位置
-            document.querySelectorAll('.app-icon-wrapper.drop-target').forEach(el => {
-                el.classList.remove('drop-target');
-            });
+                const currentCenterX = e.clientX - gridRect.left;
+                const currentCenterY = e.clientY - gridRect.top;
 
-            if (targetIndex !== draggedIndex && targetIndex >= 0 && targetIndex < currentApps.length) {
-                const targetEl = grid.children[targetIndex];
-                if (targetEl && targetEl !== draggedElement) {
-                    targetEl.classList.add('drop-target');
+                const targetCol = Math.max(0, Math.min(3, Math.floor(currentCenterX / cellWidth)));
+                const targetRow = Math.max(0, Math.floor(currentCenterY / cellHeight));
+                const targetIndex = Math.min(currentApps.length - 1, Math.max(0, targetRow * 4 + targetCol));
+
+                // 高亮目标位置
+                document.querySelectorAll('.app-icon-wrapper.drop-target').forEach(el => {
+                    el.classList.remove('drop-target');
+                });
+
+                if (targetIndex !== draggedIndex && targetIndex >= 0 && targetIndex < currentApps.length) {
+                    const targetEl = grid.children[targetIndex];
+                    if (targetEl && targetEl !== draggedElement) {
+                        targetEl.classList.add('drop-target');
+                    }
+
+                    // 交换位置
+                    const movedApp = currentApps.splice(draggedIndex, 1)[0];
+                    currentApps.splice(targetIndex, 0, movedApp);
+
+                    // 更新拖拽参考
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragOffsetX = 0;
+                    dragOffsetY = 0;
+                    draggedIndex = targetIndex;
+
+                    // 重新渲染（但保持拖拽状态）
+                    renderAppGridDuringDrag(targetIndex);
                 }
+            }
 
-                // 交换位置
-                const movedApp = currentApps.splice(draggedIndex, 1)[0];
-                currentApps.splice(targetIndex, 0, movedApp);
+            // 如果在dock区域内拖拽（且来源是dock），执行dock内排序
+            if (inDock && dragSource === 'dock' && dockApps.length > 1) {
+                const dockEl = document.getElementById('dock-bar');
+                const dockRect = dockEl.getBoundingClientRect();
+                const dockCellWidth = dockRect.width / Math.max(dockApps.length, 1);
+                const currentX = e.clientX - dockRect.left;
+                const targetDockIndex = Math.max(0, Math.min(dockApps.length - 1, Math.floor(currentX / dockCellWidth)));
 
-                // 更新拖拽参考
-                dragStartX = e.clientX;
-                dragStartY = e.clientY;
-                dragOffsetX = 0;
-                dragOffsetY = 0;
-                draggedIndex = targetIndex;
+                if (targetDockIndex !== draggedIndex) {
+                    const movedApp = dockApps.splice(draggedIndex, 1)[0];
+                    dockApps.splice(targetDockIndex, 0, movedApp);
 
-                // 重新渲染（但保持拖拽状态）
-                renderAppGridDuringDrag(targetIndex);
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragOffsetX = 0;
+                    dragOffsetY = 0;
+                    draggedIndex = targetDockIndex;
+
+                    renderDock();
+                }
             }
         }
     }
 
-    function onPointerUp(e, element, index) {
+    function onPointerUp(e, element, index, source = 'grid') {
         clearTimeout(longPressTimer);
 
         if (isDragging) {
+            // 判断拖拽结束时的位置
+            const clientX = e.clientX || (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : dragStartX);
+            const clientY = e.clientY || (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : dragStartY);
+            const inDock = isPointerInDock(clientX, clientY);
+            const inGrid = isPointerInGrid(clientX, clientY);
+
+            if (dragSource === 'grid' && inDock && dockApps.length < MAX_DOCK_APPS) {
+                // 从主屏幕拖到Dock栏
+                const app = currentApps[draggedIndex];
+                if (app) {
+                    currentApps.splice(draggedIndex, 1);
+                    dockApps.push(app);
+                }
+            } else if (dragSource === 'dock' && inGrid) {
+                // 从Dock栏拖回主屏幕
+                const app = dockApps[draggedIndex];
+                if (app) {
+                    dockApps.splice(draggedIndex, 1);
+                    currentApps.push(app);
+                }
+            }
+
             finishDrag();
         } else if (!isEditMode) {
             // 普通点击
-            const app = currentApps[index];
+            const appList = source === 'dock' ? dockApps : currentApps;
+            const app = appList[index];
             if (app && app.id === 'settings') {
                 showSettings();
             } else if (app && app.id === 'chat') {
@@ -832,10 +993,11 @@
         }
     }
 
-    function startDrag(element, index) {
+    function startDrag(element, index, source = 'grid') {
         isDragging = true;
         draggedElement = element;
         draggedIndex = index;
+        dragSource = source;
         dragOffsetX = 0;
         dragOffsetY = 0;
 
@@ -863,9 +1025,15 @@
             el.classList.remove('drop-target');
         });
 
+        // 清除Dock高亮
+        const dock = document.getElementById('dock-bar');
+        dock.style.outline = '';
+        dock.style.outlineOffset = '';
+
         draggedIndex = -1;
         dragOffsetX = 0;
         dragOffsetY = 0;
+        dragSource = 'grid';
 
         renderAppGrid();
         renderDock();
@@ -955,11 +1123,15 @@
     // 布局持久化
     // ============================================
     async function saveLayout() {
-        const items = currentApps.map((app, index) => ({
-            appId: app.id,
-            position: index,
-            area: 'grid'
-        }));
+        const items = [];
+        // 保存主屏幕网格
+        currentApps.forEach((app, index) => {
+            items.push({ appId: app.id, position: index, area: 'grid' });
+        });
+        // 保存Dock栏
+        dockApps.forEach((app, index) => {
+            items.push({ appId: app.id, position: index, area: 'dock' });
+        });
         await layoutManager.saveLayout(items);
     }
 

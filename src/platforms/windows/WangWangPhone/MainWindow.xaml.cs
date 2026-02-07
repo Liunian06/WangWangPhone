@@ -30,8 +30,12 @@ namespace WangWangPhone
         private readonly LicenseManager _licenseManager = LicenseManager.Instance;
         private readonly LayoutManager _layoutManager = LayoutManager.Instance;
 
-        // 应用图标列表（可重排序）
+        // 主屏幕应用图标列表（可重排序）
         private List<AppIconModel> _apps = new List<AppIconModel>();
+
+        // Dock栏应用列表（独立管理，初始为空，最多4个）
+        private List<AppIconModel> _dockApps = new List<AppIconModel>();
+        private const int MaxDockApps = 4;
 
         // 编辑模式相关
         private bool _isEditMode = false;
@@ -44,6 +48,7 @@ namespace WangWangPhone
         private StackPanel _draggedElement;
         private int _draggedIndex = -1;
         private Point _dragStartPoint;
+        private string _dragSource = "grid"; // "grid" 或 "dock"
 
         // 网格布局参数
         private const int Columns = 4;
@@ -106,6 +111,7 @@ namespace WangWangPhone
             var savedLayout = _layoutManager.GetLayout();
             if (savedLayout.Count > 0)
             {
+                // 加载主屏幕网格
                 var gridItems = savedLayout.Where(i => i.Area == "grid").OrderBy(i => i.Position).ToList();
                 _apps.Clear();
                 foreach (var layoutItem in gridItems)
@@ -116,10 +122,24 @@ namespace WangWangPhone
                         _apps.Add(app);
                     }
                 }
-                // 补充数据库中没有的新应用
+
+                // 加载Dock栏
+                var dockItems = savedLayout.Where(i => i.Area == "dock").OrderBy(i => i.Position).ToList();
+                _dockApps.Clear();
+                foreach (var layoutItem in dockItems)
+                {
+                    var app = defaultApps.FirstOrDefault(a => a.Id == layoutItem.AppId);
+                    if (app != null)
+                    {
+                        _dockApps.Add(app);
+                    }
+                }
+
+                // 补充数据库中没有的新应用到主屏幕（排除已在dock中的）
+                var allSavedIds = savedLayout.Select(i => i.AppId).ToHashSet();
                 foreach (var app in defaultApps)
                 {
-                    if (!_apps.Any(a => a.Id == app.Id))
+                    if (!allSavedIds.Contains(app.Id))
                     {
                         _apps.Add(app);
                     }
@@ -128,6 +148,7 @@ namespace WangWangPhone
             else
             {
                 _apps = defaultApps;
+                _dockApps = new List<AppIconModel>(); // Dock初始为空
             }
 
             RenderAppGrid();
@@ -256,47 +277,104 @@ namespace WangWangPhone
         }
 
         /// <summary>
-        /// 更新 Dock 栏（显示前4个应用）
+        /// 更新 Dock 栏（独立管理，不再自动取前4个）
         /// </summary>
         private void UpdateDock()
         {
             DockPanel.Children.Clear();
-            foreach (var app in _apps.Take(4))
+
+            // 渲染Dock栏中的应用
+            for (int i = 0; i < _dockApps.Count; i++)
             {
-                var container = new Border
+                var app = _dockApps[i];
+                var panel = CreateDockIconPanel(app, i);
+                DockPanel.Children.Add(panel);
+            }
+
+            // 编辑模式下，如果Dock未满，显示占位符
+            if (_isEditMode && _dockApps.Count < MaxDockApps)
+            {
+                for (int i = _dockApps.Count; i < MaxDockApps; i++)
                 {
-                    Width = 55,
-                    Height = 55,
+                    var placeholder = new Border
+                    {
+                        Width = 55,
+                        Height = 55,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        BorderBrush = new SolidColorBrush(Color.FromArgb(100, 255, 255, 255)),
+                        BorderThickness = new Thickness(2),
+                        CornerRadius = new CornerRadius(15),
+                        Opacity = 0.3,
+                        Child = new TextBlock
+                        {
+                            Text = "+",
+                            FontSize = 20,
+                            Foreground = new SolidColorBrush(Color.FromArgb(128, 255, 255, 255)),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            VerticalAlignment = VerticalAlignment.Center
+                        }
+                    };
+                    DockPanel.Children.Add(placeholder);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 创建Dock栏图标面板
+        /// </summary>
+        private StackPanel CreateDockIconPanel(AppIconModel app, int index)
+        {
+            var panel = new StackPanel
+            {
+                Width = 55,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.Hand,
+                Tag = index
+            };
+
+            var container = new Border
+            {
+                Width = 55,
+                Height = 55,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            if (app.UseImage)
+            {
+                try
+                {
+                    container.Child = new Image
+                    {
+                        Source = new BitmapImage(new Uri("Assets/Setting_Light.png", UriKind.Relative)),
+                        Width = 55,
+                        Height = 55
+                    };
+                }
+                catch { }
+            }
+            else
+            {
+                container.Child = new TextBlock
+                {
+                    Text = app.Icon,
+                    FontSize = 45,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
-
-                if (app.UseImage)
-                {
-                    try
-                    {
-                        container.Child = new Image
-                        {
-                            Source = new BitmapImage(new Uri("Assets/Setting_Light.png", UriKind.Relative)),
-                            Width = 55,
-                            Height = 55
-                        };
-                    }
-                    catch { }
-                }
-                else
-                {
-                    container.Child = new TextBlock
-                    {
-                        Text = app.Icon,
-                        FontSize = 45,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-                }
-
-                DockPanel.Children.Add(container);
             }
+
+            panel.Children.Add(container);
+
+            // Dock栏图标事件绑定
+            panel.MouseLeftButtonDown += DockIcon_MouseLeftButtonDown;
+            panel.MouseLeftButtonUp += DockIcon_MouseLeftButtonUp;
+            panel.MouseMove += DockIcon_MouseMove;
+            panel.MouseLeave += DockIcon_MouseLeave;
+
+            return panel;
         }
 
         #endregion
@@ -309,6 +387,7 @@ namespace WangWangPhone
             {
                 _longPressTarget = panel;
                 _longPressStartPos = e.GetPosition(AppGridCanvas);
+                _dragSource = "grid";
                 _longPressTimer.Start();
 
                 if (_isEditMode)
@@ -316,6 +395,7 @@ namespace WangWangPhone
                     // 编辑模式下直接开始拖拽准备
                     _dragStartPoint = e.GetPosition(AppGridCanvas);
                     _draggedIndex = (int)panel.Tag;
+                    _dragSource = "grid";
                 }
             }
         }
@@ -342,6 +422,15 @@ namespace WangWangPhone
 
             if (_isDragging)
             {
+                // 检查是否拖到了Dock栏区域
+                var mousePos = e.GetPosition(this);
+                if (_dragSource == "grid" && IsPointerInDock(mousePos) && _dockApps.Count < MaxDockApps)
+                {
+                    // 从主屏幕拖到Dock栏
+                    var app = _apps[_draggedIndex];
+                    _apps.RemoveAt(_draggedIndex);
+                    _dockApps.Add(app);
+                }
                 FinishDrag();
             }
 
@@ -361,7 +450,7 @@ namespace WangWangPhone
                 }
             }
 
-            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedIndex >= 0)
+            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedIndex >= 0 && _dragSource == "grid")
             {
                 var currentPos = e.GetPosition(AppGridCanvas);
                 var diff = currentPos - _dragStartPoint;
@@ -386,7 +475,11 @@ namespace WangWangPhone
                     Canvas.SetLeft(_draggedElement, origCol * CellWidth + diff.X);
                     Canvas.SetTop(_draggedElement, origRow * CellHeight + diff.Y);
 
-                    // 计算目标位置
+                    // 检查是否在Dock区域上方（高亮提示）
+                    var mousePos = e.GetPosition(this);
+                    HighlightDockIfNeeded(mousePos);
+
+                    // 计算目标位置（仅在grid区域内排序）
                     double centerX = origCol * CellWidth + CellWidth / 2 + diff.X;
                     double centerY = origRow * CellHeight + CellHeight / 2 + diff.Y;
 
@@ -394,7 +487,7 @@ namespace WangWangPhone
                     int targetRow = Math.Max(0, (int)(centerY / CellHeight));
                     int targetIndex = Math.Min(_apps.Count - 1, Math.Max(0, targetRow * Columns + targetCol));
 
-                    if (targetIndex != _draggedIndex)
+                    if (targetIndex != _draggedIndex && !IsPointerInDock(mousePos))
                     {
                         // 交换位置
                         var draggedApp = _apps[_draggedIndex];
@@ -415,6 +508,164 @@ namespace WangWangPhone
         private void AppIcon_MouseLeave(object sender, MouseEventArgs e)
         {
             _longPressTimer.Stop();
+        }
+
+        // ============================================
+        // Dock栏图标事件
+        // ============================================
+        private void DockIcon_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is StackPanel panel)
+            {
+                _longPressTarget = panel;
+                _longPressStartPos = e.GetPosition(this);
+                _dragSource = "dock";
+                _longPressTimer.Start();
+
+                if (_isEditMode)
+                {
+                    _dragStartPoint = e.GetPosition(this);
+                    _draggedIndex = (int)panel.Tag;
+                    _dragSource = "dock";
+                }
+            }
+        }
+
+        private void DockIcon_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _longPressTimer.Stop();
+
+            if (!_isEditMode && !_isDragging)
+            {
+                // Dock栏普通点击
+                if (sender is StackPanel panel)
+                {
+                    int index = (int)panel.Tag;
+                    if (index >= 0 && index < _dockApps.Count)
+                    {
+                        if (_dockApps[index].Id == "settings")
+                            OnSettingsClick(sender, null);
+                        else if (_dockApps[index].Id == "chat")
+                            OnChatClick();
+                    }
+                }
+            }
+
+            if (_isDragging && _dragSource == "dock")
+            {
+                // 检查是否拖到了主屏幕区域
+                var mousePos = e.GetPosition(this);
+                if (!IsPointerInDock(mousePos))
+                {
+                    // 从Dock拖回主屏幕
+                    var app = _dockApps[_draggedIndex];
+                    _dockApps.RemoveAt(_draggedIndex);
+                    _apps.Add(app);
+                }
+                FinishDrag();
+            }
+
+            _longPressTarget = null;
+        }
+
+        private void DockIcon_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_longPressTimer.IsEnabled)
+            {
+                var currentPos = e.GetPosition(this);
+                if (Math.Abs(currentPos.X - _longPressStartPos.X) > 5 ||
+                    Math.Abs(currentPos.Y - _longPressStartPos.Y) > 5)
+                {
+                    _longPressTimer.Stop();
+                }
+            }
+
+            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedIndex >= 0 && _dragSource == "dock")
+            {
+                var currentPos = e.GetPosition(this);
+                var diff = currentPos - _dragStartPoint;
+
+                if (!_isDragging && (Math.Abs(diff.X) > 3 || Math.Abs(diff.Y) > 3))
+                {
+                    _isDragging = true;
+                    _draggedElement = sender as StackPanel;
+                    if (_draggedElement != null)
+                    {
+                        _draggedElement.Opacity = 0.7;
+                        Panel.SetZIndex(_draggedElement, 100);
+                        _draggedElement.RenderTransform = new ScaleTransform(1.15, 1.15, 27.5, 27.5);
+                    }
+                }
+
+                if (_isDragging && _draggedElement != null)
+                {
+                    // Dock内排序
+                    var dockPanel = DockPanel;
+                    if (dockPanel.Children.Count > 0 && _dockApps.Count > 1)
+                    {
+                        double dockWidth = dockPanel.ActualWidth;
+                        double cellW = dockWidth / _dockApps.Count;
+                        double relX = currentPos.X - dockPanel.TranslatePoint(new Point(0, 0), this).X;
+                        int targetIdx = Math.Max(0, Math.Min(_dockApps.Count - 1, (int)(relX / cellW)));
+
+                        if (targetIdx != _draggedIndex)
+                        {
+                            var draggedApp = _dockApps[_draggedIndex];
+                            _dockApps.RemoveAt(_draggedIndex);
+                            _dockApps.Insert(targetIdx, draggedApp);
+                            _dragStartPoint = currentPos;
+                            _draggedIndex = targetIdx;
+                            UpdateDock();
+                        }
+                    }
+                }
+            }
+        }
+
+        private void DockIcon_MouseLeave(object sender, MouseEventArgs e)
+        {
+            _longPressTimer.Stop();
+        }
+
+        /// <summary>
+        /// 判断鼠标位置是否在Dock栏区域内
+        /// </summary>
+        private bool IsPointerInDock(Point windowPos)
+        {
+            try
+            {
+                var dockBorder = DockPanel.Parent as Border;
+                if (dockBorder == null) return false;
+                var dockPos = dockBorder.TranslatePoint(new Point(0, 0), this);
+                return windowPos.Y >= dockPos.Y &&
+                       windowPos.Y <= dockPos.Y + dockBorder.ActualHeight &&
+                       windowPos.X >= dockPos.X &&
+                       windowPos.X <= dockPos.X + dockBorder.ActualWidth;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 拖拽时高亮Dock栏
+        /// </summary>
+        private void HighlightDockIfNeeded(Point windowPos)
+        {
+            var dockBorder = DockPanel.Parent as Border;
+            if (dockBorder == null) return;
+
+            if (IsPointerInDock(windowPos) && _dragSource == "grid" && _dockApps.Count < MaxDockApps)
+            {
+                dockBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(150, 0, 122, 255));
+                dockBorder.BorderThickness = new Thickness(2);
+            }
+            else
+            {
+                dockBorder.BorderBrush = null;
+                dockBorder.BorderThickness = new Thickness(0);
+            }
         }
 
         private void LongPressTimer_Tick(object sender, EventArgs e)
@@ -458,6 +709,14 @@ namespace WangWangPhone
                 sb.Stop();
             }
             _wiggleStoryboards.Clear();
+
+            // 清除Dock高亮
+            var dockBorder = DockPanel.Parent as Border;
+            if (dockBorder != null)
+            {
+                dockBorder.BorderBrush = null;
+                dockBorder.BorderThickness = new Thickness(0);
+            }
 
             // 重新渲染（无动画）
             RenderAppGrid();
@@ -608,6 +867,7 @@ namespace WangWangPhone
         private void SaveCurrentLayout()
         {
             var items = new List<Core.LayoutItem>();
+            // 保存主屏幕网格
             for (int i = 0; i < _apps.Count; i++)
             {
                 items.Add(new Core.LayoutItem
@@ -615,6 +875,16 @@ namespace WangWangPhone
                     AppId = _apps[i].Id,
                     Position = i,
                     Area = "grid"
+                });
+            }
+            // 保存Dock栏
+            for (int i = 0; i < _dockApps.Count; i++)
+            {
+                items.Add(new Core.LayoutItem
+                {
+                    AppId = _dockApps[i].Id,
+                    Position = i,
+                    Area = "dock"
                 });
             }
             _layoutManager.SaveLayout(items);
