@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using System.Windows.Threading;
 using System.Threading.Tasks;
 using WangWangPhone.Core;
@@ -28,9 +29,13 @@ namespace WangWangPhone
         private readonly LicenseManager _licenseManager = LicenseManager.Instance;
         private readonly LayoutManager _layoutManager = LayoutManager.Instance;
 
-        private List<AppIconModel> _apps = new List<AppIconModel>();
+        // 4x6 网格: cellIndex -> AppIconModel (稀疏字典)
+        private Dictionary<int, AppIconModel> _gridPositions = new Dictionary<int, AppIconModel>();
         private List<AppIconModel> _dockApps = new List<AppIconModel>();
         private const int MaxDockApps = 4;
+        private const int GridColumns = 4;
+        private const int GridRows = 6;
+        private const int TotalCells = GridColumns * GridRows;
 
         // 小组件顺序
         private List<string> _widgetOrder = new List<string> { "clock", "weather" };
@@ -40,16 +45,22 @@ namespace WangWangPhone
         private DispatcherTimer _longPressTimer;
         private StackPanel _longPressTarget;
         private Point _longPressStartPos;
+        private string _longPressSource = "grid";
 
         // 拖拽
         private bool _isDragging = false;
         private StackPanel _draggedElement;
-        private int _draggedIndex = -1;
+        private int _draggedCellIndex = -1;
+        private int _draggedDockIndex = -1;
         private Point _dragStartPoint;
         private string _dragSource = "grid";
 
         // 拖拽浮层
         private FrameworkElement _dragOverlayElement;
+
+        // 高亮目标格子
+        private int _highlightCellIndex = -1;
+        private Rectangle _highlightRect;
 
         // 小组件拖拽
         private bool _isWidgetDragging = false;
@@ -57,9 +68,9 @@ namespace WangWangPhone
         private Point _widgetDragStartPos;
         private DispatcherTimer _widgetLongPressTimer;
 
-        private const int Columns = 4;
-        private const double CellWidth = 85;
-        private const double CellHeight = 105;
+        // 网格尺寸缓存
+        private double _cellWidth = 85;
+        private double _cellHeight = 85;
 
         private List<Storyboard> _wiggleStoryboards = new List<Storyboard>();
 
@@ -107,38 +118,52 @@ namespace WangWangPhone
             var defaultApps = GetDefaultApps();
             var savedLayout = _layoutManager.GetLayout();
 
+            _gridPositions.Clear();
+            _dockApps.Clear();
+
             if (savedLayout.Count > 0)
             {
-                var gridItems = savedLayout.Where(i => i.Area == "grid").OrderBy(i => i.Position).ToList();
-                _apps.Clear();
+                // 加载网格（position = cellIndex）
+                var gridItems = savedLayout.Where(i => i.Area == "grid").ToList();
                 foreach (var li in gridItems)
                 {
                     var app = defaultApps.FirstOrDefault(a => a.Id == li.AppId);
-                    if (app != null) _apps.Add(app);
+                    if (app != null)
+                    {
+                        int cellIndex = Math.Max(0, Math.Min(TotalCells - 1, li.Position));
+                        _gridPositions[cellIndex] = app;
+                    }
                 }
 
+                // 加载Dock
                 var dockItems = savedLayout.Where(i => i.Area == "dock").OrderBy(i => i.Position).ToList();
-                _dockApps.Clear();
                 foreach (var li in dockItems)
                 {
                     var app = defaultApps.FirstOrDefault(a => a.Id == li.AppId);
                     if (app != null) _dockApps.Add(app);
                 }
 
+                // 加载小组件顺序
                 var widgetItems = savedLayout.Where(i => i.Area == "widget").OrderBy(i => i.Position).ToList();
                 if (widgetItems.Count > 0)
                     _widgetOrder = widgetItems.Select(i => i.AppId).ToList();
 
+                // 补充新应用
                 var allSavedIds = savedLayout.Select(i => i.AppId).ToHashSet();
                 foreach (var app in defaultApps)
                 {
-                    if (!allSavedIds.Contains(app.Id)) _apps.Add(app);
+                    if (!allSavedIds.Contains(app.Id))
+                    {
+                        int emptyCell = FindEmptyCell();
+                        if (emptyCell >= 0) _gridPositions[emptyCell] = app;
+                    }
                 }
             }
             else
             {
-                _apps = defaultApps;
-                _dockApps = new List<AppIconModel>();
+                // 初始布局
+                for (int i = 0; i < defaultApps.Count && i < TotalCells; i++)
+                    _gridPositions[i] = defaultApps[i];
             }
 
             RenderAppGrid();
@@ -147,6 +172,13 @@ namespace WangWangPhone
             _longPressTimer = new DispatcherTimer();
             _longPressTimer.Interval = TimeSpan.FromMilliseconds(500);
             _longPressTimer.Tick += LongPressTimer_Tick;
+        }
+
+        private int FindEmptyCell()
+        {
+            for (int i = 0; i < TotalCells; i++)
+                if (!_gridPositions.ContainsKey(i)) return i;
+            return -1;
         }
 
         private List<AppIconModel> GetDefaultApps()
@@ -166,27 +198,71 @@ namespace WangWangPhone
 
         #endregion
 
+        #region 网格尺寸
+
+        private void AppGridCanvas_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            if (e.NewSize.Width > 0 && e.NewSize.Height > 0)
+            {
+                _cellWidth = e.NewSize.Width / GridColumns;
+                _cellHeight = e.NewSize.Height / GridRows;
+                RenderAppGrid();
+            }
+        }
+
+        private int GetCellIndexFromCanvasPos(Point canvasPos)
+        {
+            if (_cellWidth <= 0 || _cellHeight <= 0) return -1;
+            int col = Math.Max(0, Math.Min(GridColumns - 1, (int)(canvasPos.X / _cellWidth)));
+            int row = Math.Max(0, Math.Min(GridRows - 1, (int)(canvasPos.Y / _cellHeight)));
+            return row * GridColumns + col;
+        }
+
+        #endregion
+
         #region 应用网格渲染
 
         private void RenderAppGrid()
         {
             AppGridCanvas.Children.Clear();
             _wiggleStoryboards.Clear();
+            RemoveHighlight();
 
-            for (int i = 0; i < _apps.Count; i++)
+            if (AppGridCanvas.ActualWidth > 0)
             {
-                var app = _apps[i];
-                var panel = CreateAppIconPanel(app, i);
-                Canvas.SetLeft(panel, (i % Columns) * CellWidth);
-                Canvas.SetTop(panel, (i / Columns) * CellHeight);
+                _cellWidth = AppGridCanvas.ActualWidth / GridColumns;
+                _cellHeight = AppGridCanvas.ActualHeight / GridRows;
+            }
+
+            foreach (var kvp in _gridPositions)
+            {
+                int cellIndex = kvp.Key;
+                var app = kvp.Value;
+
+                // 跳过正在被拖拽的图标
+                if (_isDragging && _dragSource == "grid" && cellIndex == _draggedCellIndex) continue;
+
+                int row = cellIndex / GridColumns;
+                int col = cellIndex % GridColumns;
+
+                var panel = CreateAppIconPanel(app, cellIndex);
+                Canvas.SetLeft(panel, col * _cellWidth);
+                Canvas.SetTop(panel, row * _cellHeight);
                 AppGridCanvas.Children.Add(panel);
-                if (_isEditMode) StartWiggleAnimation(panel, i);
+                if (_isEditMode) StartWiggleAnimation(panel, cellIndex);
             }
         }
 
-        private StackPanel CreateAppIconPanel(AppIconModel app, int index)
+        private StackPanel CreateAppIconPanel(AppIconModel app, int cellIndex)
         {
-            var panel = new StackPanel { Width = CellWidth, HorizontalAlignment = HorizontalAlignment.Center, Cursor = Cursors.Hand, Tag = index };
+            var panel = new StackPanel
+            {
+                Width = _cellWidth,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Cursor = Cursors.Hand,
+                Tag = cellIndex
+            };
+
             var iconContainer = new Border { Width = 60, Height = 60, HorizontalAlignment = HorizontalAlignment.Center };
 
             if (app.UseImage)
@@ -256,6 +332,47 @@ namespace WangWangPhone
 
         #endregion
 
+        #region 高亮目标格子
+
+        private void ShowHighlight(int cellIndex)
+        {
+            if (cellIndex < 0 || cellIndex >= TotalCells) { RemoveHighlight(); return; }
+            if (_highlightCellIndex == cellIndex && _highlightRect != null) return;
+
+            RemoveHighlight();
+            _highlightCellIndex = cellIndex;
+
+            int row = cellIndex / GridColumns;
+            int col = cellIndex % GridColumns;
+
+            _highlightRect = new Rectangle
+            {
+                Width = _cellWidth - 8,
+                Height = _cellHeight - 8,
+                Stroke = new SolidColorBrush(Color.FromArgb(128, 255, 255, 255)),
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection { 4, 2 },
+                RadiusX = 12,
+                RadiusY = 12,
+                Fill = Brushes.Transparent
+            };
+            Canvas.SetLeft(_highlightRect, col * _cellWidth + 4);
+            Canvas.SetTop(_highlightRect, row * _cellHeight + 4);
+            AppGridCanvas.Children.Add(_highlightRect);
+        }
+
+        private void RemoveHighlight()
+        {
+            if (_highlightRect != null)
+            {
+                AppGridCanvas.Children.Remove(_highlightRect);
+                _highlightRect = null;
+            }
+            _highlightCellIndex = -1;
+        }
+
+        #endregion
+
         #region 应用图标拖拽事件
 
         private void AppIcon_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -264,12 +381,12 @@ namespace WangWangPhone
             {
                 _longPressTarget = panel;
                 _longPressStartPos = e.GetPosition(AppGridCanvas);
-                _dragSource = "grid";
+                _longPressSource = "grid";
                 _longPressTimer.Start();
                 if (_isEditMode)
                 {
                     _dragStartPoint = e.GetPosition(AppGridCanvas);
-                    _draggedIndex = (int)panel.Tag;
+                    _draggedCellIndex = (int)panel.Tag;
                     _dragSource = "grid";
                 }
             }
@@ -282,22 +399,42 @@ namespace WangWangPhone
             {
                 if (sender is StackPanel panel)
                 {
-                    int index = (int)panel.Tag;
-                    if (index >= 0 && index < _apps.Count)
+                    int cellIndex = (int)panel.Tag;
+                    if (_gridPositions.TryGetValue(cellIndex, out var app))
                     {
-                        if (_apps[index].Id == "settings") OnSettingsClick(sender, null);
-                        else if (_apps[index].Id == "chat") OnChatClick();
+                        if (app.Id == "settings") OnSettingsClick(sender, null);
+                        else if (app.Id == "chat") OnChatClick();
                     }
                 }
             }
-            if (_isDragging)
+            if (_isDragging && _dragSource == "grid")
             {
                 var mousePos = e.GetPosition(this);
-                if (_dragSource == "grid" && IsPointerInDock(mousePos) && _dockApps.Count < MaxDockApps)
+                var canvasPos = e.GetPosition(AppGridCanvas);
+
+                if (IsPointerInDock(mousePos) && _dockApps.Count < MaxDockApps)
                 {
-                    var app = _apps[_draggedIndex];
-                    _apps.RemoveAt(_draggedIndex);
-                    _dockApps.Add(app);
+                    // 移到Dock
+                    if (_gridPositions.TryGetValue(_draggedCellIndex, out var app))
+                    {
+                        _gridPositions.Remove(_draggedCellIndex);
+                        _dockApps.Add(app);
+                    }
+                }
+                else
+                {
+                    // 吸附到目标格子
+                    int targetCell = GetCellIndexFromCanvasPos(canvasPos);
+                    if (targetCell >= 0 && targetCell < TotalCells && targetCell != _draggedCellIndex)
+                    {
+                        if (_gridPositions.TryGetValue(_draggedCellIndex, out var draggedApp))
+                        {
+                            var existingApp = _gridPositions.ContainsKey(targetCell) ? _gridPositions[targetCell] : null;
+                            _gridPositions.Remove(_draggedCellIndex);
+                            _gridPositions[targetCell] = draggedApp;
+                            if (existingApp != null) _gridPositions[_draggedCellIndex] = existingApp;
+                        }
+                    }
                 }
                 FinishDrag();
             }
@@ -313,7 +450,7 @@ namespace WangWangPhone
                     _longPressTimer.Stop();
             }
 
-            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedIndex >= 0 && _dragSource == "grid")
+            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedCellIndex >= 0 && _dragSource == "grid")
             {
                 var currentPos = e.GetPosition(AppGridCanvas);
                 var diff = currentPos - _dragStartPoint;
@@ -327,29 +464,31 @@ namespace WangWangPhone
                         _draggedElement.Opacity = 0.3;
                         CreateDragOverlay(_draggedElement);
                     }
+                    // 重绘网格（隐藏被拖拽的图标）
+                    RenderAppGrid();
                 }
 
                 if (_isDragging && _dragOverlayElement != null)
                 {
                     var windowPos = e.GetPosition(RootGrid);
-                    Canvas.SetLeft(_dragOverlayElement, windowPos.X - CellWidth / 2);
-                    Canvas.SetTop(_dragOverlayElement, windowPos.Y - CellHeight / 2);
+                    Canvas.SetLeft(_dragOverlayElement, windowPos.X - _cellWidth / 2);
+                    Canvas.SetTop(_dragOverlayElement, windowPos.Y - _cellHeight / 2);
 
                     var mousePos = e.GetPosition(this);
                     HighlightDockIfNeeded(mousePos);
 
-                    int targetCol = Math.Max(0, Math.Min(Columns - 1, (int)(currentPos.X / CellWidth)));
-                    int targetRow = Math.Max(0, (int)(currentPos.Y / CellHeight));
-                    int targetIndex = Math.Min(_apps.Count - 1, Math.Max(0, targetRow * Columns + targetCol));
-
-                    if (targetIndex != _draggedIndex && !IsPointerInDock(mousePos))
+                    // 更新高亮
+                    if (IsPointerInDock(mousePos))
                     {
-                        var draggedApp = _apps[_draggedIndex];
-                        _apps.RemoveAt(_draggedIndex);
-                        _apps.Insert(targetIndex, draggedApp);
-                        _dragStartPoint = currentPos;
-                        _draggedIndex = targetIndex;
-                        RenderAppGridExcept(targetIndex);
+                        RemoveHighlight();
+                    }
+                    else
+                    {
+                        int targetCell = GetCellIndexFromCanvasPos(currentPos);
+                        if (targetCell >= 0 && targetCell != _draggedCellIndex)
+                            ShowHighlight(targetCell);
+                        else
+                            RemoveHighlight();
                     }
                 }
             }
@@ -367,12 +506,12 @@ namespace WangWangPhone
             {
                 _longPressTarget = panel;
                 _longPressStartPos = e.GetPosition(this);
-                _dragSource = "dock";
+                _longPressSource = "dock";
                 _longPressTimer.Start();
                 if (_isEditMode)
                 {
                     _dragStartPoint = e.GetPosition(this);
-                    _draggedIndex = (int)panel.Tag;
+                    _draggedDockIndex = (int)panel.Tag;
                     _dragSource = "dock";
                 }
             }
@@ -398,9 +537,33 @@ namespace WangWangPhone
                 var mousePos = e.GetPosition(this);
                 if (!IsPointerInDock(mousePos))
                 {
-                    var app = _dockApps[_draggedIndex];
-                    _dockApps.RemoveAt(_draggedIndex);
-                    _apps.Add(app);
+                    // 从Dock拖到网格
+                    var canvasPos = e.GetPosition(AppGridCanvas);
+                    int targetCell = GetCellIndexFromCanvasPos(canvasPos);
+                    var app = _dockApps[_draggedDockIndex];
+                    _dockApps.RemoveAt(_draggedDockIndex);
+
+                    if (targetCell >= 0 && targetCell < TotalCells)
+                    {
+                        if (_gridPositions.ContainsKey(targetCell))
+                        {
+                            var existingApp = _gridPositions[targetCell];
+                            _gridPositions[targetCell] = app;
+                            int emptyCell = FindEmptyCell();
+                            if (emptyCell >= 0) _gridPositions[emptyCell] = existingApp;
+                            else if (_dockApps.Count < MaxDockApps) _dockApps.Add(existingApp);
+                        }
+                        else
+                        {
+                            _gridPositions[targetCell] = app;
+                        }
+                    }
+                    else
+                    {
+                        int emptyCell = FindEmptyCell();
+                        if (emptyCell >= 0) _gridPositions[emptyCell] = app;
+                        else _dockApps.Insert(Math.Min(_draggedDockIndex, _dockApps.Count), app);
+                    }
                 }
                 FinishDrag();
             }
@@ -416,7 +579,7 @@ namespace WangWangPhone
                     _longPressTimer.Stop();
             }
 
-            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedIndex >= 0 && _dragSource == "dock")
+            if (_isEditMode && e.LeftButton == MouseButtonState.Pressed && _draggedDockIndex >= 0 && _dragSource == "dock")
             {
                 var currentPos = e.GetPosition(this);
                 var diff = currentPos - _dragStartPoint;
@@ -438,20 +601,33 @@ namespace WangWangPhone
                     Canvas.SetLeft(_dragOverlayElement, windowPos.X - 30);
                     Canvas.SetTop(_dragOverlayElement, windowPos.Y - 30);
 
-                    if (DockPanel.Children.Count > 0 && _dockApps.Count > 1)
+                    // 更新高亮
+                    if (!IsPointerInDock(currentPos))
                     {
-                        double dockWidth = DockPanel.ActualWidth;
-                        double cellW = dockWidth / _dockApps.Count;
-                        double relX = currentPos.X - DockPanel.TranslatePoint(new Point(0, 0), this).X;
-                        int targetIdx = Math.Max(0, Math.Min(_dockApps.Count - 1, (int)(relX / cellW)));
-                        if (targetIdx != _draggedIndex)
+                        var canvasPos = e.GetPosition(AppGridCanvas);
+                        int targetCell = GetCellIndexFromCanvasPos(canvasPos);
+                        if (targetCell >= 0) ShowHighlight(targetCell);
+                        else RemoveHighlight();
+                    }
+                    else
+                    {
+                        RemoveHighlight();
+                        // Dock内排序
+                        if (_dockApps.Count > 1)
                         {
-                            var draggedApp = _dockApps[_draggedIndex];
-                            _dockApps.RemoveAt(_draggedIndex);
-                            _dockApps.Insert(targetIdx, draggedApp);
-                            _dragStartPoint = currentPos;
-                            _draggedIndex = targetIdx;
-                            UpdateDock();
+                            double dockWidth = DockPanel.ActualWidth;
+                            double cellW = dockWidth / _dockApps.Count;
+                            double relX = currentPos.X - DockPanel.TranslatePoint(new Point(0, 0), this).X;
+                            int targetIdx = Math.Max(0, Math.Min(_dockApps.Count - 1, (int)(relX / cellW)));
+                            if (targetIdx != _draggedDockIndex)
+                            {
+                                var draggedApp = _dockApps[_draggedDockIndex];
+                                _dockApps.RemoveAt(_draggedDockIndex);
+                                _dockApps.Insert(targetIdx, draggedApp);
+                                _dragStartPoint = currentPos;
+                                _draggedDockIndex = targetIdx;
+                                UpdateDock();
+                            }
                         }
                     }
                 }
@@ -500,7 +676,17 @@ namespace WangWangPhone
                 EnterEditMode();
                 if (_longPressTarget != null)
                 {
-                    _draggedIndex = (int)_longPressTarget.Tag;
+                    int tag = (int)_longPressTarget.Tag;
+                    if (_longPressSource == "grid")
+                    {
+                        _draggedCellIndex = tag;
+                        _dragSource = "grid";
+                    }
+                    else
+                    {
+                        _draggedDockIndex = tag;
+                        _dragSource = "dock";
+                    }
                     _dragStartPoint = _longPressStartPos;
                 }
             }
@@ -534,7 +720,7 @@ namespace WangWangPhone
 
         private void StartWiggleAnimation(StackPanel panel, int index)
         {
-            var rotateTransform = new RotateTransform(0, CellWidth / 2, 10);
+            var rotateTransform = new RotateTransform(0, _cellWidth / 2, 10);
             panel.RenderTransform = rotateTransform;
             var animation = new DoubleAnimation
             {
@@ -550,30 +736,6 @@ namespace WangWangPhone
             _wiggleStoryboards.Add(storyboard);
         }
 
-        private void RenderAppGridExcept(int exceptIndex)
-        {
-            var tempDraggedIdx = _draggedIndex;
-            var tempIsDragging = _isDragging;
-            AppGridCanvas.Children.Clear();
-            _wiggleStoryboards.Clear();
-
-            for (int i = 0; i < _apps.Count; i++)
-            {
-                var panel = CreateAppIconPanel(_apps[i], i);
-                Canvas.SetLeft(panel, (i % Columns) * CellWidth);
-                Canvas.SetTop(panel, (i / Columns) * CellHeight);
-
-                if (i == tempDraggedIdx && tempIsDragging)
-                {
-                    panel.Opacity = 0.3;
-                    _draggedElement = panel;
-                }
-                else if (_isEditMode) StartWiggleAnimation(panel, i);
-
-                AppGridCanvas.Children.Add(panel);
-            }
-        }
-
         #endregion
 
         #region 拖拽浮层
@@ -581,7 +743,6 @@ namespace WangWangPhone
         private void CreateDragOverlay(FrameworkElement source)
         {
             RemoveDragOverlay();
-            // 确保拖拽浮层在最顶层（Panel.ZIndex=99999在XAML中已设置）
             var overlayPanel = new StackPanel
             {
                 Opacity = 0.85,
@@ -591,12 +752,16 @@ namespace WangWangPhone
 
             if (source is StackPanel srcPanel && srcPanel.Tag is int idx)
             {
-                var appList = _dragSource == "dock" ? _dockApps : _apps;
-                if (idx >= 0 && idx < appList.Count)
-                {
-                    var app = appList[idx];
-                    var iconContainer = new Border { Width = 60, Height = 60, HorizontalAlignment = HorizontalAlignment.Center };
+                var appList = _dragSource == "dock" ? _dockApps : null;
+                AppIconModel app = null;
+                if (_dragSource == "dock" && idx >= 0 && idx < _dockApps.Count)
+                    app = _dockApps[idx];
+                else if (_dragSource == "grid" && _gridPositions.ContainsKey(idx))
+                    app = _gridPositions[idx];
 
+                if (app != null)
+                {
+                    var iconContainer = new Border { Width = 60, Height = 60, HorizontalAlignment = HorizontalAlignment.Center };
                     if (app.UseImage)
                     {
                         try { iconContainer.Child = new Image { Source = new BitmapImage(new Uri("Assets/Setting_Light.png", UriKind.Relative)), Width = 60, Height = 60 }; } catch { }
@@ -606,11 +771,8 @@ namespace WangWangPhone
                         iconContainer.Child = new TextBlock { Text = app.Icon, FontSize = 48, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
                     }
                     overlayPanel.Children.Add(iconContainer);
-
                     if (_dragSource != "dock")
-                    {
                         overlayPanel.Children.Add(new TextBlock { Text = app.Name, Foreground = Brushes.White, FontSize = 12, HorizontalAlignment = HorizontalAlignment.Center, Margin = new Thickness(0, 5, 0, 0) });
-                    }
                 }
             }
 
@@ -640,8 +802,10 @@ namespace WangWangPhone
         private void FinishDrag()
         {
             _isDragging = false;
-            _draggedIndex = -1;
+            _draggedCellIndex = -1;
+            _draggedDockIndex = -1;
             RemoveDragOverlay();
+            RemoveHighlight();
 
             if (_draggedElement != null)
             {
@@ -757,10 +921,7 @@ namespace WangWangPhone
             }
         }
 
-        private void Widget_MouseLeave(object sender, MouseEventArgs e)
-        {
-            _widgetLongPressTimer.Stop();
-        }
+        private void Widget_MouseLeave(object sender, MouseEventArgs e) { _widgetLongPressTimer.Stop(); }
 
         private void WidgetLongPressTimer_Tick(object sender, EventArgs e)
         {
@@ -772,7 +933,6 @@ namespace WangWangPhone
                 _isWidgetDragging = true;
                 _draggedWidget.Opacity = 0.3;
 
-                // 创建小组件浮层
                 RemoveDragOverlay();
                 var overlayBorder = new Border
                 {
@@ -819,8 +979,8 @@ namespace WangWangPhone
         private void SaveCurrentLayout()
         {
             var items = new List<Core.LayoutItem>();
-            for (int i = 0; i < _apps.Count; i++)
-                items.Add(new Core.LayoutItem { AppId = _apps[i].Id, Position = i, Area = "grid" });
+            foreach (var kvp in _gridPositions)
+                items.Add(new Core.LayoutItem { AppId = kvp.Value.Id, Position = kvp.Key, Area = "grid" });
             for (int i = 0; i < _dockApps.Count; i++)
                 items.Add(new Core.LayoutItem { AppId = _dockApps[i].Id, Position = i, Area = "dock" });
             for (int i = 0; i < _widgetOrder.Count; i++)
