@@ -108,6 +108,21 @@ bool DatabaseManager::createTables() {
         );
     )";
 
+    // 创建天气缓存表
+    const char* createWeatherCacheTableSQL = R"(
+        CREATE TABLE IF NOT EXISTS weather_cache (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            city TEXT NOT NULL,
+            temp TEXT NOT NULL,
+            description TEXT NOT NULL,
+            icon TEXT NOT NULL,
+            range_info TEXT NOT NULL,
+            request_date TEXT NOT NULL,
+            updated_at INTEGER DEFAULT (strftime('%s', 'now')),
+            UNIQUE(city, request_date)
+        );
+    )";
+
     if (!executeSQL(createLicenseTableSQL)) {
         std::cerr << "创建 license 表失败" << std::endl;
         return false;
@@ -130,6 +145,11 @@ bool DatabaseManager::createTables() {
 
     if (!executeSQL(createWallpaperTableSQL)) {
         std::cerr << "创建 wallpaper 表失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(createWeatherCacheTableSQL)) {
+        std::cerr << "创建 weather_cache 表失败" << std::endl;
         return false;
     }
 
@@ -419,6 +439,115 @@ bool DatabaseManager::clearWallpaperRecord(
     sqlite3_finalize(stmt);
 
     return result == SQLITE_DONE;
+}
+
+// ==================== 天气缓存操作 ====================
+
+bool DatabaseManager::saveWeatherCache(const WeatherCacheRecord& record) {
+    if (!db) return false;
+
+    const char* upsertSQL = R"(
+        INSERT OR REPLACE INTO weather_cache (city, temp, description, icon, range_info, request_date, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, strftime('%s', 'now'));
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), upsertSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) {
+        std::cerr << "准备天气缓存 SQL 语句失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, record.city.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, record.temp.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, record.description.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, record.icon.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 5, record.range.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 6, record.request_date.c_str(), -1, SQLITE_TRANSIENT);
+
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (result != SQLITE_DONE) {
+        std::cerr << "保存天气缓存失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    std::cout << "天气缓存已保存: city=" << record.city
+              << ", date=" << record.request_date << std::endl;
+    return true;
+}
+
+bool DatabaseManager::getWeatherCache(
+    const std::string& city, const std::string& date, WeatherCacheRecord& outRecord) {
+    if (!db) return false;
+
+    const char* selectSQL = R"(
+        SELECT city, temp, description, icon, range_info, request_date, updated_at
+        FROM weather_cache
+        WHERE city = ? AND request_date = ?
+        LIMIT 1;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), selectSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) {
+        std::cerr << "准备天气缓存查询语句失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, city.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, date.c_str(), -1, SQLITE_TRANSIENT);
+
+    result = sqlite3_step(stmt);
+
+    if (result == SQLITE_ROW) {
+        outRecord.city = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        outRecord.temp = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        outRecord.description = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        outRecord.icon = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+        outRecord.range = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 4));
+        outRecord.request_date = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 5));
+        outRecord.updated_at = sqlite3_column_int64(stmt, 6);
+
+        sqlite3_finalize(stmt);
+        return true;
+    }
+
+    sqlite3_finalize(stmt);
+    return false;
+}
+
+bool DatabaseManager::clearExpiredWeatherCache(const std::string& todayDate) {
+    if (!db) return false;
+
+    const char* deleteSQL = R"(
+        DELETE FROM weather_cache WHERE request_date != ?;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), deleteSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) return false;
+
+    sqlite3_bind_text(stmt, 1, todayDate.c_str(), -1, SQLITE_TRANSIENT);
+
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return result == SQLITE_DONE;
+}
+
+bool DatabaseManager::clearAllWeatherCache() {
+    return executeSQL("DELETE FROM weather_cache;");
 }
 
 } // namespace wwj_core

@@ -268,11 +268,14 @@ struct PageGridView: View {
                     }.frame(width: 60, height: 60)
                     Text(app.name).font(.caption2).foregroundColor(.white)
                 }
-                .onTapGesture {
-                    if !isEditMode {
-                        if app.id == "settings" { onSettingsClick() }
-                        else if app.id == "chat" { onChatClick() }
-                    }
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !isEditMode {
+                if let app = item as? AppIconData {
+                    if app.id == "settings" { onSettingsClick() }
+                    else if app.id == "chat" { onChatClick() }
                 }
             }
         }
@@ -286,7 +289,7 @@ struct PageGridView: View {
                 }
             }
         )
-        .simultaneousGesture(
+        .gesture(
             isEditMode ?
             DragGesture(coordinateSpace: .global)
                 .onChanged { value in
@@ -642,14 +645,15 @@ struct HomeScreen: View {
                 .allowsHitTesting(false)
             }
 
-            // 点击空白退出编辑
+            // 点击空白退出编辑 - 使用低 zIndex 避免阻挡拖拽
             if isEditMode {
                 Color.clear.contentShape(Rectangle())
                     .onTapGesture {
                         withAnimation(.spring()) { isEditMode = false }
                         saveLayout()
                     }
-                    .zIndex(1)
+                    .zIndex(-1)
+                    .allowsHitTesting(true)
             }
 
             if showSettings {
@@ -671,14 +675,54 @@ struct HomeScreen: View {
         }
         .onAppear {
             loadLayout()
-            loadData()
+            loadWeatherData()
         }
     }
     
-    func loadData() {
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            self.city = "广州"
-            self.weather = WeatherInfo(temp: "25°", description: "多云", icon: "⛅", range: "H:29° L:21°")
+    /// 带缓存的天气加载逻辑
+    /// 1. 先查数据库缓存，如果今天已请求过则直接使用缓存
+    /// 2. 如果没有缓存，则请求网络并保存到数据库
+    func loadWeatherData() {
+        let weatherCache = WeatherCacheManager.shared
+        
+        // 先获取城市（模拟定位）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            let currentCity = "广州"
+            self.city = currentCity
+            
+            // 查询今天的缓存
+            if let cached = weatherCache.getTodayWeatherCache(city: currentCity) {
+                // 今天已经请求过，直接使用缓存
+                self.weather = WeatherInfo(
+                    temp: cached.temp,
+                    description: cached.description,
+                    icon: cached.icon,
+                    range: cached.range
+                )
+                print("WeatherCache: 使用今日缓存 - \(currentCity)")
+            } else {
+                // 没有缓存，请求网络（模拟）
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    let freshWeather = WeatherInfo(temp: "25°", description: "多云", icon: "⛅", range: "H:29° L:21°")
+                    self.weather = freshWeather
+                    
+                    // 保存到数据库
+                    let record = WeatherCacheRecord(
+                        city: currentCity,
+                        temp: freshWeather.temp,
+                        description: freshWeather.description,
+                        icon: freshWeather.icon,
+                        range: freshWeather.range,
+                        requestDate: WeatherCacheManager.getTodayDateString(),
+                        updatedAt: 0
+                    )
+                    _ = weatherCache.saveWeatherCache(record)
+                    
+                    // 清除过期缓存
+                    weatherCache.clearExpiredCache()
+                    print("WeatherCache: 已请求并缓存 - \(currentCity)")
+                }
+            }
         }
     }
     

@@ -32,6 +32,17 @@ struct WallpaperRecord {
     long long updated_at;         // 更新时间戳
 };
 
+// 天气缓存记录结构
+struct WeatherCacheRecord {
+    std::string city;             // 城市名
+    std::string temp;             // 温度
+    std::string description;      // 天气描述
+    std::string icon;             // 天气图标
+    std::string range;            // 温度范围
+    std::string request_date;     // 请求日期 (yyyy-MM-dd)
+    long long updated_at;         // 更新时间戳
+};
+
 class DatabaseManager {
 public:
     static DatabaseManager& getInstance();
@@ -59,6 +70,12 @@ public:
     bool saveWallpaperRecord(const WallpaperRecord& record);
     bool getWallpaperRecord(const std::string& wallpaperType, WallpaperRecord& outRecord);
     bool clearWallpaperRecord(const std::string& wallpaperType);
+
+    // 天气缓存相关操作
+    bool saveWeatherCache(const WeatherCacheRecord& record);
+    bool getWeatherCache(const std::string& city, const std::string& date, WeatherCacheRecord& outRecord);
+    bool clearExpiredWeatherCache(const std::string& todayDate);
+    bool clearAllWeatherCache();
 
     // 获取数据库路径
     std::string getDatabasePath() const;

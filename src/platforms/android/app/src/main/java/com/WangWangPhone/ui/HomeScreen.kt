@@ -13,6 +13,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -135,14 +136,50 @@ suspend fun fetchWeather(city: String): WeatherInfo {
     delay(500); return WeatherInfo("25°", "多云", "⛅", "最高 29° 最低 21°")
 }
 
+/**
+ * 带缓存的天气加载逻辑
+ * 1. 先查数据库缓存，如果今天已请求过则直接使用缓存
+ * 2. 如果没有缓存，则请求网络并保存到数据库
+ */
 @Composable
 fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
     var city by remember { mutableStateOf("...") }
     var weather by remember { mutableStateOf<WeatherInfo?>(null) }
+    val context = LocalContext.current
+    val weatherCacheDbHelper = remember { com.WangWangPhone.core.WeatherCacheDbHelper(context) }
 
     LaunchedEffect(Unit) {
         city = fetchLocation()
-        if (city.isNotEmpty()) weather = fetchWeather(city)
+        if (city.isNotEmpty() && city != "...") {
+            // 先查缓存
+            val cached = weatherCacheDbHelper.getTodayWeatherCache(city)
+            if (cached != null) {
+                // 今天已经请求过，直接使用缓存
+                weather = WeatherInfo(
+                    temp = cached.temp,
+                    description = cached.description,
+                    icon = cached.icon,
+                    range = cached.range
+                )
+            } else {
+                // 没有缓存，请求网络
+                val freshWeather = fetchWeather(city)
+                weather = freshWeather
+                // 保存到数据库
+                weatherCacheDbHelper.saveWeatherCache(
+                    com.WangWangPhone.core.WeatherCacheRecord(
+                        city = city,
+                        temp = freshWeather.temp,
+                        description = freshWeather.description,
+                        icon = freshWeather.icon,
+                        range = freshWeather.range,
+                        requestDate = com.WangWangPhone.core.WeatherCacheDbHelper.getTodayDateString()
+                    )
+                )
+                // 清除过期缓存
+                weatherCacheDbHelper.clearExpiredCache()
+            }
+        }
     }
 
     if (widgetType == "clock") {
@@ -551,11 +588,12 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                     }
                                 } else Modifier
                             )
-                            .clickable(
-                                indication = null,
-                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
-                            ) {
-                                if (isEditMode) { isEditMode = false; saveCurrentLayout() }
+                            .pointerInput(isEditMode) {
+                                detectTapGestures(
+                                    onTap = {
+                                        if (isEditMode) { isEditMode = false; saveCurrentLayout() }
+                                    }
+                                )
                             }
                     ) {
                         val density = LocalDensity.current
@@ -668,7 +706,20 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                         },
                                         onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1 }
                                     )
-                                },
+                                }
+                                .then(
+                                    // 只在非编辑模式下添加点击事件，且使用 pointerInput 避免与拖拽冲突
+                                    if (!isEditMode && item is AppIcon) {
+                                        Modifier.pointerInput(item.id) {
+                                            detectTapGestures(
+                                                onTap = {
+                                                    if (item.id == "settings") onSettingsClick()
+                                                    else if (item.id == "chat") onChatClick()
+                                                }
+                                            )
+                                        }
+                                    } else Modifier
+                                ),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (item is WidgetItem) {
@@ -676,12 +727,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 } else if (item is AppIcon) {
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier
-                                            .clickable(enabled = !isEditMode) {
-                                                if (item.id == "settings") onSettingsClick()
-                                                else if (item.id == "chat") onChatClick()
-                                            }
-                                            .padding(vertical = 4.dp)
+                                        modifier = Modifier.padding(vertical = 4.dp)
                                     ) {
                                         Box(modifier = Modifier.size(60.dp), contentAlignment = Alignment.Center) {
                                             if (item.useImage) {
@@ -818,10 +864,18 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                     onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid" }
                                 )
                             }
-                            .clickable(enabled = !isEditMode) {
-                                if (app.id == "settings") onSettingsClick()
-                                else if (app.id == "chat") onChatClick()
-                            },
+                            .then(
+                                if (!isEditMode) {
+                                    Modifier.pointerInput(app.id) {
+                                        detectTapGestures(
+                                            onTap = {
+                                                if (app.id == "settings") onSettingsClick()
+                                                else if (app.id == "chat") onChatClick()
+                                            }
+                                        )
+                                    }
+                                } else Modifier
+                            ),
                             contentAlignment = Alignment.Center
                         ) {
                             if (app.useImage) {
