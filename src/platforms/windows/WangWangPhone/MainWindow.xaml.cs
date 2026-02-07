@@ -581,6 +581,7 @@ namespace WangWangPhone
         private void CreateDragOverlay(FrameworkElement source)
         {
             RemoveDragOverlay();
+            // 确保拖拽浮层在最顶层（Panel.ZIndex=99999在XAML中已设置）
             var overlayPanel = new StackPanel
             {
                 Opacity = 0.85,

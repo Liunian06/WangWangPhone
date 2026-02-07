@@ -72,15 +72,11 @@
             </Border>
         </Grid>
 
-        <!-- Edit Mode Banner -->
-        <Border x:Name="EditModeBanner" Grid.Row="1" Margin="20,170,20,0" VerticalAlignment="Top" 
-                CornerRadius="12" Background="#26FFFFFF" Padding="16,10" Visibility="Collapsed" Panel.ZIndex="50">
-            <Grid>
-                <TextBlock Text="长按拖拽图标以调整位置" Foreground="#E6FFFFFF" FontSize="14" VerticalAlignment="Center"/>
-                <TextBlock x:Name="EditDoneButton" Text="完成" Foreground="#007AFF" FontSize="16" FontWeight="Bold" 
-                           HorizontalAlignment="Right" VerticalAlignment="Center" Cursor="Hand"
-                           MouseDown="OnEditDoneClick"/>
-            </Grid>
+        <!-- Edit Mode Done Button (浮动在右上角，不显示提示文字) -->
+        <Border x:Name="EditModeBanner" Grid.Row="1" Margin="0,170,20,0" VerticalAlignment="Top" HorizontalAlignment="Right"
+                CornerRadius="16" Background="#40FFFFFF" Padding="16,8" Visibility="Collapsed" Panel.ZIndex="50">
+            <TextBlock x:Name="EditDoneButton" Text="完成" Foreground="#007AFF" FontSize="16" FontWeight="Bold"
+                       Cursor="Hand" MouseDown="OnEditDoneClick"/>
         </Border>
 
         <!-- Draggable App Grid -->
@@ -241,8 +237,8 @@
             </UniformGrid>
         </Border>
 
-        <!-- 拖拽浮层 - 在最顶层显示被拖拽的图标 -->
-        <Canvas x:Name="DragOverlayCanvas" Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="9999"
+        <!-- 拖拽浮层 - 在最顶层显示被拖拽的图标 (z-index 99999确保在所有元素之上) -->
+        <Canvas x:Name="DragOverlayCanvas" Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="99999"
                 IsHitTestVisible="False" Visibility="Collapsed"/>
 
     </Grid>

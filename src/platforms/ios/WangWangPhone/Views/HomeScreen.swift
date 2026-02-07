@@ -206,8 +206,8 @@ struct DraggableAppIconView: View {
                 .foregroundColor(.white)
         }
         .scaleEffect(isDragging ? 1.15 : 1.0)
-        .opacity(isDragging ? 0.85 : 1.0)
-        .zIndex(isDragging ? 100 : 0)
+        .opacity(isDragging ? 0.3 : 1.0)
+        .zIndex(isDragging ? 10000 : 0)
         .offset(dragOffset)
         .rotationEffect(isEditMode && !isDragging ? .degrees(wiggleAmount) : .degrees(0))
         .animation(
@@ -329,8 +329,8 @@ struct DraggableDockIconView: View {
         }
         .frame(width: 60, height: 60)
         .scaleEffect(isDragging ? 1.15 : 1.0)
-        .opacity(isDragging ? 0.85 : 1.0)
-        .zIndex(isDragging ? 100 : 0)
+        .opacity(isDragging ? 0.3 : 1.0)
+        .zIndex(isDragging ? 10000 : 0)
         .offset(dragOffset)
         .rotationEffect(isEditMode && !isDragging ? .degrees(wiggleAmount) : .degrees(0))
         .animation(
@@ -517,12 +517,9 @@ struct HomeScreen: View {
                     self.homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
                 }
                 
-                // 编辑模式提示栏
+                // 编辑模式完成按钮（浮动在右上角，不显示提示文字）
                 if isEditMode {
                     HStack {
-                        Text("长按拖拽图标以调整位置")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.9))
                         Spacer()
                         Button("完成") {
                             withAnimation(.spring()) {
@@ -532,13 +529,13 @@ struct HomeScreen: View {
                         }
                         .font(.headline)
                         .foregroundColor(.blue)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.white.opacity(0.25))
+                        )
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white.opacity(0.15))
-                    )
                     .padding(.horizontal, 20)
                     .padding(.bottom, 4)
                     .transition(.opacity.combined(with: .move(edge: .top)))

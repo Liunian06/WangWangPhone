@@ -729,39 +729,29 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                 }
             )
 
-            // 编辑模式提示栏
+            // 编辑模式完成按钮（浮动在右侧，不显示提示文字）
             if (isEditMode) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp)
-                        .padding(bottom = 8.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White.copy(alpha = 0.15f))
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            "长按拖拽图标以调整位置",
-                            color = Color.White.copy(alpha = 0.9f),
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            "完成",
-                            color = Color(0xFF007AFF),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clickable {
+                    Text(
+                        "完成",
+                        color = Color(0xFF007AFF),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.White.copy(alpha = 0.25f))
+                            .clickable {
                                 isEditMode = false
                                 saveCurrentLayout()
                             }
-                        )
-                    }
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
             }
 
@@ -827,14 +817,14 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 )
                             }
                             .width(with(density) { cellWidth.toDp() })
-                            .zIndex(if (isDragged) 100f else 0f)
+                            .zIndex(if (isDragged) 10000f else 0f)
                             .graphicsLayer {
                                 if (isEditMode) {
                                     rotationZ = if (isDragged) 0f else wiggleAngle
                                 }
                                 scaleX = if (isDragged) 1.15f else 1f
                                 scaleY = if (isDragged) 1.15f else 1f
-                                alpha = if (isDragged) 0.85f else 1f
+                                alpha = if (isDragged) 0.3f else 1f
                             }
                             .pointerInput(isEditMode, index) {
                                 detectDragGesturesAfterLongPress(
@@ -1007,14 +997,14 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                     Box(
                         modifier = Modifier
                             .size(60.dp)
-                            .zIndex(if (isDockDragged) 100f else 0f)
+                            .zIndex(if (isDockDragged) 10000f else 0f)
                             .graphicsLayer {
                                 if (isEditMode) {
                                     rotationZ = if (isDockDragged) 0f else dockWiggleAngle
                                 }
                                 scaleX = if (isDockDragged) 1.15f else 1f
                                 scaleY = if (isDockDragged) 1.15f else 1f
-                                alpha = if (isDockDragged) 0.85f else 1f
+                                alpha = if (isDockDragged) 0.3f else 1f
                                 if (isDockDragged) {
                                     translationX = dragOffsetX
                                     translationY = dragOffsetY

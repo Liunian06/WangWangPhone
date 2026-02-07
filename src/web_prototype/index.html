@@ -169,8 +169,7 @@
 
         .widget.widget-dragging {
             animation: none !important;
-            opacity: 0.8;
-            transform: scale(1.05);
+            opacity: 0.3;
             z-index: 1000;
             position: relative;
         }
@@ -196,37 +195,34 @@
         .widget-status { font-size: 12px; }
         .widget-range { font-size: 10px; opacity: 0.8; }
 
-        /* 编辑模式提示栏 */
-        .edit-banner {
+        /* 编辑模式完成按钮（浮动在右上角） */
+        .edit-done-floating {
             display: none;
-            align-items: center;
-            justify-content: space-between;
-            margin: 0 20px 8px 20px;
-            padding: 10px 16px;
-            background: rgba(255,255,255,0.15);
-            border-radius: 12px;
-            color: rgba(255,255,255,0.9);
-            font-size: 14px;
-        }
-
-        .edit-banner.active {
-            display: flex;
-        }
-
-        .edit-banner .done-btn {
+            position: absolute;
+            top: 55px;
+            right: 25px;
+            z-index: 500;
             color: #007AFF;
             font-weight: bold;
             font-size: 16px;
             cursor: pointer;
+            background: rgba(255,255,255,0.25);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            padding: 6px 16px;
+            border-radius: 16px;
         }
 
-        /* 应用网格 */
+        .edit-done-floating.active {
+            display: block;
+        }
+
+        /* 应用网格 - 4x6固定网格 */
         .app-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            grid-gap: 20px;
-            padding: 10px 20px;
             position: relative;
+            width: calc(100% - 40px);
+            margin: 0 20px;
+            flex: 1;
         }
 
         .app-icon-wrapper {
@@ -235,23 +231,21 @@
             align-items: center;
             gap: 5px;
             cursor: pointer;
-            position: relative;
-            transition: transform 0.2s ease;
+            position: absolute;
+            transition: left 0.3s ease, top 0.3s ease, transform 0.2s ease;
             touch-action: none;
         }
 
         .app-icon-wrapper.dragging {
-            opacity: 0.7;
-            transform: scale(1.15);
-            z-index: 100;
-            position: relative;
+            opacity: 0.3;
+            transition: none;
         }
 
         /* 拖拽浮层 - 确保在最顶层 */
         .drag-overlay {
             position: fixed;
             pointer-events: none;
-            z-index: 9999;
+            z-index: 99999;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -341,6 +335,23 @@
             align-items: center;
             padding: 0 10px;
             z-index: 10;
+        }
+
+        /* 小组件拖拽浮层 */
+        .drag-overlay-widget {
+            position: fixed;
+            pointer-events: none;
+            z-index: 99999;
+            opacity: 0.85;
+            transform: scale(1.05);
+            border-radius: 20px;
+            padding: 15px;
+            box-sizing: border-box;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
 
         .home-indicator {
@@ -485,6 +496,9 @@
 
     <!-- 桌面界面 -->
     <div id="home-screen">
+        <!-- 编辑模式完成按钮 -->
+        <div class="edit-done-floating" id="edit-done-btn">完成</div>
+
         <!-- 小组件区域 -->
         <div class="widgets-area">
             <div class="widget clock-widget">
@@ -507,13 +521,7 @@
             </div>
         </div>
 
-        <!-- 编辑模式提示栏 -->
-        <div class="edit-banner" id="edit-banner">
-            <span>长按拖拽图标以调整位置</span>
-            <span class="done-btn" id="edit-done-btn">完成</span>
-        </div>
-
-        <!-- 应用网格（动态渲染） -->
+        <!-- 应用网格（4x6固定网格，动态渲染） -->
         <div class="app-grid" id="app-grid"></div>
 
         <!-- Dock 栏（动态渲染） -->
@@ -636,8 +644,12 @@
         { id: 'wangwang', name: '汪汪', icon: '🐶', useImage: false }
     ];
 
-    // 当前主屏幕应用顺序（可变）
+    // 当前主屏幕应用顺序（可变）- 每个app增加gridCol/gridRow属性
     let currentApps = [...DEFAULT_APPS];
+
+    // 4x6 网格常量
+    const GRID_COLS = 4;
+    const GRID_ROWS_TOTAL = 4; // 小组件占前2行，应用占后4行
 
     // Dock栏应用（独立管理，初始为空，最多4个）
     let dockApps = [];
@@ -776,22 +788,42 @@
         return widget;
     }
 
-    // 小组件拖拽事件
+    // 小组件拖拽事件 - 使用浮层确保在最上层
     function setupWidgetDragEvents(element, index) {
         let widgetDragStartX = 0;
+        let widgetDragStartY = 0;
         let widgetIsDragging = false;
         let widgetLongPressTimer = null;
+        let widgetDragOverlay = null;
+
+        function createWidgetDragOverlay() {
+            removeWidgetDragOverlay();
+            widgetDragOverlay = element.cloneNode(true);
+            widgetDragOverlay.className = 'drag-overlay-widget ' + (element.classList.contains('clock-widget') ? 'clock-widget' : 'weather-widget');
+            const rect = element.getBoundingClientRect();
+            widgetDragOverlay.style.left = rect.left + 'px';
+            widgetDragOverlay.style.top = rect.top + 'px';
+            widgetDragOverlay.style.width = rect.width + 'px';
+            widgetDragOverlay.style.height = rect.height + 'px';
+            document.body.appendChild(widgetDragOverlay);
+        }
+
+        function removeWidgetDragOverlay() {
+            if (widgetDragOverlay && widgetDragOverlay.parentNode) {
+                widgetDragOverlay.parentNode.removeChild(widgetDragOverlay);
+            }
+            widgetDragOverlay = null;
+        }
 
         function onWidgetPointerDown(e) {
             widgetDragStartX = e.clientX;
-            dragStartY = e.clientY;
+            widgetDragStartY = e.clientY;
 
             clearTimeout(widgetLongPressTimer);
             widgetLongPressTimer = setTimeout(() => {
                 if (!isEditMode) {
                     enterEditMode();
                 }
-                // 开始小组件拖拽
                 widgetIsDragging = true;
                 isDragging = true;
                 dragSource = 'widget';
@@ -800,8 +832,10 @@
                 dragOffsetX = 0;
                 dragOffsetY = 0;
                 dragStartX = e.clientX;
+                dragStartY = e.clientY;
 
                 element.classList.add('widget-dragging');
+                createWidgetDragOverlay();
 
                 if (navigator.vibrate) navigator.vibrate(50);
             }, isEditMode ? 150 : LONG_PRESS_DURATION);
@@ -809,16 +843,19 @@
 
         function onWidgetPointerMove(e) {
             const dx = e.clientX - widgetDragStartX;
-            const dy = e.clientY - dragStartY;
+            const dy = e.clientY - widgetDragStartY;
 
             if (!widgetIsDragging && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) {
                 clearTimeout(widgetLongPressTimer);
             }
 
             if (widgetIsDragging && draggedElement) {
-                dragOffsetX = e.clientX - dragStartX;
-                dragOffsetY = e.clientY - dragStartY;
-                draggedElement.style.transform = `translate(${dragOffsetX}px, ${dragOffsetY}px) scale(1.05)`;
+                // 更新浮层位置
+                if (widgetDragOverlay) {
+                    const rect = element.getBoundingClientRect();
+                    widgetDragOverlay.style.left = (e.clientX - rect.width / 2) + 'px';
+                    widgetDragOverlay.style.top = (e.clientY - rect.height / 2) + 'px';
+                }
 
                 // 检查是否应该交换
                 const widgetsArea = document.querySelector('.widgets-area');
@@ -841,7 +878,6 @@
             clearTimeout(widgetLongPressTimer);
 
             if (widgetIsDragging) {
-                // 检查是否需要交换
                 const widgetsArea = document.querySelector('.widgets-area');
                 const widgets = widgetsArea.querySelectorAll('.widget');
                 let swapTarget = -1;
@@ -853,17 +889,16 @@
                 });
 
                 if (swapTarget >= 0 && swapTarget !== draggedIndex) {
-                    // 交换小组件顺序
                     const temp = widgetOrder[draggedIndex];
                     widgetOrder[draggedIndex] = widgetOrder[swapTarget];
                     widgetOrder[swapTarget] = temp;
                 }
 
-                // 重置
                 if (draggedElement) {
                     draggedElement.classList.remove('widget-dragging');
                     draggedElement.style.transform = '';
                 }
+                removeWidgetDragOverlay();
                 widgetIsDragging = false;
                 isDragging = false;
                 draggedElement = null;
@@ -872,7 +907,6 @@
 
                 renderWidgets();
                 saveLayout();
-                // 重新初始化天气
                 initWeatherWidget();
             }
         }
@@ -884,6 +918,7 @@
                     draggedElement.classList.remove('widget-dragging');
                     draggedElement.style.transform = '';
                 }
+                removeWidgetDragOverlay();
                 widgetIsDragging = false;
                 isDragging = false;
                 draggedElement = null;
@@ -892,28 +927,23 @@
             }
         }
 
-        // 鼠标事件
         element.addEventListener('mousedown', onWidgetPointerDown);
         element.addEventListener('mousemove', onWidgetPointerMove);
         element.addEventListener('mouseup', onWidgetPointerUp);
         element.addEventListener('mouseleave', onWidgetPointerCancel);
 
-        // 触摸事件
         element.addEventListener('touchstart', (e) => {
             const touch = e.touches[0];
             onWidgetPointerDown({ clientX: touch.clientX, clientY: touch.clientY, preventDefault: () => {} });
         }, { passive: false });
-
         element.addEventListener('touchmove', (e) => {
             e.preventDefault();
             const touch = e.touches[0];
             onWidgetPointerMove({ clientX: touch.clientX, clientY: touch.clientY });
         }, { passive: false });
-
         element.addEventListener('touchend', (e) => {
             onWidgetPointerUp(e);
         });
-
         element.addEventListener('touchcancel', (e) => {
             onWidgetPointerCancel(e);
         });
@@ -922,9 +952,30 @@
     // ============================================
     // 应用网格渲染
     // ============================================
+    // 计算网格单元格尺寸
+    function getGridMetrics() {
+        const grid = document.getElementById('app-grid');
+        const gridRect = grid.getBoundingClientRect();
+        const cellWidth = gridRect.width / GRID_COLS;
+        const cellHeight = gridRect.height / GRID_ROWS_TOTAL;
+        return { cellWidth, cellHeight, gridRect };
+    }
+
+    // 获取app在网格中的位置（col, row）
+    function getAppGridPosition(index) {
+        const col = index % GRID_COLS;
+        const row = Math.floor(index / GRID_COLS);
+        return { col, row };
+    }
+
     function renderAppGrid() {
         const grid = document.getElementById('app-grid');
         grid.innerHTML = '';
+
+        // 确保grid有高度（通过flex:1已设置）
+        const gridRect = grid.getBoundingClientRect();
+        const cellWidth = gridRect.width / GRID_COLS;
+        const cellHeight = gridRect.height > 0 ? gridRect.height / GRID_ROWS_TOTAL : 95;
 
         currentApps.forEach((app, index) => {
             const wrapper = document.createElement('div');
@@ -932,11 +983,19 @@
             wrapper.dataset.index = index;
             wrapper.dataset.appId = app.id;
 
+            // 计算网格位置并吸附
+            const { col, row } = getAppGridPosition(index);
+            const iconW = 70;
+            const iconH = 85;
+            const offsetX = (cellWidth - iconW) / 2;
+            const offsetY = (cellHeight - iconH) / 2;
+            wrapper.style.left = (col * cellWidth + Math.max(0, offsetX)) + 'px';
+            wrapper.style.top = (row * cellHeight + Math.max(0, offsetY)) + 'px';
+
             const iconDiv = document.createElement('div');
             iconDiv.className = 'app-icon';
 
             if (app.useImage) {
-                const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
                 const picture = document.createElement('picture');
                 const source = document.createElement('source');
                 source.srcset = 'Setting_Dark.png';
@@ -959,9 +1018,7 @@
             wrapper.appendChild(iconDiv);
             wrapper.appendChild(nameDiv);
 
-            // 事件绑定
             setupDragEvents(wrapper, index);
-
             grid.appendChild(wrapper);
         });
     }
@@ -1304,6 +1361,7 @@
 
     /**
      * 创建拖拽浮层 - 克隆被拖拽元素，放到body上，fixed定位确保在最顶层
+     * z-index: 99999 确保在所有元素之上（包括dock栏）
      */
     function createDragOverlay(element, source) {
         removeDragOverlay();
@@ -1311,12 +1369,11 @@
         dragOverlayEl = element.cloneNode(true);
         dragOverlayEl.className = 'drag-overlay';
         dragOverlayEl.style.position = 'fixed';
-        dragOverlayEl.style.zIndex = '9999';
+        dragOverlayEl.style.zIndex = '99999';
         dragOverlayEl.style.pointerEvents = 'none';
         dragOverlayEl.style.opacity = '0.85';
         dragOverlayEl.style.transform = 'scale(1.15)';
 
-        // 获取原元素在屏幕上的位置
         const rect = element.getBoundingClientRect();
         dragOverlayEl.style.left = rect.left + 'px';
         dragOverlayEl.style.top = rect.top + 'px';
@@ -1367,17 +1424,30 @@
     }
 
     /**
-     * 拖拽过程中重新渲染（保持被拖拽元素的状态）
+     * 拖拽过程中重新渲染（保持被拖拽元素的状态，使用绝对定位吸附网格）
      */
     function renderAppGridDuringDrag(activeIndex) {
         const grid = document.getElementById('app-grid');
         grid.innerHTML = '';
+
+        const gridRect = grid.getBoundingClientRect();
+        const cellWidth = gridRect.width / GRID_COLS;
+        const cellHeight = gridRect.height > 0 ? gridRect.height / GRID_ROWS_TOTAL : 95;
 
         currentApps.forEach((app, index) => {
             const wrapper = document.createElement('div');
             wrapper.className = 'app-icon-wrapper edit-mode';
             wrapper.dataset.index = index;
             wrapper.dataset.appId = app.id;
+
+            // 网格吸附定位
+            const { col, row } = getAppGridPosition(index);
+            const iconW = 70;
+            const iconH = 85;
+            const offsetX = (cellWidth - iconW) / 2;
+            const offsetY = (cellHeight - iconH) / 2;
+            wrapper.style.left = (col * cellWidth + Math.max(0, offsetX)) + 'px';
+            wrapper.style.top = (row * cellHeight + Math.max(0, offsetY)) + 'px';
 
             if (index === activeIndex) {
                 wrapper.classList.add('dragging');
@@ -1422,7 +1492,7 @@
     // ============================================
     function enterEditMode() {
         isEditMode = true;
-        document.getElementById('edit-banner').classList.add('active');
+        document.getElementById('edit-done-btn').classList.add('active');
         renderWidgets();
         renderAppGrid();
         renderDock();
@@ -1430,7 +1500,7 @@
 
     function exitEditMode() {
         isEditMode = false;
-        document.getElementById('edit-banner').classList.remove('active');
+        document.getElementById('edit-done-btn').classList.remove('active');
         renderWidgets();
         renderAppGrid();
         renderDock();
