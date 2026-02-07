@@ -1,3 +1,4 @@
+
 import SwiftUI
 
 protocol GridItem {
@@ -34,7 +35,6 @@ struct WidgetItem: Identifiable, Equatable, GridItem {
     }
 }
 
-// 简单的类型擦除包装器，用于在 Dictionary 中存储不同类型的 GridItem
 struct AnyGridItem: Equatable {
     let item: any GridItem
     
@@ -52,7 +52,31 @@ func getDefaultApps() -> [AppIconData] {
         AppIconData(id: "camera", name: "相机", icon: "📷", colors: [.white, .gray]),
         AppIconData(id: "calendar", name: "日历", icon: "📅", colors: [.white, .gray]),
         AppIconData(id: "settings", name: "设置", icon: "SettingsIcon", colors: [.white, .gray], useImage: true),
-        AppIconData(id: "wangwang", name: "汪汪", icon: "🐶", colors: [.white, .gray])
+        AppIconData(id: "wangwang", name: "汪汪", icon: "🐶", colors: [.white, .gray]),
+        // 第二批应用
+        AppIconData(id: "photos", name: "照片", icon: "🖼️", colors: [.yellow, Color(red: 0.97, green: 0.85, blue: 0.0)]),
+        AppIconData(id: "video", name: "视频", icon: "🎬", colors: [.purple, .pink]),
+        AppIconData(id: "map", name: "地图", icon: "🗺️", colors: [Color(red: 0.4, green: 0.49, blue: 0.92), .purple]),
+        AppIconData(id: "notes", name: "备忘录", icon: "📝", colors: [.yellow, .orange]),
+        AppIconData(id: "calculator", name: "计算器", icon: "🔢", colors: [Color(red: 0.17, green: 0.24, blue: 0.31), Color(red: 0.3, green: 0.63, blue: 0.69)]),
+        AppIconData(id: "clock_app", name: "时钟", icon: "⏰", colors: [Color(red: 0.14, green: 0.14, blue: 0.15), Color(red: 0.25, green: 0.26, blue: 0.27)]),
+        AppIconData(id: "appstore", name: "应用商店", icon: "🏪", colors: [.blue, .cyan]),
+        AppIconData(id: "mail", name: "邮件", icon: "📧", colors: [Color(red: 0.1, green: 0.45, blue: 0.91), .cyan]),
+        AppIconData(id: "contacts", name: "通讯录", icon: "👤", colors: [Color(red: 0.88, green: 0.88, blue: 0.88), .gray]),
+        AppIconData(id: "files", name: "文件", icon: "📁", colors: [.blue, Color(red: 0.1, green: 0.46, blue: 0.82)]),
+        AppIconData(id: "health", name: "健康", icon: "❤️", colors: [Color(red: 1.0, green: 0.42, blue: 0.42), Color(red: 0.93, green: 0.35, blue: 0.14)]),
+        AppIconData(id: "wallet", name: "钱包", icon: "💳", colors: [Color(red: 0.14, green: 0.14, blue: 0.15), Color(red: 0.25, green: 0.26, blue: 0.27)]),
+        // 第三批应用
+        AppIconData(id: "weather_app", name: "天气", icon: "🌤️", colors: [Color(red: 0.31, green: 0.67, blue: 0.99), .cyan]),
+        AppIconData(id: "compass", name: "指南针", icon: "🧭", colors: [Color(red: 0.14, green: 0.14, blue: 0.15), Color(red: 0.25, green: 0.26, blue: 0.27)]),
+        AppIconData(id: "voice_memo", name: "语音备忘", icon: "🎙️", colors: [Color(red: 1.0, green: 0.25, blue: 0.42), Color(red: 1.0, green: 0.29, blue: 0.17)]),
+        AppIconData(id: "translate", name: "翻译", icon: "🌐", colors: [Color(red: 0.31, green: 0.67, blue: 0.99), .cyan]),
+        AppIconData(id: "books", name: "图书", icon: "📚", colors: [.pink, Color(red: 0.98, green: 0.82, blue: 0.77)]),
+        AppIconData(id: "podcast", name: "播客", icon: "🎧", colors: [.purple, Color(red: 0.29, green: 0.0, blue: 0.88)]),
+        AppIconData(id: "reminder", name: "提醒事项", icon: "📋", colors: [.pink, Color(red: 0.99, green: 0.81, blue: 0.94)]),
+        AppIconData(id: "facetime", name: "FaceTime", icon: "📹", colors: [.green, .mint]),
+        AppIconData(id: "news", name: "新闻", icon: "📰", colors: [Color(red: 1.0, green: 0.25, blue: 0.42), Color(red: 1.0, green: 0.29, blue: 0.17)]),
+        AppIconData(id: "stocks", name: "股票", icon: "📈", colors: [Color(red: 0.14, green: 0.14, blue: 0.15), Color(red: 0.25, green: 0.26, blue: 0.27)])
     ]
 }
 
@@ -62,6 +86,10 @@ func getDefaultWidgets() -> [WidgetItem] {
         WidgetItem(id: "weather_widget", widgetType: "weather")
     ]
 }
+
+let gridColumns = 4
+let gridRows = 7
+let totalCells = gridColumns * gridRows
 
 struct ClockWidget: View {
     @State private var currentTime = Date()
@@ -120,8 +148,41 @@ struct WeatherWidget: View {
     }
 }
 
-// MARK: - 统一网格系统
-struct DraggableAppGrid: View {
+// MARK: - 将应用分配到多个页面
+func distributeItemsToPages(allApps: [AppIconData], widgets: [WidgetItem]) -> [[Int: AnyGridItem]] {
+    var pages: [[Int: AnyGridItem]] = []
+    var remainingApps = allApps
+    
+    // 第一页：Widget + 部分应用
+    var page0: [Int: AnyGridItem] = [:]
+    if !widgets.isEmpty { page0[0] = AnyGridItem(item: widgets[0]) }
+    if widgets.count > 1 { page0[2] = AnyGridItem(item: widgets[1]) }
+    
+    // 从第3行开始放应用（前2行被Widget占据）
+    var pos = 8
+    while pos < totalCells && !remainingApps.isEmpty {
+        page0[pos] = AnyGridItem(item: remainingApps.removeFirst())
+        pos += 1
+    }
+    pages.append(page0)
+    
+    // 后续页
+    while !remainingApps.isEmpty {
+        var page: [Int: AnyGridItem] = [:]
+        var pagePos = 0
+        while pagePos < totalCells && !remainingApps.isEmpty {
+            page[pagePos] = AnyGridItem(item: remainingApps.removeFirst())
+            pagePos += 1
+        }
+        pages.append(page)
+    }
+    
+    return pages
+}
+
+// MARK: - 单页网格视图
+struct PageGridView: View {
+    let pageIndex: Int
     @Binding var gridPositions: [Int: AnyGridItem]
     @Binding var dockApps: [AppIconData]
     @Binding var isEditMode: Bool
@@ -129,6 +190,7 @@ struct DraggableAppGrid: View {
     @Binding var draggingItem: AnyGridItem?
     @Binding var draggingOffset: CGSize
     @Binding var draggingFromCell: Int
+    @Binding var draggingFromPage: Int
     @Binding var city: String
     @Binding var weather: WeatherInfo?
     
@@ -138,24 +200,21 @@ struct DraggableAppGrid: View {
     var onLayoutChanged: () -> Void
     @Environment(\.colorScheme) var colorScheme
     
-    let columns = 4
-    let rows = 7
-    
     @State private var highlightCellIndex: Int = -1
-
+    
     var body: some View {
         GeometryReader { geometry in
-            let cellWidth = geometry.size.width / CGFloat(columns)
-            let cellHeight = geometry.size.height / CGFloat(rows)
+            let cellWidth = geometry.size.width / CGFloat(gridColumns)
+            let cellHeight = geometry.size.height / CGFloat(gridRows)
             
             ZStack {
                 // 高亮目标格子
-                if highlightCellIndex >= 0 && highlightCellIndex < columns * rows {
-                    let col = highlightCellIndex % columns
-                    let row = highlightCellIndex / columns
+                if highlightCellIndex >= 0 && highlightCellIndex < totalCells {
+                    let col = highlightCellIndex % gridColumns
+                    let row = highlightCellIndex / gridColumns
                     
                     if let item = draggingItem?.item {
-                        if col + item.spanX <= columns && row + item.spanY <= rows {
+                        if col + item.spanX <= gridColumns && row + item.spanY <= gridRows {
                             RoundedRectangle(cornerRadius: 12)
                                 .stroke(Color.white.opacity(0.5), lineWidth: 2)
                                 .frame(width: cellWidth * CGFloat(item.spanX) - 10, height: cellHeight * CGFloat(item.spanY) - 10)
@@ -166,14 +225,13 @@ struct DraggableAppGrid: View {
                         }
                     }
                 }
-
-                ForEach(0..<(columns * rows), id: \.self) { cellIndex in
+                
+                ForEach(0..<totalCells, id: \.self) { cellIndex in
                     if let anyItem = gridPositions[cellIndex] {
                         let item = anyItem.item
-                        let col = cellIndex % columns
-                        let row = cellIndex / columns
-                        // 如果正在拖动，隐藏原位置
-                        let isDragged = draggingItem?.item.id == item.id && draggingFromCell == cellIndex
+                        let col = cellIndex % gridColumns
+                        let row = cellIndex / gridColumns
+                        let isDragged = draggingItem?.item.id == item.id && draggingFromCell == cellIndex && draggingFromPage == pageIndex
                         
                         if !isDragged {
                             itemView(item: item, cellIndex: cellIndex, cellWidth: cellWidth, cellHeight: cellHeight)
@@ -235,25 +293,24 @@ struct DraggableAppGrid: View {
                     if draggingItem == nil {
                         draggingItem = AnyGridItem(item: item)
                         draggingFromCell = cellIndex
+                        draggingFromPage = pageIndex
                     }
                     draggingOffset = value.translation
                     
                     if item.type == "app" {
-                        isDraggingOverDock = value.location.y > UIScreen.main.bounds.height - 150 // 粗略判断 Dock 区域
+                        isDraggingOverDock = value.location.y > UIScreen.main.bounds.height - 150
                     } else {
                         isDraggingOverDock = false
                     }
                     
-                    // 计算高亮位置
                     let colOffset = Int(round(value.translation.width / cellWidth))
                     let rowOffset = Int(round(value.translation.height / cellHeight))
-                    let curRow = cellIndex / columns
-                    let curCol = cellIndex % columns
+                    let curRow = cellIndex / gridColumns
+                    let curCol = cellIndex % gridColumns
                     
-                    // 这里的计算可以优化为基于当前触摸点绝对位置
-                    let tCol = max(0, min(columns - item.spanX, curCol + colOffset))
-                    let tRow = max(0, min(rows - item.spanY, curRow + rowOffset))
-                    let targetCell = tRow * columns + tCol
+                    let tCol = max(0, min(gridColumns - item.spanX, curCol + colOffset))
+                    let tRow = max(0, min(gridRows - item.spanY, curRow + rowOffset))
+                    let targetCell = tRow * gridColumns + tCol
                     
                     if !isDraggingOverDock {
                         highlightCellIndex = targetCell
@@ -267,62 +324,57 @@ struct DraggableAppGrid: View {
                             gridPositions.removeValue(forKey: cellIndex)
                             dockApps.append(currentItem as! AppIconData)
                         } else if highlightCellIndex != -1 {
-                             let targetCell = highlightCellIndex
-                             
-                             // 检查目标位置是否已有物品
-                             let targetOccupant = gridPositions[targetCell]
-                             
-                             // 简单交换逻辑：如果目标位置有物品且尺寸相同，则交换
-                             if let target = targetOccupant, target.item.spanX == currentItem.spanX && target.item.spanY == currentItem.spanY {
-                                 if targetCell != cellIndex {
-                                     gridPositions.removeValue(forKey: cellIndex)
-                                     gridPositions[targetCell] = AnyGridItem(item: currentItem)
-                                     gridPositions[cellIndex] = target
-                                 }
-                             } else {
-                                 // 检查目标区域是否空闲 (忽略自己)
-                                 if checkOccupancy(positions: gridPositions, startCell: targetCell, spanX: currentItem.spanX, spanY: currentItem.spanY, ignoreCell: cellIndex) {
-                                     gridPositions.removeValue(forKey: cellIndex)
-                                     gridPositions[targetCell] = AnyGridItem(item: currentItem)
-                                 }
-                             }
+                            let targetCell = highlightCellIndex
+                            let targetOccupant = gridPositions[targetCell]
+                            
+                            if let target = targetOccupant, target.item.spanX == currentItem.spanX && target.item.spanY == currentItem.spanY {
+                                if targetCell != cellIndex {
+                                    gridPositions.removeValue(forKey: cellIndex)
+                                    gridPositions[targetCell] = AnyGridItem(item: currentItem)
+                                    gridPositions[cellIndex] = target
+                                }
+                            } else {
+                                if checkOccupancyGlobal(positions: gridPositions, startCell: targetCell, spanX: currentItem.spanX, spanY: currentItem.spanY, ignoreCell: cellIndex) {
+                                    gridPositions.removeValue(forKey: cellIndex)
+                                    gridPositions[targetCell] = AnyGridItem(item: currentItem)
+                                }
+                            }
                         }
                     }
                     
                     withAnimation(.spring()) {
-                        draggingItem = nil; draggingOffset = .zero; draggingFromCell = -1; isDraggingOverDock = false; highlightCellIndex = -1
+                        draggingItem = nil; draggingOffset = .zero; draggingFromCell = -1; draggingFromPage = -1; isDraggingOverDock = false; highlightCellIndex = -1
                     }
                     onLayoutChanged()
                 }
             : nil
         )
     }
+}
+
+// MARK: - 全局占位检查
+func checkOccupancyGlobal(positions: [Int: AnyGridItem], startCell: Int, spanX: Int, spanY: Int, ignoreCell: Int?) -> Bool {
+    let startRow = startCell / gridColumns
+    let startCol = startCell % gridColumns
     
-    func checkOccupancy(positions: [Int: AnyGridItem], startCell: Int, spanX: Int, spanY: Int, ignoreCell: Int?) -> Bool {
-        let startRow = startCell / columns
-        let startCol = startCell % columns
-        
-        if startCol + spanX > columns || startRow + spanY > rows { return false }
-        
-        for r in 0..<spanY {
-            for c in 0..<spanX {
-                let cell = (startRow + r) * columns + (startCol + c)
-                for (pos, anyItem) in positions {
-                    if pos == ignoreCell { continue }
-                    let item = anyItem.item
-                    let itemRow = pos / columns
-                    let itemCol = pos % columns
-                    
-                    // Check overlap
-                    if startRow + r >= itemRow && startRow + r < itemRow + item.spanY &&
-                        startCol + c >= itemCol && startCol + c < itemCol + item.spanX {
-                        return false
-                    }
+    if startCol + spanX > gridColumns || startRow + spanY > gridRows { return false }
+    
+    for r in 0..<spanY {
+        for c in 0..<spanX {
+            for (pos, anyItem) in positions {
+                if pos == ignoreCell { continue }
+                let item = anyItem.item
+                let itemRow = pos / gridColumns
+                let itemCol = pos % gridColumns
+                
+                if startRow + r >= itemRow && startRow + r < itemRow + item.spanY &&
+                    startCol + c >= itemCol && startCol + c < itemCol + item.spanX {
+                    return false
                 }
             }
         }
-        return true
     }
+    return true
 }
 
 // MARK: - Dock栏可拖拽图标
@@ -330,20 +382,18 @@ struct DraggableDockIconView: View {
     let app: AppIconData
     let dockIndex: Int
     @Binding var isEditMode: Bool
-    @Binding var gridPositions: [Int: AnyGridItem]
+    @Binding var gridPositions: [[Int: AnyGridItem]]  // 所有页面
     @Binding var dockApps: [AppIconData]
     @Binding var draggingItem: AnyGridItem?
     @Binding var draggingOffset: CGSize
+    let currentPage: Int
     let colorScheme: ColorScheme
     var onTap: () -> Void
     var onLayoutChanged: () -> Void
-    let gridCols: Int
-    let gridRows: Int
     
     @State private var dragOffset: CGSize = .zero
     @State private var isDragging = false
     @State private var wiggleAmount: Double = 0
-    @State private var dockDragIndex: Int = -1
     
     var body: some View {
         ZStack {
@@ -377,32 +427,28 @@ struct DraggableDockIconView: View {
                     if !isDragging {
                         isDragging = true
                         draggingItem = AnyGridItem(item: app)
-                        dockDragIndex = dockIndex
                     }
                     dragOffset = value.translation
                     draggingOffset = value.translation
                 }
                 .onEnded { value in
                     if value.translation.height < -50 && dockIndex >= 0 && dockIndex < dockApps.count {
-                        // 尝试放入网格 (简单寻找第一个空位)
-                        // TODO: 这里应该结合 DraggableAppGrid 的位置计算逻辑，但这需要更多的状态共享
-                        // 简化处理：如果向上拖动足够远，尝试找一个空位放入
-                         let movedApp = dockApps.remove(at: dockIndex)
-                         var placed = false
-                         for i in 0..<(gridCols * gridRows) {
-                             // 简单检查该位置是否空闲 (假设所有物品都是 1x1, 实际上需要完善 checkOccupancy)
-                             // 这里先这样处理，后续优化
-                             if gridPositions[i] == nil {
-                                 gridPositions[i] = AnyGridItem(item: movedApp)
-                                 placed = true
-                                 break
-                             }
-                         }
-                         if !placed {
-                             dockApps.insert(movedApp, at: dockIndex) // 放回去
-                         }
+                        let movedApp = dockApps.remove(at: dockIndex)
+                        var placed = false
+                        // 尝试放入当前页面
+                        if currentPage < gridPositions.count {
+                            for i in 0..<totalCells {
+                                if gridPositions[currentPage][i] == nil {
+                                    gridPositions[currentPage][i] = AnyGridItem(item: movedApp)
+                                    placed = true
+                                    break
+                                }
+                            }
+                        }
+                        if !placed {
+                            dockApps.insert(movedApp, at: dockIndex)
+                        }
                     } else {
-                        // Dock 内部排序逻辑 (简化)
                         let dockCellWidth: CGFloat = 85
                         let colOffset = Int(round(value.translation.width / dockCellWidth))
                         if colOffset != 0 {
@@ -416,7 +462,7 @@ struct DraggableDockIconView: View {
                     
                     withAnimation(.spring()) {
                         isDragging = false; dragOffset = .zero
-                        draggingItem = nil; draggingOffset = .zero; dockDragIndex = -1
+                        draggingItem = nil; draggingOffset = .zero
                     }
                     onLayoutChanged()
                 }
@@ -425,13 +471,31 @@ struct DraggableDockIconView: View {
     }
 }
 
+// MARK: - 页面指示器
+struct PageIndicator: View {
+    let pageCount: Int
+    let currentPage: Int
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(0..<pageCount, id: \.self) { index in
+                Circle()
+                    .fill(index == currentPage ? Color.white : Color.white.opacity(0.4))
+                    .frame(width: index == currentPage ? 8 : 6, height: index == currentPage ? 8 : 6)
+            }
+        }
+        .padding(.vertical, 8)
+    }
+}
+
 // MARK: - 主屏幕
 struct HomeScreen: View {
-    @State private var gridPositions: [Int: AnyGridItem] = [:]
+    @State private var allPages: [[Int: AnyGridItem]] = []
     @State private var dockApps: [AppIconData] = []
     @State private var isEditMode = false
     @State private var isDraggingOverDock = false
     @State private var homeWallpaper: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .home)
+    @State private var currentPage: Int = 0
     
     @State private var city: String = "..."
     @State private var weather: WeatherInfo? = nil
@@ -445,6 +509,7 @@ struct HomeScreen: View {
     @State private var draggingItem: AnyGridItem? = nil
     @State private var draggingOffset: CGSize = .zero
     @State private var draggingFromCell: Int = -1
+    @State private var draggingFromPage: Int = -1
     
     @Environment(\.colorScheme) var colorScheme
     
@@ -452,8 +517,6 @@ struct HomeScreen: View {
     private let defaultApps = getDefaultApps()
     private let defaultWidgets = getDefaultWidgets()
     private let maxDockApps = 4
-    private let gridCols = 4
-    private let gridRows = 7
 
     var body: some View {
         ZStack {
@@ -463,23 +526,45 @@ struct HomeScreen: View {
                 Color.black.ignoresSafeArea()
             }
             
-            VStack {
-                // 顶部间距
+            VStack(spacing: 0) {
                 Spacer().frame(height: 10)
                 
-                // 统一网格区域 (包含 Widget 和 App)
-                DraggableAppGrid(
-                    gridPositions: $gridPositions, dockApps: $dockApps,
-                    isEditMode: $isEditMode, isDraggingOverDock: $isDraggingOverDock,
-                    draggingItem: $draggingItem, draggingOffset: $draggingOffset,
-                    draggingFromCell: $draggingFromCell, city: $city, weather: $weather,
-                    maxDockApps: maxDockApps,
-                    onSettingsClick: { showSettings = true },
-                    onChatClick: { showChatApp = true },
-                    onLayoutChanged: { saveLayout() }
-                )
-
-                Spacer()
+                // TabView 分页滑动
+                TabView(selection: $currentPage) {
+                    ForEach(0..<allPages.count, id: \.self) { pageIndex in
+                        PageGridView(
+                            pageIndex: pageIndex,
+                            gridPositions: Binding(
+                                get: { pageIndex < allPages.count ? allPages[pageIndex] : [:] },
+                                set: { newValue in
+                                    if pageIndex < allPages.count {
+                                        allPages[pageIndex] = newValue
+                                    }
+                                }
+                            ),
+                            dockApps: $dockApps,
+                            isEditMode: $isEditMode,
+                            isDraggingOverDock: $isDraggingOverDock,
+                            draggingItem: $draggingItem,
+                            draggingOffset: $draggingOffset,
+                            draggingFromCell: $draggingFromCell,
+                            draggingFromPage: $draggingFromPage,
+                            city: $city,
+                            weather: $weather,
+                            maxDockApps: maxDockApps,
+                            onSettingsClick: { showSettings = true },
+                            onChatClick: { showChatApp = true },
+                            onLayoutChanged: { saveLayout() }
+                        )
+                        .tag(pageIndex)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+                
+                // 页面指示器
+                if allPages.count > 1 {
+                    PageIndicator(pageCount: allPages.count, currentPage: currentPage)
+                }
 
                 // Dock 栏
                 ZStack {
@@ -501,10 +586,11 @@ struct HomeScreen: View {
                             DraggableDockIconView(
                                 app: app, dockIndex: dockIndex,
                                 isEditMode: $isEditMode,
-                                gridPositions: $gridPositions,
+                                gridPositions: $allPages,
                                 dockApps: $dockApps,
                                 draggingItem: $draggingItem,
                                 draggingOffset: $draggingOffset,
+                                currentPage: currentPage,
                                 colorScheme: colorScheme,
                                 onTap: {
                                     if !isEditMode {
@@ -512,8 +598,7 @@ struct HomeScreen: View {
                                         else if app.id == "chat" { showChatApp = true }
                                     }
                                 },
-                                onLayoutChanged: { saveLayout() },
-                                gridCols: gridCols, gridRows: gridRows
+                                onLayoutChanged: { saveLayout() }
                             )
                         }
                     }
@@ -526,10 +611,9 @@ struct HomeScreen: View {
                 RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.8)).frame(width: 120, height: 5).padding(.bottom, 8)
             }
 
-            // 拖拽浮层 - 在最顶层
+            // 拖拽浮层
             if let anyItem = draggingItem {
                 let item = anyItem.item
-                // 粗略尺寸估算，实际应根据 GeometryReader
                 let itemWidth: CGFloat = item.spanX == 2 ? 160 : 60
                 let itemHeight: CGFloat = item.spanY == 2 ? 160 : 60
                 
@@ -565,7 +649,7 @@ struct HomeScreen: View {
                         withAnimation(.spring()) { isEditMode = false }
                         saveLayout()
                     }
-                    .zIndex(1) // 确保在壁纸之上，但在图标之下
+                    .zIndex(1)
             }
 
             if showSettings {
@@ -585,6 +669,10 @@ struct HomeScreen: View {
                     .transition(.move(edge: .trailing)).zIndex(3)
             }
         }
+        .onAppear {
+            loadLayout()
+            loadData()
+        }
     }
     
     func loadData() {
@@ -596,63 +684,88 @@ struct HomeScreen: View {
     
     func loadLayout() {
         let savedLayout = layoutManager.getLayout()
-        var positions: [Int: AnyGridItem] = [:]
+        var pages: [[Int: AnyGridItem]] = []
         var orderedDock: [AppIconData] = []
 
         if !savedLayout.isEmpty {
-            // 加载 Grid
-            let gridItems = savedLayout.filter { $0.area == "grid" }
+            var pageMap: [Int: [Int: AnyGridItem]] = [:]
+            
+            let gridItems = savedLayout.filter { $0.area.hasPrefix("grid") }
             for li in gridItems {
+                let pageIdx: Int
+                if li.area == "grid" {
+                    pageIdx = 0
+                } else {
+                    pageIdx = Int(li.area.replacingOccurrences(of: "grid_", with: "")) ?? 0
+                }
+                if pageMap[pageIdx] == nil { pageMap[pageIdx] = [:] }
+                
                 if let app = defaultApps.first(where: { $0.id == li.appId }) {
-                    positions[li.position] = AnyGridItem(item: app)
+                    pageMap[pageIdx]![li.position] = AnyGridItem(item: app)
                 } else if let widget = defaultWidgets.first(where: { $0.id == li.appId }) {
-                    positions[li.position] = AnyGridItem(item: widget)
+                    pageMap[pageIdx]![li.position] = AnyGridItem(item: widget)
                 }
             }
             
-            // 加载 Dock
             let dockItems = savedLayout.filter { $0.area == "dock" }.sorted { $0.position < $1.position }
             for li in dockItems {
                 if let app = defaultApps.first(where: { $0.id == li.appId }) { orderedDock.append(app) }
             }
             
+            let maxPage = pageMap.keys.max() ?? 0
+            for i in 0...maxPage {
+                pages.append(pageMap[i] ?? [:])
+            }
+            
             // 补充缺失的应用和组件
             let allSavedIds = Set(savedLayout.map { $0.appId })
             
+            if pages.isEmpty { pages.append([:]) }
+            
             for widget in defaultWidgets {
                 if !allSavedIds.contains(widget.id) {
-                     // 简单寻找空位
-                    for i in 0..<(gridCols * gridRows) {
-                         if positions[i] == nil { positions[i] = AnyGridItem(item: widget); break } // 这是一个bug, 应该检查2x2空位
+                    for i in 0..<totalCells {
+                        if checkOccupancyGlobal(positions: pages[0], startCell: i, spanX: widget.spanX, spanY: widget.spanY, ignoreCell: nil) {
+                            pages[0][i] = AnyGridItem(item: widget)
+                            break
+                        }
                     }
                 }
             }
             
             for app in defaultApps {
                 if !allSavedIds.contains(app.id) {
-                    for i in 0..<(gridCols * gridRows) { if positions[i] == nil { positions[i] = AnyGridItem(item: app); break } }
+                    var placed = false
+                    for pageIdx in 0..<pages.count {
+                        for i in 0..<totalCells {
+                            if pages[pageIdx][i] == nil {
+                                pages[pageIdx][i] = AnyGridItem(item: app)
+                                placed = true
+                                break
+                            }
+                        }
+                        if placed { break }
+                    }
+                    if !placed {
+                        pages.append([0: AnyGridItem(item: app)])
+                    }
                 }
             }
         } else {
-            // 默认布局
-            positions[0] = AnyGridItem(item: defaultWidgets[0]) // Clock
-            positions[2] = AnyGridItem(item: defaultWidgets[1]) // Weather
-            
-            var currentPos = 8
-            defaultApps.forEach { app in
-                if currentPos < gridCols * gridRows {
-                    positions[currentPos] = AnyGridItem(item: app)
-                    currentPos += 1
-                }
-            }
+            pages = distributeItemsToPages(allApps: defaultApps, widgets: defaultWidgets)
         }
-        gridPositions = positions; dockApps = orderedDock
+        
+        allPages = pages
+        dockApps = orderedDock
     }
     
     func saveLayout() {
         var items: [LayoutItem] = []
-        for (cellIndex, anyItem) in gridPositions { 
-            items.append(LayoutItem(appId: anyItem.item.id, position: cellIndex, area: "grid")) 
+        for (pageIdx, page) in allPages.enumerated() {
+            let areaName = pageIdx == 0 ? "grid" : "grid_\(pageIdx)"
+            for (cellIndex, anyItem) in page {
+                items.append(LayoutItem(appId: anyItem.item.id, position: cellIndex, area: areaName))
+            }
         }
         items += dockApps.enumerated().map { LayoutItem(appId: $1.id, position: $0, area: "dock") }
         _ = layoutManager.saveLayout(items)
