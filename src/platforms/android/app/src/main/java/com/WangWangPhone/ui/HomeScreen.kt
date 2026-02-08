@@ -54,6 +54,7 @@ import com.WangWangPhone.core.LicenseManager
 import com.WangWangPhone.core.LicenseResult
 import com.WangWangPhone.core.WallpaperDbHelper
 import com.WangWangPhone.core.WallpaperType
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
@@ -561,6 +562,38 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
 
     // Pager state
     val pagerState = rememberPagerState(pageCount = { pageCount })
+    val coroutineScope = rememberCoroutineScope()
+
+    // 自动翻页逻辑
+    var autoScrollJob by remember { mutableStateOf<Job?>(null) }
+    fun handleAutoScroll(globalX: Float) {
+        val screenWidth = gridAreaSize.width.toFloat() + gridAreaOffset.x * 2
+        val edgeThreshold = screenWidth * 0.1f // 屏幕10%边缘触发
+        val currentPage = pagerState.currentPage
+
+        if (globalX < edgeThreshold && currentPage > 0) {
+            if (autoScrollJob?.isActive != true) {
+                autoScrollJob = coroutineScope.launch {
+                    delay(400) // 延迟避免误触
+                    if (pagerState.currentPage > 0) {
+                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                    }
+                }
+            }
+        } else if (globalX > screenWidth - edgeThreshold && currentPage < pageCount - 1) {
+            if (autoScrollJob?.isActive != true) {
+                autoScrollJob = coroutineScope.launch {
+                    delay(400)
+                    if (pagerState.currentPage < pageCount - 1) {
+                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                    }
+                }
+            }
+        } else {
+            autoScrollJob?.cancel()
+            autoScrollJob = null
+        }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 背景
@@ -703,6 +736,9 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                         change.consume()
                                                         dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
 
+                                                        // 自动翻页检测
+                                                        handleAutoScroll(dragOverlayX)
+
                                                         val rawCell = getCellFromGlobal(dragOverlayX, dragOverlayY)
                                                         if (rawCell >= 0) {
                                                             val targetCol = rawCell % GRID_COLUMNS
@@ -714,6 +750,9 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                             highlightCellIndex = -1
                                                         }
                                                         if (isOverDock(dragOverlayX, dragOverlayY)) highlightCellIndex = -1
+                                                    } else {
+                                                        // 手指抬起，取消自动翻页
+                                                        autoScrollJob?.cancel(); autoScrollJob = null
                                                     }
                                                 }
                                                 if (allUp) break
@@ -756,6 +795,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                 }
                                                 saveCurrentLayout()
                                             }
+                                            autoScrollJob?.cancel(); autoScrollJob = null
                                             draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1
                                         }
                                     }
@@ -895,6 +935,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                     change.consume()
                                                     dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
 
+                                                    handleAutoScroll(dragOverlayX)
                                                     if (!isOverDock(dragOverlayX, dragOverlayY)) {
                                                         val rawCell = getCellFromGlobal(dragOverlayX, dragOverlayY)
                                                         if (rawCell >= 0) {
@@ -905,6 +946,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                             highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
                                                         } else { highlightCellIndex = -1 }
                                                     } else { highlightCellIndex = -1 }
+                                                    } else {
+                                                        autoScrollJob?.cancel(); autoScrollJob = null
                                                 }
                                             }
                                             if (allUp) break
@@ -939,6 +982,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                             }
                                             saveCurrentLayout()
                                         }
+                                        autoScrollJob?.cancel(); autoScrollJob = null
                                         draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
                                     }
                                 }
@@ -966,8 +1010,11 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         // 拖拽浮动覆盖层 - 在顶层 Box 中，不在 Column 内，避免布局重排导致闪屏
         if (draggedItem != null) {
             val density = LocalDensity.current
-            val itemWidth = if (draggedItem!!.type == "widget") 300.dp else 60.dp
-            val itemHeight = if (draggedItem!!.type == "widget") 150.dp else 60.dp
+            // 根据网格尺寸动态计算Widget浮层大小
+            val cellWidthDp = if (gridAreaSize.width > 0) with(density) { (gridAreaSize.width / GRID_COLUMNS).toDp() } else 75.dp
+            val cellHeightDp = if (gridAreaSize.height > 0) with(density) { (gridAreaSize.height / GRID_ROWS).toDp() } else 90.dp
+            val itemWidth = cellWidthDp * draggedItem!!.spanX
+            val itemHeight = cellHeightDp * draggedItem!!.spanY
 
             Box(
                 modifier = Modifier.fillMaxSize().zIndex(10000f),

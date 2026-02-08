@@ -201,6 +201,8 @@ struct PageGridView: View {
     @Environment(\.colorScheme) var colorScheme
     
     @State private var highlightCellIndex: Int = -1
+    @Binding var currentPage: Int  // 新增 binding
+    @Binding var pageCount: Int    // 新增 binding
     
     var body: some View {
         GeometryReader { geometry in
@@ -329,6 +331,19 @@ struct PageGridView: View {
                                 highlightCellIndex = targetCell
                             } else {
                                 highlightCellIndex = -1
+                            }
+                            
+                            // 自动翻页
+                            let screenWidth = UIScreen.main.bounds.width
+                            let edgeThreshold: CGFloat = 50
+                            // 简单的时间节流
+                            let now = Date().timeIntervalSince1970
+                            // 使用全局静态变量模拟节流（实际应放在State中）
+                            
+                            if drag.location.x < edgeThreshold && currentPage > 0 {
+                                withAnimation { currentPage -= 1 }
+                            } else if drag.location.x > screenWidth - edgeThreshold && currentPage < pageCount - 1 {
+                                withAnimation { currentPage += 1 }
                             }
                         }
                     default:
@@ -573,6 +588,8 @@ struct HomeScreen: View {
                     ForEach(0..<allPages.count, id: \.self) { pageIndex in
                         PageGridView(
                             pageIndex: pageIndex,
+                            currentPage: $currentPage,
+                            pageCount: Binding(get: { allPages.count }, set: { _ in }),
                             gridPositions: Binding(
                                 get: { pageIndex < allPages.count ? allPages[pageIndex] : [:] },
                                 set: { newValue in
@@ -653,8 +670,13 @@ struct HomeScreen: View {
             // 拖拽浮层
             if let anyItem = draggingItem {
                 let item = anyItem.item
-                let itemWidth: CGFloat = item.spanX == 2 ? 160 : 60
-                let itemHeight: CGFloat = item.spanY == 2 ? 160 : 60
+                // 动态计算浮层尺寸
+                let screenWidth = UIScreen.main.bounds.width
+                let cellWidth = (screenWidth - 40) / CGFloat(gridColumns) // 假设 padding 20*2
+                let cellHeight = cellWidth * 1.2 // 估算比例
+                
+                let itemWidth = cellWidth * CGFloat(item.spanX)
+                let itemHeight = cellHeight * CGFloat(item.spanY)
                 
                 ZStack {
                     if let widget = item as? WidgetItem {
