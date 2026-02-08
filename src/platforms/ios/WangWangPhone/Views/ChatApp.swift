@@ -1,6 +1,70 @@
 
 import SwiftUI
 
+// MARK: - WeTheme & Assets
+// 适配 iOS 深色/浅色模式 (Light/Dark Mode)
+struct WeTheme {
+    static let brandGreen = Color("BrandGreen") // 需在 Assets 中定义，或用代码动态判断
+    static let background = Color("WeChatBackground")
+    static let backgroundCell = Color("WeChatCellBackground")
+    static let textPrimary = Color("WeChatTextPrimary")
+    static let textSecondary = Color("WeChatTextSecondary")
+    static let textHint = Color("WeChatTextHint")
+    static let separator = Color("WeChatSeparator")
+    static let bubbleSent = Color("WeChatBubbleSent")
+    static let bubbleReceived = Color("WeChatBubbleReceived")
+    
+    // Fallback colors if Assets not ready (using code-based dynamic colors)
+    static func dynamicColor(light: Color, dark: Color) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light) })
+    }
+    
+    // Hardcoded fallback colors based on COLORS.md
+    static let codeBrandGreen = dynamicColor(light: Color(hex: 0x07C160), dark: Color(hex: 0x06AD56))
+    static let codeBackground = dynamicColor(light: Color(hex: 0xEDEDED), dark: Color(hex: 0x111111))
+    static let codeBackgroundCell = dynamicColor(light: Color(hex: 0xFFFFFF), dark: Color(hex: 0x191919))
+    static let codeTextPrimary = dynamicColor(light: Color(hex: 0x191919), dark: Color(hex: 0xD3D3D3))
+    static let codeTextSecondary = dynamicColor(light: Color(hex: 0x808080), dark: Color(hex: 0x666666))
+    static let codeTextHint = dynamicColor(light: Color(hex: 0xB2B2B2), dark: Color(hex: 0x4C4C4C))
+    static let codeSeparator = dynamicColor(light: Color(hex: 0xD9D9D9), dark: Color(hex: 0x2C2C2C))
+    static let codeBubbleSent = dynamicColor(light: Color(hex: 0x95EC69), dark: Color(hex: 0x2EA260))
+    static let codeBubbleReceived = dynamicColor(light: Color(hex: 0xFFFFFF), dark: Color(hex: 0x2C2C2C))
+}
+
+extension Color {
+    init(hex: UInt, alpha: Double = 1) {
+        self.init(
+            .sRGB,
+            red: Double((hex >> 16) & 0xff) / 255,
+            green: Double((hex >> 08) & 0xff) / 255,
+            blue: Double((hex >> 00) & 0xff) / 255,
+            opacity: alpha
+        )
+    }
+}
+
+// 资源加载辅助：优先加载 Assets 中的 SVG/PDF，否则回退到 Emoji
+struct WeIcon: View {
+    let name: String
+    let fallback: String
+    var size: CGFloat = 24
+    var color: Color? = nil
+    
+    var body: some View {
+        // 实际开发中应检查 Bundle 中是否存在图片，这里简化处理
+        if UIImage(named: name) != nil {
+            Image(name)
+                .resizable()
+                .renderingMode(color != nil ? .template : .original)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .foregroundColor(color)
+        } else {
+            Text(fallback).font(.system(size: size))
+        }
+    }
+}
+
 // MARK: - Data Models
 struct WXConversation: Identifiable {
     let id: String
@@ -155,21 +219,43 @@ struct ChatMainView: View {
     var onClose: () -> Void
     var onOpenChat: (String) -> Void
     var onOpenService: () -> Void
-    private let titles = ["messages": "消息", "contacts": "通讯录", "moments": "朋友圈", "me": "我"]
+    private let titles = ["messages": "微信", "contacts": "通讯录", "moments": "发现", "me": "我"]
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            ZStack {
-                Text(titles[currentTab] ?? "").font(.system(size: 17, weight: .semibold))
-                HStack {
-                    Button(action: onClose) { Text("‹").font(.system(size: 24)) }.foregroundColor(.black)
-                    Spacer()
-                    Text("🔍").font(.system(size: 20))
-                    Text("⊕").font(.system(size: 20))
-                }.padding(.horizontal, 12)
-            }.frame(height: 50).background(Color(red: 0.93, green: 0.93, blue: 0.93))
-            Divider()
+            if currentTab != "me" { // "我" 页面通常没有顶部 Header
+                ZStack {
+                    // 只有消息页显示中间标题(且是左侧显示)，通讯录等显示中间
+                    if currentTab == "messages" || currentTab == "contacts" || currentTab == "moments" {
+                         HStack {
+                            if currentTab == "messages" {
+                                Text("微信").font(.system(size: 18, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                            } else {
+                                Text(titles[currentTab] ?? "").font(.system(size: 18, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.leading, 16)
+                    }
+                    
+                    HStack(spacing: 16) {
+                        // 返回按钮 (模拟)
+                        // Button(action: onClose) { Text("‹").font(.system(size: 24)) }.foregroundColor(WeTheme.codeTextPrimary)
+                        Spacer()
+                        WeIcon(name: "nav_search", fallback: "🔍", size: 24, color: WeTheme.codeTextPrimary)
+                        if currentTab != "moments" {
+                            WeIcon(name: "nav_add", fallback: "⊕", size: 24, color: WeTheme.codeTextPrimary)
+                        }
+                    }.padding(.horizontal, 12)
+                    
+                    if currentTab != "messages" { // 通讯录和发现页 标题居中
+                        Text(titles[currentTab] ?? "").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                    }
+                    
+                }.frame(height: 50).background(WeTheme.codeBackground)
+                Divider().overlay(WeTheme.codeSeparator)
+            }
 
             // Content
             Group {
@@ -182,9 +268,9 @@ struct ChatMainView: View {
                 }
             }.frame(maxHeight: .infinity)
 
-            Divider()
+            Divider().overlay(WeTheme.codeSeparator)
             ChatTabBarView(currentTab: $currentTab)
-        }.background(Color(red: 0.93, green: 0.93, blue: 0.93))
+        }.background(WeTheme.codeBackground)
     }
 }
 
@@ -192,27 +278,43 @@ struct ChatMainView: View {
 struct ChatTabBarView: View {
     @Binding var currentTab: String
     let totalUnread = wxConversations.reduce(0) { $0 + $1.unread }
-    let tabs: [(String, String, String)] = [("messages", "💬", "消息"), ("contacts", "👥", "通讯录"), ("moments", "📷", "朋友圈"), ("me", "👤", "我")]
+    // id, iconSelected, iconNormal, label, fallback
+    let tabs = [
+        ("messages", "tab_chat_selected", "tab_chat_normal", "微信", "💬"),
+        ("contacts", "tab_contacts_selected", "tab_contacts_normal", "通讯录", "👥"),
+        ("moments", "tab_discover_selected", "tab_discover_normal", "发现", "🧭"),
+        ("me", "tab_me_selected", "tab_me_normal", "我", "👤")
+    ]
 
     var body: some View {
-        HStack {
+        HStack(spacing: 0) {
             ForEach(tabs, id: \.0) { tab in
+                let isSelected = currentTab == tab.0
                 VStack(spacing: 2) {
                     ZStack(alignment: .topTrailing) {
-                        Text(tab.1).font(.system(size: 22))
+                        WeIcon(
+                            name: isSelected ? tab.1 : tab.2,
+                            fallback: tab.4,
+                            size: 28,
+                            color: isSelected && tab.4.count == 1 ? WeTheme.codeBrandGreen : nil // Emoji fallback needs color, Image might handle itself or use template
+                        )
+                        
                         if tab.0 == "messages" && totalUnread > 0 {
-                            Text("\(totalUnread)").font(.system(size: 10)).foregroundColor(.white)
-                                .padding(.horizontal, 4).background(Color.red).clipShape(Capsule())
-                                .offset(x: 8, y: -4)
+                            Text("\(totalUnread)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+                                .padding(.horizontal, 5).padding(.vertical, 2).background(Color.red).clipShape(Capsule())
+                                .offset(x: 10, y: -6)
                         }
                     }
-                    Text(tab.2).font(.system(size: 10))
-                        .foregroundColor(currentTab == tab.0 ? Color(red: 0.03, green: 0.76, blue: 0.38) : .gray)
+                    Text(tab.3).font(.system(size: 10, weight: .medium))
+                        .foregroundColor(isSelected ? WeTheme.codeBrandGreen : WeTheme.codeTextPrimary)
                 }
                 .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
                 .onTapGesture { currentTab = tab.0 }
             }
-        }.frame(height: 56).background(Color(red: 0.97, green: 0.97, blue: 0.97))
+        }
+        .frame(height: 56)
+        .background(WeTheme.codeBackground.edgesIgnoringSafeArea(.bottom))
     }
 }
 
@@ -226,28 +328,28 @@ struct MessagesTabView: View {
                     Button(action: { onOpenChat(conv.id) }) {
                         HStack(spacing: 12) {
                             ZStack(alignment: .topTrailing) {
-                                RoundedRectangle(cornerRadius: 6).fill(conv.iconBg).frame(width: 48, height: 48)
+                                RoundedRectangle(cornerRadius: 4).fill(conv.iconBg).frame(width: 48, height: 48)
                                     .overlay(Text(conv.avatar).font(.system(size: 24)))
                                 if conv.unread > 0 {
-                                    Text("\(conv.unread)").font(.system(size: 10)).foregroundColor(.white)
-                                        .padding(.horizontal, 4).background(Color.red).clipShape(Capsule()).offset(x: 4, y: -4)
+                                    Text("\(conv.unread)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+                                        .padding(.horizontal, 5).padding(.vertical, 2).background(Color.red).clipShape(Capsule()).offset(x: 6, y: -6)
                                 }
                             }
-                            VStack(alignment: .leading, spacing: 4) {
+                            VStack(alignment: .leading, spacing: 6) {
                                 HStack {
-                                    Text(conv.name).font(.system(size: 16)).foregroundColor(.black).lineLimit(1)
+                                    Text(conv.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary).lineLimit(1)
                                     Spacer()
-                                    Text(conv.time).font(.system(size: 12)).foregroundColor(Color(white: 0.7))
+                                    Text(conv.time).font(.system(size: 11)).foregroundColor(WeTheme.codeTextHint)
                                 }
                                 HStack {
-                                    Text(conv.lastMsg).font(.system(size: 14)).foregroundColor(Color(white: 0.7)).lineLimit(1)
+                                    Text(conv.lastMsg).font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary).lineLimit(1)
                                     Spacer()
-                                    if conv.muted { Text("🔇").font(.system(size: 14)) }
+                                    if conv.muted { Text("🔇").font(.system(size: 14)).foregroundColor(WeTheme.codeTextHint) }
                                 }
                             }
-                        }.padding(12).background(Color.white)
+                        }.padding(16).background(WeTheme.codeBackgroundCell)
                     }.buttonStyle(PlainButtonStyle())
-                    Divider().padding(.leading, 72)
+                    Divider().overlay(WeTheme.codeSeparator).padding(.leading, 76)
                 }
             }
         }
@@ -261,25 +363,25 @@ struct ContactsTabView: View {
         ScrollView {
             VStack(spacing: 0) {
                 ForEach(wxContactGroups) { g in
-                    HStack(spacing: 12) {
-                        RoundedRectangle(cornerRadius: 6).fill(g.color).frame(width: 40, height: 40)
+                    HStack(spacing: 16) {
+                        RoundedRectangle(cornerRadius: 4).fill(g.color).frame(width: 36, height: 36)
                             .overlay(Text(g.icon).font(.system(size: 20)).foregroundColor(.white))
-                        Text(g.name).font(.system(size: 16))
+                        Text(g.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
                         Spacer()
-                    }.padding(12).background(Color.white)
-                    Divider()
+                    }.padding(.horizontal, 16).padding(.vertical, 10).background(WeTheme.codeBackgroundCell)
+                    Divider().overlay(WeTheme.codeSeparator).padding(.leading, 68)
                 }
                 if !wxStarred.isEmpty {
-                    Text("星标朋友").font(.system(size: 13)).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16).padding(.vertical, 6).background(Color(red: 0.93, green: 0.93, blue: 0.93))
+                    Text("星标朋友").font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary).frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16).padding(.vertical, 8).background(WeTheme.codeBackground)
                     ForEach(wxStarred) { c in ContactRow(contact: c, onOpenChat: onOpenChat) }
                 }
                 var lastLetter = ""
                 ForEach(wxContactList) { c in
                     if !c.letter.isEmpty && c.letter != lastLetter {
                         let _ = { lastLetter = c.letter }()
-                        Text(c.letter).font(.system(size: 13)).foregroundColor(.gray).frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16).padding(.vertical, 6).background(Color(red: 0.93, green: 0.93, blue: 0.93))
+                        Text(c.letter).font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary).frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16).padding(.vertical, 8).background(WeTheme.codeBackground)
                     }
                     ContactRow(contact: c, onOpenChat: onOpenChat)
                 }
@@ -296,14 +398,14 @@ struct ContactRow: View {
             let conv = wxConversations.first { $0.name == contact.name }
             onOpenChat(conv?.id ?? "u_\(contact.id)")
         }) {
-            HStack(spacing: 12) {
-                RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.96)).frame(width: 40, height: 40)
+            HStack(spacing: 16) {
+                RoundedRectangle(cornerRadius: 4).fill(WeTheme.codeBackground).frame(width: 36, height: 36)
                     .overlay(Text(contact.avatar).font(.system(size: 22)))
-                Text(contact.name).font(.system(size: 16)).foregroundColor(.black)
+                Text(contact.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
                 Spacer()
-            }.padding(.horizontal, 16).padding(.vertical, 10).background(Color.white)
+            }.padding(.horizontal, 16).padding(.vertical, 10).background(WeTheme.codeBackgroundCell)
         }.buttonStyle(PlainButtonStyle())
-        Divider()
+        Divider().overlay(WeTheme.codeSeparator).padding(.leading, 68)
     }
 }
 
@@ -432,57 +534,79 @@ struct ChatDetailView: View {
         VStack(spacing: 0) {
             ZStack {
                 Text(isGroup ? "\(chatName)(\(Int.random(in: 10...50)))" : chatName)
-                    .font(.system(size: 17, weight: .semibold)).lineLimit(1)
+                    .font(.system(size: 17, weight: .semibold)).lineLimit(1).foregroundColor(WeTheme.codeTextPrimary)
                 HStack {
-                    Button(action: onBack) { Text("‹").font(.system(size: 24)) }.foregroundColor(.black)
+                    WeIcon(name: "nav_back", fallback: "‹", size: 24, color: WeTheme.codeTextPrimary)
+                        .onTapGesture(perform: onBack)
                     Spacer()
-                    Text("···").font(.system(size: 20))
+                    WeIcon(name: "nav_more", fallback: "···", size: 24, color: WeTheme.codeTextPrimary)
                 }.padding(.horizontal, 12)
-            }.frame(height: 50).background(Color(red: 0.93, green: 0.93, blue: 0.93))
-            Divider()
+            }.frame(height: 50).background(WeTheme.codeBackground)
+            Divider().overlay(WeTheme.codeSeparator)
 
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 10) {
+                    LazyVStack(spacing: 16) {
                         ForEach(messages) { msg in
                             switch msg.type {
                             case "time":
-                                Text(msg.text).font(.system(size: 12)).foregroundColor(Color(white: 0.7)).frame(maxWidth: .infinity)
+                                Text(msg.text).font(.system(size: 12)).foregroundColor(WeTheme.codeTextHint).frame(maxWidth: .infinity)
                             case "sent":
-                                HStack(alignment: .top, spacing: 8) {
+                                HStack(alignment: .top, spacing: 10) {
                                     Spacer()
-                                    Text(msg.text).font(.system(size: 15)).padding(10)
-                                        .background(Color(red: 0.58, green: 0.92, blue: 0.41)).cornerRadius(6)
-                                    RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.96)).frame(width: 36, height: 36)
-                                        .overlay(Text("🐱").font(.system(size: 18)))
+                                    Text(msg.text).font(.system(size: 16)).padding(12).padding(.vertical, -2)
+                                        .frame(minHeight: 40)
+                                        .background(WeTheme.codeBubbleSent).cornerRadius(4)
+                                        .foregroundColor(WeTheme.codeTextPrimary)
+                                    RoundedRectangle(cornerRadius: 4).fill(WeTheme.codeBackgroundCell).frame(width: 40, height: 40)
+                                        .overlay(Text("🐱").font(.system(size: 20)))
                                 }
                             case "received":
-                                HStack(alignment: .top, spacing: 8) {
-                                    RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.96)).frame(width: 36, height: 36)
-                                        .overlay(Text(msg.avatar.isEmpty ? "👤" : msg.avatar).font(.system(size: 18)))
+                                HStack(alignment: .top, spacing: 10) {
+                                    RoundedRectangle(cornerRadius: 4).fill(WeTheme.codeBackgroundCell).frame(width: 40, height: 40)
+                                        .overlay(Text(msg.avatar.isEmpty ? "👤" : msg.avatar).font(.system(size: 20)))
                                     VStack(alignment: .leading, spacing: 2) {
-                                        if isGroup { Text(msg.name.isEmpty ? chatName : msg.name).font(.system(size: 12)).foregroundColor(.gray) }
-                                        Text(msg.text).font(.system(size: 15)).padding(10)
-                                            .background(Color.white).cornerRadius(6)
+                                        if isGroup { Text(msg.name.isEmpty ? chatName : msg.name).font(.system(size: 11)).foregroundColor(WeTheme.codeTextHint) }
+                                        Text(msg.text).font(.system(size: 16)).padding(12).padding(.vertical, -2)
+                                            .frame(minHeight: 40)
+                                            .background(WeTheme.codeBubbleReceived).cornerRadius(4)
+                                            .foregroundColor(WeTheme.codeTextPrimary)
                                     }
                                     Spacer()
                                 }
                             default: EmptyView()
                             }
                         }
-                    }.padding(.horizontal, 16).padding(.vertical, 10)
+                    }.padding(.horizontal, 16).padding(.vertical, 16)
                 }
             }
 
-            Divider()
-            HStack(spacing: 8) {
-                Text("🎙️").font(.system(size: 24))
+            Divider().overlay(WeTheme.codeSeparator)
+            HStack(spacing: 12) {
+                WeIcon(name: "chat_voice", fallback: "🎙️", size: 28, color: WeTheme.codeTextPrimary)
                 TextField("", text: $inputText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle()).font(.system(size: 15))
-                Text("😊").font(.system(size: 24))
-                Button(action: sendMessage) { Text("⊕").font(.system(size: 24)) }.foregroundColor(.black)
-            }.padding(8).background(Color(white: 0.97))
-        }.background(Color(red: 0.93, green: 0.93, blue: 0.93))
+                    .textFieldStyle(PlainTextFieldStyle())
+                    .padding(8)
+                    .background(WeTheme.codeBackgroundCell)
+                    .cornerRadius(4)
+                    .frame(height: 36)
+                    .font(.system(size: 16))
+                    .foregroundColor(WeTheme.codeTextPrimary)
+                WeIcon(name: "chat_emoji", fallback: "😊", size: 28, color: WeTheme.codeTextPrimary)
+                
+                if !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(action: sendMessage) {
+                        Text("发送").font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 32)
+                            .background(WeTheme.codeBrandGreen)
+                            .cornerRadius(4)
+                    }
+                } else {
+                    WeIcon(name: "chat_more", fallback: "⊕", size: 28, color: WeTheme.codeTextPrimary)
+                }
+            }.padding(10).background(WeTheme.codeBackground)
+        }.background(WeTheme.codeBackground)
         .onAppear { loadMessages() }
     }
 

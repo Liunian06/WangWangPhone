@@ -17,11 +17,58 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import java.io.File
+
+// ============================================
+// 微信风格配色 (Light/Dark Mode)
+// ============================================
+object WeTheme {
+    val isDark: Boolean @Composable get() = isSystemInDarkTheme()
+
+    val BrandGreen: Color @Composable get() = if (isDark) Color(0xFF06AD56) else Color(0xFF07C160)
+    val Background: Color @Composable get() = if (isDark) Color(0xFF111111) else Color(0xFFEDEDED)
+    val BackgroundCell: Color @Composable get() = if (isDark) Color(0xFF191919) else Color(0xFFFFFFFF)
+    val TextPrimary: Color @Composable get() = if (isDark) Color(0xFFD3D3D3) else Color(0xFF191919)
+    val TextSecondary: Color @Composable get() = if (isDark) Color(0xFF666666) else Color(0xFF808080)
+    val TextHint: Color @Composable get() = if (isDark) Color(0xFF4C4C4C) else Color(0xFFB2B2B2)
+    val Separator: Color @Composable get() = if (isDark) Color(0xFF2C2C2C) else Color(0x19000000)
+    
+    val TabTextSelected: Color @Composable get() = BrandGreen
+    val TabTextNormal: Color @Composable get() = if (isDark) Color(0xFF555555) else Color(0xFF191919) // 微信底部Tab未选中是黑色而不是灰色
+    
+    val BubbleSent: Color @Composable get() = if (isDark) Color(0xFF2EA260) else Color(0xFF95EC69)
+    val BubbleReceived: Color @Composable get() = if (isDark) Color(0xFF2C2C2C) else Color(0xFFFFFFFF)
+    
+    val SearchBarBg: Color @Composable get() = if (isDark) Color(0xFF202020) else Color(0xFFFFFFFF)
+}
+
+// ============================================
+// 资源加载辅助
+// ============================================
+// 这里预留加载SVG逻辑，由于Compose加载外部SVG需要ImageVector或coil，
+// 为简化演示，若文件不存在则降级为Text Emoji，实际项目中应使用 coil-svg 加载 "file:///android_asset/..."
+@Composable
+fun WeIcon(
+    name: String,
+    fallback: String,
+    modifier: Modifier = Modifier,
+    tint: Color = Color.Unspecified
+) {
+    // 实际项目中这里应该加载 assets/wechat_ui_assets/icons/$name.svg
+    // 这里暂时用Emoji或Box占位代替，等待集成 coil
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Text(fallback, fontSize = 24.sp, color = if (tint != Color.Unspecified) tint else Color.Unspecified)
+    }
+}
 
 // ============================================
 // 数据模型
@@ -171,71 +218,136 @@ fun ChatMainScreen(
     onOpenChat: (String) -> Unit,
     onOpenService: () -> Unit
 ) {
-    val titles = mapOf("messages" to "消息", "contacts" to "通讯录", "moments" to "朋友圈", "me" to "我")
-    val bgColor = Color(0xFFEDEDED)
+    val titles = mapOf("messages" to "微信", "contacts" to "通讯录", "moments" to "发现", "me" to "我")
+    val bgColor = WeTheme.Background
 
     Column(modifier = Modifier.fillMaxSize().background(bgColor).statusBarsPadding()) {
-        // Header
-        Box(
-            modifier = Modifier.fillMaxWidth().height(50.dp).background(bgColor),
-            contentAlignment = Alignment.Center
-        ) {
-            Text("‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).clickable { onClose() }, fontSize = 24.sp)
-            Text(titles[currentTab] ?: "", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-            Row(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("🔍", fontSize = 20.sp)
-                Text("⊕", fontSize = 20.sp)
-            }
-        }
-        Divider(color = Color(0xFFD9D9D9), thickness = 0.5.dp)
-
-        // Content
+        // Content (权重为1，撑开中间部分)
         Box(modifier = Modifier.weight(1f)) {
             when (currentTab) {
-                "messages" -> MessagesTab(onOpenChat)
-                "contacts" -> ContactsTab(onOpenChat)
-                "moments" -> MomentsTab()
-                "me" -> MeTab(onOpenService = onOpenService, onOpenMoments = { onTabChange("moments") })
+                "messages" -> {
+                    Column {
+                        // 微信首页顶部只有 微信(n) 标题，加号和搜索
+                        WeChatHeader(
+                            title = titles[currentTab] ?: "",
+                            onClose = onClose,
+                            showBack = true
+                        )
+                        MessagesTab(onOpenChat)
+                    }
+                }
+                "contacts" -> {
+                    Column {
+                        WeChatHeader(
+                            title = titles[currentTab] ?: "",
+                            onClose = onClose,
+                            showBack = false,
+                            showAdd = true // 通讯录页显示加好友
+                        )
+                        ContactsTab(onOpenChat)
+                    }
+                }
+                "moments" -> {
+                    Column {
+                        WeChatHeader(
+                            title = titles[currentTab] ?: "",
+                            onClose = onClose,
+                            showBack = false
+                        )
+                        MomentsTab()
+                    }
+                }
+                "me" -> {
+                    // "我" 页面通常没有Header，或者Header是透明的
+                    MeTab(onOpenService = onOpenService, onOpenMoments = { onTabChange("moments") })
+                }
             }
         }
 
         // Tab bar
-        Divider(color = Color(0xFFD9D9D9), thickness = 0.5.dp)
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
         ChatTabBar(currentTab, onTabChange)
     }
 }
 
 @Composable
+fun WeChatHeader(
+    title: String,
+    onClose: () -> Unit,
+    showBack: Boolean = false,
+    showAdd: Boolean = true
+) {
+    val bgColor = WeTheme.Background
+    val textColor = WeTheme.TextPrimary
+    
+    Box(
+        modifier = Modifier.fillMaxWidth().height(50.dp).background(bgColor),
+        contentAlignment = Alignment.Center
+    ) {
+        if (showBack) {
+            // 这里用 "微信" 代替返回箭头，或者根据层级显示
+             Text("‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).clickable { onClose() }, fontSize = 24.sp, color = textColor)
+        } else {
+             Text(title, modifier = Modifier.align(Alignment.CenterStart).padding(start = 16.dp), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = textColor)
+        }
+        
+        // 中间标题通常在子页面显示，主Tab页标题在左侧或中间
+        if (showBack) {
+             Text(title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = textColor)
+        }
+
+        Row(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            WeIcon("搜索按钮", "🔍", modifier = Modifier.size(24.dp), tint = textColor)
+            if (showAdd) {
+                WeIcon("聊天界面工具栏_加号", "⊕", modifier = Modifier.size(24.dp), tint = textColor)
+            }
+        }
+    }
+    // 微信主页Header下通常没有分割线，或者滚动后才有
+}
+
+@Composable
 fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
     val totalUnread = mockConversations.sumOf { it.unread }
+    // Tab定义: id, 选中图标, 未选中图标, 标签
+    data class TabItem(val id: String, val iconSelected: String, val iconNormal: String, val label: String, val fallback: String)
+    
     val tabs = listOf(
-        Triple("messages", "💬", "消息"),
-        Triple("contacts", "👥", "通讯录"),
-        Triple("moments", "📷", "朋友圈"),
-        Triple("me", "👤", "我"),
+        TabItem("messages", "导航栏_已选中_微信", "导航栏_未选中_微信", "微信", "💬"),
+        TabItem("contacts", "导航栏_已选中_通讯录", "导航栏_未选中_通讯录", "通讯录", "👥"),
+        TabItem("moments", "导航栏_已选中_发现", "导航栏_未选中_发现", "发现", "🧭"),
+        TabItem("me", "导航栏_已选中_我", "导航栏_未选中_我", "我", "👤"),
     )
 
+    val bg = if (WeTheme.isDark) Color(0xFF191919) else Color(0xFFF7F7F7)
+
     Row(
-        modifier = Modifier.fillMaxWidth().height(56.dp).background(Color(0xFFF7F7F7)),
+        modifier = Modifier.fillMaxWidth().height(56.dp).background(bg),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        tabs.forEach { (id, icon, label) ->
-            val isActive = currentTab == id
+        tabs.forEach { item ->
+            val isActive = currentTab == item.id
+            val color = if (isActive) WeTheme.TabTextSelected else WeTheme.TabTextNormal
+            
             Column(
-                modifier = Modifier.weight(1f).clickable { onTabChange(id) },
+                modifier = Modifier.weight(1f).clickable { onTabChange(item.id) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 Box {
-                    Text(icon, fontSize = 22.sp)
-                    if (id == "messages" && totalUnread > 0) {
+                    val iconName = if (isActive) item.iconSelected else item.iconNormal
+                    // 图标本身自带颜色（SVG），如果是纯色图标则需要Tint，这里假设SVG自带色或后续处理
+                    WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive && item.fallback.length == 1) WeTheme.BrandGreen else Color.Unspecified)
+                    
+                    if (item.id == "messages" && totalUnread > 0) {
                         Box(
-                            modifier = Modifier.offset(x = 12.dp, y = (-4).dp).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 4.dp),
+                            modifier = Modifier.offset(x = 10.dp, y = (-2).dp).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 4.dp).height(16.dp).widthIn(min = 16.dp),
                             contentAlignment = Alignment.Center
-                        ) { Text("$totalUnread", color = Color.White, fontSize = 10.sp) }
+                        ) { Text("$totalUnread", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
-                Text(label, fontSize = 10.sp, color = if (isActive) Color(0xFF07C160) else Color(0xFF999999))
+                Spacer(Modifier.height(2.dp))
+                Text(item.label, fontSize = 10.sp, color = color, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -249,20 +361,20 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
         items(mockConversations) { conv ->
             Row(
-                modifier = Modifier.fillMaxWidth().clickable { onOpenChat(conv.id) }.background(Color.White).padding(12.dp, 12.dp),
+                modifier = Modifier.fillMaxWidth().clickable { onOpenChat(conv.id) }.background(WeTheme.BackgroundCell).padding(16.dp, 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Avatar
                 Box(
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(6.dp)).background(conv.iconBg),
+                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg), // 微信头像圆角较小
                     contentAlignment = Alignment.Center
                 ) {
                     Text(conv.avatar, fontSize = 24.sp)
                     if (conv.unread > 0) {
                         Box(
-                            modifier = Modifier.align(Alignment.TopEnd).offset(x = 4.dp, y = (-4).dp).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 4.dp),
+                            modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 5.dp),
                             contentAlignment = Alignment.Center
-                        ) { Text("${conv.unread}", color = Color.White, fontSize = 10.sp) }
+                        ) { Text("${conv.unread}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
 
@@ -270,17 +382,17 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(conv.name, fontSize = 16.sp, maxLines = 1)
-                        Text(conv.time, fontSize = 12.sp, color = Color(0xFFB2B2B2))
+                        Text(conv.name, fontSize = 16.sp, maxLines = 1, color = WeTheme.TextPrimary)
+                        Text(conv.time, fontSize = 11.sp, color = WeTheme.TextHint) // 时间字体更小
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(conv.lastMsg, fontSize = 14.sp, color = Color(0xFFB2B2B2), maxLines = 1, modifier = Modifier.weight(1f))
-                        if (conv.muted) Text("🔇", fontSize = 14.sp, color = Color(0xFFC0C0C0))
+                        Text(conv.lastMsg, fontSize = 14.sp, color = WeTheme.TextSecondary, maxLines = 1, modifier = Modifier.weight(1f))
+                        if (conv.muted) Text("🔇", fontSize = 14.sp, color = WeTheme.TextHint)
                     }
                 }
             }
-            Divider(color = Color(0xFFECECEC), thickness = 0.5.dp, modifier = Modifier.padding(start = 72.dp))
+            Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 76.dp)) // 分割线左对齐文字
         }
     }
 }
@@ -297,22 +409,22 @@ fun ContactsTab(onOpenChat: (String) -> Unit) {
             // 功能入口
             mockContactGroups.forEach { g ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().background(Color.White).padding(12.dp, 12.dp),
+                    modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp, 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(g.color),
+                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(g.color),
                         contentAlignment = Alignment.Center
                     ) { Text(g.icon, fontSize = 20.sp, color = Color.White) }
-                    Spacer(Modifier.width(12.dp))
-                    Text(g.name, fontSize = 16.sp)
+                    Spacer(Modifier.width(16.dp))
+                    Text(g.name, fontSize = 16.sp, color = WeTheme.TextPrimary)
                 }
-                Divider(color = Color(0xFFECECEC), thickness = 0.5.dp)
+                Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 68.dp))
             }
 
             // 星标朋友
             if (mockStarred.isNotEmpty()) {
-                Text("星标朋友", modifier = Modifier.fillMaxWidth().background(Color(0xFFEDEDED)).padding(6.dp, 6.dp, 6.dp, 6.dp).padding(start = 10.dp), fontSize = 13.sp, color = Color(0xFF888888))
+                Text("星标朋友", modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
                 mockStarred.forEach { c -> ContactItemRow(c, onOpenChat) }
             }
 
@@ -321,7 +433,7 @@ fun ContactsTab(onOpenChat: (String) -> Unit) {
             mockContactList.forEach { c ->
                 if (c.letter.isNotEmpty() && c.letter != curLetter) {
                     curLetter = c.letter
-                    Text(curLetter, modifier = Modifier.fillMaxWidth().background(Color(0xFFEDEDED)).padding(6.dp, 6.dp, 6.dp, 6.dp).padding(start = 10.dp), fontSize = 13.sp, color = Color(0xFF888888))
+                    Text(curLetter, modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
                 }
                 ContactItemRow(c, onOpenChat)
             }
@@ -343,20 +455,20 @@ fun ContactsTab(onOpenChat: (String) -> Unit) {
 @Composable
 fun ContactItemRow(contact: Contact, onOpenChat: (String) -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().background(Color.White).clickable {
+        modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).clickable {
             val conv = mockConversations.find { it.name == contact.name }
             onOpenChat(conv?.id ?: "u_${contact.id}")
-        }.padding(10.dp, 10.dp),
+        }.padding(16.dp, 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFF5F5F5)),
+            modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(WeTheme.Background),
             contentAlignment = Alignment.Center
         ) { Text(contact.avatar, fontSize = 22.sp) }
-        Spacer(Modifier.width(12.dp))
-        Text(contact.name, fontSize = 16.sp)
+        Spacer(Modifier.width(16.dp))
+        Text(contact.name, fontSize = 16.sp, color = WeTheme.TextPrimary)
     }
-    Divider(color = Color(0xFFECECEC), thickness = 0.5.dp)
+    Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 68.dp))
 }
 
 // ============================================
@@ -523,28 +635,28 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
 
     BackHandler { onBack() }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFEDEDED)).statusBarsPadding()) {
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
         // Header
-        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(Color(0xFFEDEDED)), contentAlignment = Alignment.Center) {
-            Text("‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).clickable { onBack() }, fontSize = 24.sp)
-            Text(displayTitle, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1)
-            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), fontSize = 20.sp)
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("全局按钮_返回", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text(displayTitle, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1, color = WeTheme.TextPrimary)
+            WeIcon("nav_more", "···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(24.dp), tint = WeTheme.TextPrimary)
         }
-        Divider(color = Color(0xFFD9D9D9), thickness = 0.5.dp)
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
 
         // Messages
         LazyColumn(
             modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
             state = listState,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-            contentPadding = PaddingValues(vertical = 10.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp), // 增加消息间距
+            contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             items(messages.size) { idx ->
                 val msg = messages[idx]
                 when (msg.type) {
                     "time" -> {
                         Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Text(msg.text, fontSize = 12.sp, color = Color(0xFFB2B2B2))
+                            Text(msg.text, fontSize = 12.sp, color = WeTheme.TextHint)
                         }
                     }
                     "sent" -> {
@@ -554,29 +666,29 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
                         ) {
                             Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f, fill = false).widthIn(max = 260.dp)) {
                                 Box(
-                                    modifier = Modifier.background(Color(0xFF95EC69), RoundedCornerShape(topStart = 6.dp, topEnd = 2.dp, bottomStart = 6.dp, bottomEnd = 6.dp)).padding(10.dp, 10.dp)
-                                ) { Text(msg.text, fontSize = 15.sp, lineHeight = 22.sp) }
+                                    modifier = Modifier.background(WeTheme.BubbleSent, RoundedCornerShape(4.dp)).padding(12.dp, 10.dp) // 圆角更小
+                                ) { Text(msg.text, fontSize = 16.sp, lineHeight = 24.sp, color = WeTheme.TextPrimary) }
                             }
-                            Spacer(Modifier.width(8.dp))
-                            Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
-                                Text("🐱", fontSize = 18.sp)
+                            Spacer(Modifier.width(10.dp))
+                            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
+                                Text("🐱", fontSize = 20.sp)
                             }
                         }
                     }
                     "received" -> {
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            Box(modifier = Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
-                                Text(msg.avatar.ifEmpty { "👤" }, fontSize = 18.sp)
+                            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
+                                Text(msg.avatar.ifEmpty { "👤" }, fontSize = 20.sp)
                             }
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f, fill = false).widthIn(max = 260.dp)) {
                                 if (isGroup) {
-                                    Text(msg.name.ifEmpty { chatName }, fontSize = 12.sp, color = Color(0xFF888888))
+                                    Text(msg.name.ifEmpty { chatName }, fontSize = 11.sp, color = WeTheme.TextHint)
                                     Spacer(Modifier.height(2.dp))
                                 }
                                 Box(
-                                    modifier = Modifier.background(Color.White, RoundedCornerShape(topStart = 2.dp, topEnd = 6.dp, bottomStart = 6.dp, bottomEnd = 6.dp)).padding(10.dp, 10.dp)
-                                ) { Text(msg.text, fontSize = 15.sp, lineHeight = 22.sp) }
+                                    modifier = Modifier.background(WeTheme.BubbleReceived, RoundedCornerShape(4.dp)).padding(12.dp, 10.dp)
+                                ) { Text(msg.text, fontSize = 16.sp, lineHeight = 24.sp, color = WeTheme.TextPrimary) }
                             }
                         }
                     }
@@ -585,29 +697,40 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
         }
 
         // Input bar
-        Divider(color = Color(0xFFD9D9D9), thickness = 0.5.dp)
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color(0xFFF7F7F7)).padding(8.dp, 8.dp),
+            modifier = Modifier.fillMaxWidth().background(if (WeTheme.isDark) Color(0xFF191919) else Color(0xFFF7F7F7)).padding(10.dp, 10.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Text("🎙️", fontSize = 24.sp)
+            WeIcon("聊天界面工具栏_语音", "🎙️", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
             BasicTextField(
                 value = inputText,
                 onValueChange = { inputText = it },
-                modifier = Modifier.weight(1f).background(Color.White, RoundedCornerShape(6.dp)).border(0.5.dp, Color(0xFFDCDCDC), RoundedCornerShape(6.dp)).padding(8.dp, 8.dp),
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 15.sp),
+                modifier = Modifier.weight(1f).height(36.dp).background(WeTheme.BackgroundCell, RoundedCornerShape(4.dp)).padding(8.dp, 8.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary),
                 singleLine = true
             )
-            Text("😊", fontSize = 24.sp)
-            Text("⊕", fontSize = 24.sp, modifier = Modifier.clickable {
-                val text = inputText.text.trim()
-                if (text.isNotEmpty()) {
-                    messages.add(ChatMessage("sent", text = text))
-                    inputText = TextFieldValue("")
-                    scope.launch { listState.animateScrollToItem(messages.size - 1) }
-                }
-            })
+            WeIcon("聊天界面工具栏_表情包贴纸", "😊", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
+            
+            val hasText = inputText.text.trim().isNotEmpty()
+            if (hasText) {
+                // 发送按钮
+                 Box(
+                     modifier = Modifier.height(32.dp).width(56.dp).background(WeTheme.BrandGreen, RoundedCornerShape(4.dp)).clickable {
+                         messages.add(ChatMessage("sent", text = inputText.text.trim()))
+                         inputText = TextFieldValue("")
+                         scope.launch { listState.animateScrollToItem(messages.size - 1) }
+                     },
+                     contentAlignment = Alignment.Center
+                 ) {
+                     Text("发送", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                 }
+            } else {
+                WeIcon("聊天界面工具栏_加号", "⊕", modifier = Modifier.size(28.dp), modifier.clickable {
+                     // 更多菜单
+                }, tint = WeTheme.TextPrimary)
+            }
         }
     }
 
@@ -626,29 +749,29 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
 fun ServiceScreen(onBack: () -> Unit) {
     BackHandler { onBack() }
 
-    Column(modifier = Modifier.fillMaxSize().background(Color(0xFFEDEDED)).statusBarsPadding()) {
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
         // Header
-        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(Color(0xFFEDEDED)), contentAlignment = Alignment.Center) {
-            Text("‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).clickable { onBack() }, fontSize = 24.sp)
-            Text("服务", fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
-            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), fontSize = 20.sp)
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("全局按钮_返回", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text("服务", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
+            WeIcon("nav_more", "···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(24.dp), tint = WeTheme.TextPrimary)
         }
-        Divider(color = Color(0xFFD9D9D9), thickness = 0.5.dp)
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
 
         // 绿色卡片
         Box(
-            modifier = Modifier.fillMaxWidth().padding(12.dp)
+            modifier = Modifier.fillMaxWidth().padding(10.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .background(Brush.linearGradient(listOf(Color(0xFF07C160), Color(0xFF06AD56))))
-                .padding(28.dp, 24.dp)
+                .padding(24.dp, 24.dp)
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("⊡", fontSize = 32.sp, color = Color.White)
+                    WeIcon("service_money_code", "⊡", modifier = Modifier.size(36.dp), tint = Color.White)
                     Text("收付款", fontSize = 14.sp, color = Color.White)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("💳", fontSize = 32.sp, color = Color.White)
+                    WeIcon("service_wallet", "💳", modifier = Modifier.size(36.dp), tint = Color.White)
                     Text("钱包", fontSize = 14.sp, color = Color.White)
                     Text("¥888.88", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
                 }
@@ -662,7 +785,7 @@ fun ServiceScreen(onBack: () -> Unit) {
             "所有服务已关闭，前往设置 ›",
             modifier = Modifier.fillMaxWidth().padding(20.dp),
             fontSize = 14.sp,
-            color = Color(0xFF888888),
+            color = WeTheme.TextHint,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
