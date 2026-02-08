@@ -425,6 +425,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     val maxDockApps = 4
     var isEditMode by remember { mutableStateOf(false) }
     var pageCount by remember { mutableIntStateOf(1) }
+    val scope = rememberCoroutineScope()
 
     // 拖拽状态
     var draggedItem by remember { mutableStateOf<GridItem?>(null) }
@@ -637,8 +638,17 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 .pointerInput(cellIndex, item.id, pageIndex) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { offset ->
-                                            if (!isEditMode) isEditMode = true
-                                            draggedItem = item; dragSource = "grid"; dragSourceCellIndex = cellIndex
+                                            // 1. 立即锁定被拖拽项，不等待编辑模式动画，消除视觉闪烁
+                                            draggedItem = item
+                                            dragSource = "grid"
+                                            dragSourceCellIndex = cellIndex
+                                            
+                                            // 2. 异步进入编辑模式，防止 JNI 或数据库操作阻塞主线程
+                                            if (!isEditMode) {
+                                                scope.launch {
+                                                    isEditMode = true
+                                                }
+                                            }
                                             dragSourcePageIndex = pageIndex
                                             dragOverlayX = gridAreaOffset.x + col * cwPx.toFloat() + offset.x
                                             dragOverlayY = gridAreaOffset.y + row * chPx.toFloat() + offset.y

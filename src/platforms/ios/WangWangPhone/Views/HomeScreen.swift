@@ -287,15 +287,20 @@ struct PageGridView: View {
                 .onChanged { value in
                     switch value {
                     case .first(true):
-                        // 长按识别成功，进入编辑模式
-                        if !isEditMode {
-                            withAnimation(.spring()) { isEditMode = true }
-                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        }
+                        // 1. 先记录拖拽项，保证快照稳定，消除视觉跳变
                         if draggingItem == nil {
                             draggingItem = AnyGridItem(item: item)
                             draggingFromCell = cellIndex
                             draggingFromPage = pageIndex
+                        }
+                        // 2. 使用非阻塞方式触发布局变更，防止 JNI 或动画计算阻塞手势
+                        if !isEditMode {
+                            DispatchQueue.main.async {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                                    isEditMode = true
+                                }
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            }
                         }
                     case .second(true, let drag):
                         // 长按后开始拖动
