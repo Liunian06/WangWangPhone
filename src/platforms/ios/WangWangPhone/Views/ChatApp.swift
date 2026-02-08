@@ -43,25 +43,21 @@ extension Color {
     }
 }
 
-// 资源加载辅助：优先加载 Assets 中的 SVG/PDF，否则回退到 Emoji
+// 资源加载辅助：强制加载 Assets 中的 SVG/PDF，不再回退到 Emoji
 struct WeIcon: View {
     let name: String
-    let fallback: String
+    let fallback: String // 参数保留但不再使用
     var size: CGFloat = 24
     var color: Color? = nil
     
     var body: some View {
-        // 实际开发中应检查 Bundle 中是否存在图片，这里简化处理
-        if UIImage(named: name) != nil {
-            Image(name)
-                .resizable()
-                .renderingMode(color != nil ? .template : .original)
-                .aspectRatio(contentMode: .fit)
-                .frame(width: size, height: size)
-                .foregroundColor(color)
-        } else {
-            Text(fallback).font(.system(size: size))
-        }
+        // 强制只加载 Image，如果图片不存在，显示空或占位符
+        Image(name)
+            .resizable()
+            .renderingMode(color != nil ? .template : .original)
+            .aspectRatio(contentMode: .fit)
+            .frame(width: size, height: size)
+            .foregroundColor(color)
     }
 }
 
