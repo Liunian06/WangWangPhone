@@ -1,4 +1,3 @@
-
 package com.WangWangPhone.ui
 
 import android.net.Uri
@@ -596,7 +595,256 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // 全局手势处理
+    Box(modifier = Modifier.fillMaxSize()
+        .pointerInput(Unit) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                down.consume()
+
+                // Hit Testing
+                val touchX = down.position.x
+                val touchY = down.position.y
+                
+                var startItem: GridItem? = null
+                var startCellIndex = -1
+                var startPageIndex = -1
+                var startDockIndex = -1
+                var isDockItem = false
+
+                // 检查 Dock
+                if (isOverDock(touchX, touchY)) {
+                    val relX = touchX - dockAreaOffset.x
+                    // 粗略估算 index，假设间隔 85f
+                    val index = ((relX) / 85f).toInt()
+                    if (index in 0 until dockApps.size) {
+                        if (touchY >= dockAreaOffset.y && touchY <= dockAreaOffset.y + dockAreaSize.height) {
+                            startItem = dockApps[index]
+                            startDockIndex = index
+                            isDockItem = true
+                        }
+                    }
+                }
+                
+                // 检查 Grid (如果不在 Dock)
+                if (startItem == null) {
+                    val cell = getCellFromGlobal(touchX, touchY)
+                    if (cell != -1) {
+                        val currentPageGrid = if (pagerState.currentPage < allPages.size) allPages[pagerState.currentPage] else null
+                        if (currentPageGrid != null) {
+                            // 找到占据该 cell 的 item (考虑 span)
+                            for ((pos, item) in currentPageGrid) {
+                                val itemRow = pos / GRID_COLUMNS
+                                val itemCol = pos % GRID_COLUMNS
+                                val targetRow = cell / GRID_COLUMNS
+                                val targetCol = cell % GRID_COLUMNS
+                                
+                                if (targetRow >= itemRow && targetRow < itemRow + item.spanY &&
+                                    targetCol >= itemCol && targetCol < itemCol + item.spanX) {
+                                    startItem = item
+                                    startCellIndex = pos
+                                    startPageIndex = pagerState.currentPage
+                                    break
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (startItem != null) {
+                    var longPressTriggered = false
+                    var tapDetected = false
+                    try {
+                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.changes.all { it.changedToUp() }) {
+                                    event.changes.forEach { it.consume() }
+                                    tapDetected = true
+                                    break
+                                }
+                                val movedTooMuch = event.changes.any {
+                                    val change = it.positionChange()
+                                    change.x * change.x + change.y * change.y > 100
+                                }
+                                if (movedTooMuch) break
+                            }
+                        }
+                    } catch (_: PointerEventTimeoutCancellationException) {
+                        longPressTriggered = true
+                    }
+
+                    if (tapDetected) {
+                        if (!isEditMode && startItem is AppIcon) {
+                            if (startItem!!.id == "settings") onSettingsClick()
+                            else if (startItem!!.id == "chat") onChatClick()
+                        } else if (isEditMode) {
+                            isEditMode = false; saveCurrentLayout()
+                        }
+                    } else if (longPressTriggered) {
+                        if (!isEditMode) isEditMode = true
+                        val startPos = down.position
+                        draggedItem = startItem
+                        if (isDockItem) {
+                            dragSource = "dock"
+                            dragSourceDockIndex = startDockIndex
+                            // 修正初始 offset
+                            dragOverlayX = touchX
+                            dragOverlayY = touchY
+                        } else {
+                            dragSource = "grid"
+                            dragSourceCellIndex = startCellIndex
+                            dragSourcePageIndex = startPageIndex
+                            dragOverlayX = touchX
+                            dragOverlayY = touchY
+                        }
+
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val allUp = event.changes.all { it.changedToUp() }
+                                event.changes.forEach { change ->
+                                    if (!change.changedToUp()) {
+                                        val dragAmount = change.positionChange()
+                                        change.consume()
+                                        dragOverlayX += dragAmount.x
+                                        dragOverlayY += dragAmount.y
+
+                                        handleAutoScroll(dragOverlayX)
+
+                                        if (!isOverDock(dragOverlayX, dragOverlayY)) {
+                                            val rawCell = getCellFromGlobal(dragOverlayX, dragOverlayY)
+                                            if (rawCell >= 0) {
+                                                val targetCol = rawCell % GRID_COLUMNS
+                                                val targetRow = rawCell / GRID_COLUMNS
+                                                val safeCol = targetCol.coerceAtMost(GRID_COLUMNS - startItem!!.spanX)
+                                                val safeRow = targetRow.coerceAtMost(GRID_ROWS - startItem!!.spanY)
+                                                highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
+                                            } else { highlightCellIndex = -1 }
+                                        } else { highlightCellIndex = -1 }
+                                    } else {
+                                        autoScrollJob?.cancel(); autoScrollJob = null
+                                    }
+                                }
+                                if (allUp) break
+                            }
+
+                            // 放置逻辑
+                            draggedItem?.let { currentItem ->
+                                val currentPage = pagerState.currentPage
+                                val sourcePage = if (dragSourcePageIndex < allPages.size && dragSourcePageIndex >= 0) allPages[dragSourcePageIndex] else null
+                                val targetPage = if (currentPage < allPages.size) allPages[currentPage] else null
+
+                                if (isOverDock(dragOverlayX, dragOverlayY) && currentItem is AppIcon) {
+                                    if (dockApps.size < maxDockApps) {
+                                        if (dragSource == "grid") sourcePage?.remove(dragSourceCellIndex)
+                                        else if (dragSource == "dock") dockApps.removeAt(dragSourceDockIndex)
+                                        dockApps.add(currentItem)
+                                    } else if (dragSource == "dock") {
+                                        // 简单实现：放回原位，暂不支持 Dock 内排序
+                                        // dockApps.removeAt(dragSourceDockIndex)
+                                        // dockApps.add(...)
+                                    }
+                                } else if (highlightCellIndex != -1 && targetPage != null) {
+                                    val targetCell = highlightCellIndex
+                                    
+                                    // 统一放置逻辑 (Grid -> Grid, Dock -> Grid)
+                                    // 1. 获取目标区域冲突
+                                    val targetCells = mutableListOf<Int>()
+                                    for (r in 0 until currentItem.spanY) {
+                                        for (c in 0 until currentItem.spanX) {
+                                            targetCells.add(targetCell + r * GRID_COLUMNS + c)
+                                        }
+                                    }
+                                    val conflictingItems = targetCells.mapNotNull { targetPage[it] }.filter { it.id != currentItem.id }.distinct()
+                                    
+                                    // 2. 判断是否可放置/交换
+                                    var canPlace = false
+                                    var needSwap = false
+                                    
+                                    if (conflictingItems.isEmpty()) {
+                                        // 目标区域为空 (注意：如果源和目标重叠，需排除源占用的位置)
+                                        val ignoreSource = if (dragSource == "grid" && dragSourcePageIndex == currentPage) dragSourceCellIndex else null
+                                        if (checkOccupancy(targetPage, targetCell, currentItem.spanX, currentItem.spanY, ignoreSource)) {
+                                            canPlace = true
+                                        }
+                                    } else if (currentItem.spanX > 1 && conflictingItems.all { it.spanX == 1 && it.spanY == 1 }) {
+                                        // Widget 换 Apps
+                                        canPlace = true
+                                        needSwap = true
+                                    } else if (conflictingItems.size == 1 && conflictingItems[0].spanX == currentItem.spanX && conflictingItems[0].spanY == currentItem.spanY) {
+                                        // 同尺寸互换
+                                        canPlace = true
+                                        needSwap = true
+                                    }
+                                    
+                                    if (canPlace) {
+                                        // 移除源
+                                        if (dragSource == "grid") sourcePage?.remove(dragSourceCellIndex)
+                                        else dockApps.removeAt(dragSourceDockIndex)
+                                        
+                                        // 移除目标区域旧 items
+                                        if (needSwap) {
+                                            targetCells.forEach { targetPage.remove(it) }
+                                            // 移除可能存在的残留 key
+                                            for ((k, v) in targetPage.toMap()) {
+                                                if (conflictingItems.any { it.id == v.id }) targetPage.remove(k)
+                                            }
+                                        }
+                                        
+                                        // 放置新 item
+                                        targetPage[targetCell] = currentItem
+                                        
+                                        // 处理被挤出的 items (回填源位置)
+                                        if (needSwap) {
+                                            if (dragSource == "grid" && dragSourcePageIndex == currentPage) {
+                                                // 同页交换：计算源区域不重叠部分
+                                                val sourceCells = mutableListOf<Int>()
+                                                for (r in 0 until currentItem.spanY) {
+                                                    for (c in 0 until currentItem.spanX) {
+                                                        sourceCells.add(dragSourceCellIndex + r * GRID_COLUMNS + c)
+                                                    }
+                                                }
+                                                val targetCellsSet = targetCells.toSet()
+                                                val availableCells = sourceCells.filter { it !in targetCellsSet }
+                                                
+                                                var idx = 0
+                                                // 优先填入源区域空位
+                                                for (cell in availableCells) {
+                                                    if (idx < conflictingItems.size && cell < TOTAL_CELLS) {
+                                                        targetPage[cell] = conflictingItems[idx]
+                                                        idx++
+                                                    }
+                                                }
+                                                // 溢出找全页空位
+                                                while (idx < conflictingItems.size) {
+                                                    val empty = (0 until TOTAL_CELLS).firstOrNull { checkOccupancy(targetPage, it, 1, 1, null) }
+                                                    if (empty != null) targetPage[empty] = conflictingItems[idx]
+                                                    idx++
+                                                }
+                                            } else {
+                                                // 跨页或Dock交换：找当前页空位
+                                                var idx = 0
+                                                while (idx < conflictingItems.size) {
+                                                    val empty = (0 until TOTAL_CELLS).firstOrNull { checkOccupancy(targetPage, it, 1, 1, null) }
+                                                    if (empty != null) targetPage[empty] = conflictingItems[idx]
+                                                    idx++
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                saveCurrentLayout()
+                            }
+                        } finally {
+                            autoScrollJob?.cancel(); autoScrollJob = null
+                            draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
+                        }
+                    }
+                }
+            }
+        }
+    ) {
         // 背景
         if (homeWallpaperPath != null) {
             val bitmap = remember(homeWallpaperPath) { android.graphics.BitmapFactory.decodeFile(homeWallpaperPath) }
@@ -629,13 +877,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                     }
                                 } else Modifier
                             )
-                            .pointerInput(isEditMode) {
-                                detectTapGestures(
-                                    onTap = {
-                                        if (isEditMode) { isEditMode = false; saveCurrentLayout() }
-                                    }
-                                )
-                            }
+                            // 移除 GridItem 上的 pointerInput，统一到外层处理
                     ) {
                         val density = LocalDensity.current
                         val twPx = constraints.maxWidth; val thPx = constraints.maxHeight
@@ -678,185 +920,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                     if (isEditMode) rotationZ = wAngle
                                     if (isDraggedFromHere) alpha = 0f
                                 }
-                                .pointerInput(cellIndex, item.id, pageIndex) {
-                                    awaitEachGesture {
-                                        val down = awaitFirstDown()
-                                        down.consume()
-
-                                        var longPressTriggered = false
-                                        var tapDetected = false
-                                        try {
-                                            withTimeout(viewConfiguration.longPressTimeoutMillis) {
-                                                // 等待手指抬起（轻触）或超时（长按）
-                                                while (true) {
-                                                    val event = awaitPointerEvent()
-                                                    if (event.changes.all { it.changedToUp() }) {
-                                                        // 手指在超时前抬起 = 轻触
-                                                        event.changes.forEach { it.consume() }
-                                                        tapDetected = true
-                                                        break
-                                                    }
-                                                    // 检查是否移动过多（取消长按识别）
-                                                    val movedTooMuch = event.changes.any {
-                                                        val change = it.positionChange()
-                                                        change.x * change.x + change.y * change.y > 100 // ~10px slop
-                                                    }
-                                                    if (movedTooMuch) {
-                                                        break // 移动过多，放弃手势
-                                                    }
-                                                }
-                                            }
-                                        } catch (_: PointerEventTimeoutCancellationException) {
-                                            longPressTriggered = true
-                                        }
-
-                                        if (tapDetected) {
-                                            // 轻触处理
-                                            if (!isEditMode && item is AppIcon) {
-                                                if (item.id == "settings") onSettingsClick()
-                                                else if (item.id == "chat") onChatClick()
-                                            } else if (isEditMode) {
-                                                isEditMode = false; saveCurrentLayout()
-                                            }
-                                        } else if (longPressTriggered) {
-                                            // 长按成功 → 进入编辑模式 + 开始拖拽
-                                            if (!isEditMode) isEditMode = true
-                                            val startPos = down.position
-                                            draggedItem = item; dragSource = "grid"; dragSourceCellIndex = cellIndex
-                                            dragSourcePageIndex = pageIndex
-                                            dragOverlayX = gridAreaOffset.x + col * cwPx.toFloat() + startPos.x
-                                            dragOverlayY = gridAreaOffset.y + row * chPx.toFloat() + startPos.y
-
-                                            // 跟踪拖拽移动（try/finally确保协程取消时清理状态）
-                                            try {
-                                            while (true) {
-                                                val event = awaitPointerEvent()
-                                                val allUp = event.changes.all { it.changedToUp() }
-                                                event.changes.forEach { change ->
-                                                    if (!change.changedToUp()) {
-                                                        val dragAmount = change.positionChange()
-                                                        change.consume()
-                                                        dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
-
-                                                        // 自动翻页检测
-                                                        handleAutoScroll(dragOverlayX)
-
-                                                        val rawCell = getCellFromGlobal(dragOverlayX, dragOverlayY)
-                                                        if (rawCell >= 0) {
-                                                            val targetCol = rawCell % GRID_COLUMNS
-                                                            val targetRow = rawCell / GRID_COLUMNS
-                                                            val safeCol = targetCol.coerceAtMost(GRID_COLUMNS - item.spanX)
-                                                            val safeRow = targetRow.coerceAtMost(GRID_ROWS - item.spanY)
-                                                            highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
-                                                        } else {
-                                                            highlightCellIndex = -1
-                                                        }
-                                                        if (isOverDock(dragOverlayX, dragOverlayY)) highlightCellIndex = -1
-                                                    } else {
-                                                        autoScrollJob?.cancel(); autoScrollJob = null
-                                                    }
-                                                }
-                                                if (allUp) break
-                                            }
-
-                                            // 拖拽结束 → 处理放置逻辑
-                                            draggedItem?.let { currentItem ->
-                                                val currentPage = pagerState.currentPage
-                                                val sourcePage = if (dragSourcePageIndex < allPages.size) allPages[dragSourcePageIndex] else null
-                                                val targetPage = if (currentPage < allPages.size) allPages[currentPage] else null
-
-                                                if (isOverDock(dragOverlayX, dragOverlayY) && currentItem is AppIcon) {
-                                                    if (dockApps.size < maxDockApps) {
-                                                        sourcePage?.remove(dragSourceCellIndex)
-                                                        dockApps.add(currentItem)
-                                                    }
-                                                } else if (highlightCellIndex != -1 && targetPage != null) {
-                                                    val targetCell = highlightCellIndex
-                                                    val targetOccupant = targetPage[targetCell]
-
-                                                    if (dragSourcePageIndex == currentPage) {
-                                                        // 计算目标区域覆盖的 items
-                                                        val targetCells = mutableListOf<Int>()
-                                                        for (r in 0 until currentItem.spanY) {
-                                                            for (c in 0 until currentItem.spanX) {
-                                                                targetCells.add(targetCell + r * GRID_COLUMNS + c)
-                                                            }
-                                                        }
-                                                        val conflictingItems = targetCells.mapNotNull { targetPage[it] }.filter { it.id != currentItem.id }.distinct()
-
-                                                        if (conflictingItems.size == 1 && conflictingItems[0].spanX == currentItem.spanX && conflictingItems[0].spanY == currentItem.spanY) {
-                                                            // Case 1: 同尺寸互换 (Widget <-> Widget 或 App <-> App)
-                                                            val targetItem = conflictingItems[0]
-                                                            if (targetCell != dragSourceCellIndex) {
-                                                                targetPage.remove(dragSourceCellIndex)
-                                                                targetPage[targetCell] = currentItem
-                                                                // 注意：这里需要找到 targetItem 原本的位置。
-                                                                // 如果 targetItem 也是大尺寸，它只在 map 中存了一个位置 (top-left)。
-                                                                // 简单互换：把 targetItem 放到 dragSourceCellIndex
-                                                                targetPage[dragSourceCellIndex] = targetItem
-                                                            }
-                                                        } else if (conflictingItems.isEmpty()) {
-                                                            // Case 2: 目标区域为空
-                                                            if (checkOccupancy(targetPage, targetCell, currentItem.spanX, currentItem.spanY, dragSourceCellIndex)) {
-                                                                targetPage.remove(dragSourceCellIndex)
-                                                                targetPage[targetCell] = currentItem
-                                                            }
-                                                        } else if (currentItem.spanX > 1 && conflictingItems.all { it.spanX == 1 && it.spanY == 1 }) {
-                                                            // Case 3: Widget 覆盖多个 Apps -> 交换
-                                                            // 计算源区域cells和目标区域cells
-                                                            val sourceCells = mutableListOf<Int>()
-                                                            for (r in 0 until currentItem.spanY) {
-                                                                for (c in 0 until currentItem.spanX) {
-                                                                    sourceCells.add(dragSourceCellIndex + r * GRID_COLUMNS + c)
-                                                                }
-                                                            }
-                                                            val targetCellsSet = targetCells.toSet()
-                                                            // 可用于放置被挤开App的cells = 源区域中不与目标区域重叠的cells
-                                                            val availableCells = sourceCells.filter { it !in targetCellsSet }
-
-                                                            // 1. 移除源 Widget
-                                                            targetPage.remove(dragSourceCellIndex)
-                                                            // 2. 移除目标 Apps
-                                                            targetCells.forEach { targetPage.remove(it) }
-                                                            // 3. 放置 Widget
-                                                            targetPage[targetCell] = currentItem
-                                                            // 4. 将 Apps 放入可用cells，溢出的找页面空位
-                                                            var idx = 0
-                                                            for (cell in availableCells) {
-                                                                if (idx < conflictingItems.size && cell < TOTAL_CELLS) {
-                                                                    targetPage[cell] = conflictingItems[idx]
-                                                                    idx++
-                                                                }
-                                                            }
-                                                            // 溢出的App找页面空位
-                                                            while (idx < conflictingItems.size) {
-                                                                val emptyCell = (0 until TOTAL_CELLS).firstOrNull {
-                                                                    checkOccupancy(targetPage, it, 1, 1, null)
-                                                                }
-                                                                if (emptyCell != null) {
-                                                                    targetPage[emptyCell] = conflictingItems[idx]
-                                                                }
-                                                                idx++
-                                                            }
-                                                        }
-                                                    } else {
-                                                        if (checkOccupancy(targetPage, targetCell, currentItem.spanX, currentItem.spanY, null)) {
-                                                            sourcePage?.remove(dragSourceCellIndex)
-                                                            targetPage[targetCell] = currentItem
-                                                        }
-                                                    }
-                                                }
-                                                saveCurrentLayout()
-                                            }
-                                            } finally {
-                                                // 确保协程取消（如翻页）时也能清理拖拽状态
-                                                autoScrollJob?.cancel(); autoScrollJob = null
-                                                draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1
-                                            }
-                                        }
-                                    }
-                                },
-                                contentAlignment = Alignment.Center
+                                // pointerInput 已移除
+                                , contentAlignment = Alignment.Center
                             ) {
                                 if (item is WidgetItem) {
                                     WidgetContent(widgetType = item.widgetType, modifier = Modifier.fillMaxSize().padding(8.dp))
@@ -941,112 +1006,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 if (isEditMode) rotationZ = dwa
                                 if (isDraggedFromDock) alpha = 0f
                             }
-                            .pointerInput(dockIndex, app.id) {
-                                awaitEachGesture {
-                                    val down = awaitFirstDown()
-                                    down.consume()
-
-                                    var longPressTriggered = false
-                                    var tapDetected = false
-                                    try {
-                                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
-                                            while (true) {
-                                                val event = awaitPointerEvent()
-                                                if (event.changes.all { it.changedToUp() }) {
-                                                    event.changes.forEach { it.consume() }
-                                                    tapDetected = true
-                                                    break
-                                                }
-                                                val movedTooMuch = event.changes.any {
-                                                    val change = it.positionChange()
-                                                    change.x * change.x + change.y * change.y > 100
-                                                }
-                                                if (movedTooMuch) break
-                                            }
-                                        }
-                                    } catch (_: PointerEventTimeoutCancellationException) {
-                                        longPressTriggered = true
-                                    }
-
-                                    if (tapDetected) {
-                                        if (!isEditMode) {
-                                            if (app.id == "settings") onSettingsClick()
-                                            else if (app.id == "chat") onChatClick()
-                                        } else {
-                                            isEditMode = false; saveCurrentLayout()
-                                        }
-                                    } else if (longPressTriggered) {
-                                        if (!isEditMode) isEditMode = true
-                                        val startPos = down.position
-                                        draggedItem = app; dragSource = "dock"; dragSourceDockIndex = dockIndex
-                                        dragOverlayX = dockAreaOffset.x + startPos.x + dockIndex * 85f
-                                        dragOverlayY = dockAreaOffset.y + startPos.y
-
-                                        try {
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val allUp = event.changes.all { it.changedToUp() }
-                                            event.changes.forEach { change ->
-                                                if (!change.changedToUp()) {
-                                                    val dragAmount = change.positionChange()
-                                                    change.consume()
-                                                    dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
-
-                                                    handleAutoScroll(dragOverlayX)
-                                                    if (!isOverDock(dragOverlayX, dragOverlayY)) {
-                                                        val rawCell = getCellFromGlobal(dragOverlayX, dragOverlayY)
-                                                        if (rawCell >= 0) {
-                                                            val targetCol = rawCell % GRID_COLUMNS
-                                                            val targetRow = rawCell / GRID_COLUMNS
-                                                            val safeCol = targetCol.coerceAtMost(GRID_COLUMNS - 1)
-                                                            val safeRow = targetRow.coerceAtMost(GRID_ROWS - 1)
-                                                            highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
-                                                        } else { highlightCellIndex = -1 }
-                                                    } else { highlightCellIndex = -1 }
-                                                    } else {
-                                                        autoScrollJob?.cancel(); autoScrollJob = null
-                                                }
-                                            }
-                                            if (allUp) break
-                                        }
-
-                                        draggedItem?.let { currentItem ->
-                                            val currentPage = pagerState.currentPage
-                                            val targetPage = if (currentPage < allPages.size) allPages[currentPage] else null
-
-                                            if (!isOverDock(dragOverlayX, dragOverlayY)) {
-                                                if (highlightCellIndex != -1 && currentItem is AppIcon && targetPage != null) {
-                                                    val targetCell = highlightCellIndex
-                                                    val targetOccupant = targetPage[targetCell]
-
-                                                    if (targetOccupant == null) {
-                                                        dockApps.removeAt(dragSourceDockIndex)
-                                                        targetPage[targetCell] = currentItem
-                                                    } else if (targetOccupant is AppIcon) {
-                                                        dockApps.removeAt(dragSourceDockIndex)
-                                                        targetPage[targetCell] = currentItem
-                                                        if (dockApps.size < maxDockApps) {
-                                                            dockApps.add(dragSourceDockIndex.coerceAtMost(dockApps.size), targetOccupant)
-                                                        } else {
-                                                            val empty = (0 until TOTAL_CELLS).firstOrNull { checkOccupancy(targetPage, it, 1, 1, null) }
-                                                            if (empty != null) targetPage[empty] = targetOccupant
-                                                        }
-                                                    }
-                                                }
-                                            } else {
-                                                dockApps.removeAt(dragSourceDockIndex)
-                                                dockApps.add(dragSourceDockIndex.coerceIn(0, dockApps.size), currentItem as AppIcon)
-                                            }
-                                            saveCurrentLayout()
-                                        }
-                                        } finally {
-                                            autoScrollJob?.cancel(); autoScrollJob = null
-                                            draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
-                                        }
-                                    }
-                                }
-                            },
-                            contentAlignment = Alignment.Center
+                            // pointerInput 已移除，统一到外层处理
+                            , contentAlignment = Alignment.Center
                         ) {
                             if (app.useImage) {
                                 val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
