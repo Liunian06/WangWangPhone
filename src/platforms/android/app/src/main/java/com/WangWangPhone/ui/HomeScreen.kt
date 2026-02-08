@@ -524,9 +524,6 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         pageCount = allPages.size.coerceAtLeast(1)
     }
 
-    // 使用协程作用域来处理异步数据库操作，避免阻塞 UI 线程
-    val scope = rememberCoroutineScope()
-
     fun saveCurrentLayout() {
         val items = mutableListOf<LayoutItem>()
         allPages.forEachIndexed { pageIdx, page ->
@@ -536,11 +533,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
             }
         }
         dockApps.forEachIndexed { i, app -> items.add(LayoutItem(appId = app.id, position = i, area = "dock")) }
-
-        // 异步保存布局，彻底解决 JNI/DB 阻塞导致的闪屏问题
-        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            layoutDbHelper.saveLayout(items)
-        }
+        layoutDbHelper.saveLayout(items)
     }
 
     fun getCellFromGlobal(gx: Float, gy: Float): Int {
@@ -573,6 +566,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         } else Box(modifier = Modifier.fillMaxSize().background(Color.Black))
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            // 注意：拖拽浮层已移至顶层 Box，不在 Column 内
 
             // HorizontalPager - 多页网格区域
             HorizontalPager(
@@ -900,35 +894,35 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                 .width(120.dp).height(5.dp).clip(RoundedCornerShape(5.dp))
                 .background(Color.White.copy(alpha = 0.8f))
                 .align(Alignment.CenterHorizontally))
+        }
 
-            // 拖拽浮动覆盖层 - 最高层级
-            if (draggedItem != null) {
-                val density = LocalDensity.current
-                val itemWidth = if (draggedItem!!.type == "widget") 300.dp else 60.dp
-                val itemHeight = if (draggedItem!!.type == "widget") 150.dp else 60.dp
+        // 拖拽浮动覆盖层 - 在顶层 Box 中，不在 Column 内，避免布局重排导致闪屏
+        if (draggedItem != null) {
+            val density = LocalDensity.current
+            val itemWidth = if (draggedItem!!.type == "widget") 300.dp else 60.dp
+            val itemHeight = if (draggedItem!!.type == "widget") 150.dp else 60.dp
 
+            Box(
+                modifier = Modifier.fillMaxSize().zIndex(10000f),
+                contentAlignment = Alignment.TopStart
+            ) {
                 Box(
-                    modifier = Modifier.fillMaxSize().zIndex(10000f),
-                    contentAlignment = Alignment.TopStart
+                    modifier = Modifier
+                        .offset { IntOffset((dragOverlayX - 30 * density.density).roundToInt(),
+                            (dragOverlayY - 30 * density.density).roundToInt()) }
+                        .size(itemWidth, itemHeight)
+                        .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f; alpha = 0.85f },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .offset { IntOffset((dragOverlayX - 30 * density.density).roundToInt(),
-                                (dragOverlayY - 30 * density.density).roundToInt()) }
-                            .size(itemWidth, itemHeight)
-                            .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f; alpha = 0.85f },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (draggedItem is WidgetItem) {
-                            WidgetContent((draggedItem as WidgetItem).widgetType, modifier = Modifier.fillMaxSize())
-                        } else {
-                            val app = draggedItem as AppIcon
-                            if (app.useImage) {
-                                val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
-                                if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
-                                    contentDescription = app.name, modifier = Modifier.size(60.dp))
-                            } else Text(app.icon, fontSize = 48.sp)
-                        }
+                    if (draggedItem is WidgetItem) {
+                        WidgetContent((draggedItem as WidgetItem).widgetType, modifier = Modifier.fillMaxSize())
+                    } else {
+                        val app = draggedItem as AppIcon
+                        if (app.useImage) {
+                            val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+                            if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
+                                contentDescription = app.name, modifier = Modifier.size(60.dp))
+                        } else Text(app.icon, fontSize = 48.sp)
                     }
                 }
             }

@@ -280,16 +280,16 @@ struct PageGridView: View {
             }
         }
         .rotationEffect(isEditMode ? .degrees(wiggle) : .degrees(0))
-        .animation(isEditMode ? Animation.easeInOut(duration: 0.12 + Double(cellIndex % 3) * 0.03).repeatForever(autoreverses: true) : .default, value: isEditMode)
+        .animation(isEditMode ? Animation.easeInOut(duration: 0.12 + Double(cellIndex % 3) * 0.03).repeatForever(autoreverses: true) : .linear(duration: 0.1), value: isEditMode)
         .gesture(
             LongPressGesture(minimumDuration: 0.5)
                 .sequenced(before: DragGesture(coordinateSpace: .global))
                 .onChanged { value in
                     switch value {
                     case .first(true):
-                        // 长按识别成功，进入编辑模式
+                        // 长按识别成功，进入编辑模式（不使用withAnimation避免闪屏）
                         if !isEditMode {
-                            withAnimation(.spring()) { isEditMode = true }
+                            isEditMode = true
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         }
                         if draggingItem == nil {
@@ -423,7 +423,7 @@ struct DraggableDockIconView: View {
         .zIndex(isDragging ? 100 : 0)
         .offset(dragOffset)
         .rotationEffect(isEditMode && !isDragging ? .degrees(wiggleAmount) : .degrees(0))
-        .animation(isEditMode && !isDragging ? Animation.easeInOut(duration: 0.12 + Double(dockIndex % 3) * 0.03).repeatForever(autoreverses: true) : .default, value: isEditMode)
+        .animation(isEditMode && !isDragging ? Animation.easeInOut(duration: 0.12 + Double(dockIndex % 3) * 0.03).repeatForever(autoreverses: true) : .linear(duration: 0.1), value: isEditMode)
         .onAppear { if isEditMode { wiggleAmount = dockIndex % 2 == 0 ? -1.5 : 1.5 } }
         .onChange(of: isEditMode) { nv in wiggleAmount = nv ? (dockIndex % 2 == 0 ? -1.5 : 1.5) : 0 }
         .onTapGesture { onTap() }
@@ -433,9 +433,9 @@ struct DraggableDockIconView: View {
                 .onChanged { value in
                     switch value {
                     case .first(true):
-                        // 长按识别成功，进入编辑模式
+                        // 长按识别成功，进入编辑模式（不使用withAnimation避免闪屏）
                         if !isEditMode {
-                            withAnimation(.spring()) { isEditMode = true }
+                            isEditMode = true
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         }
                         if !isDragging {
@@ -679,7 +679,7 @@ struct HomeScreen: View {
             if isEditMode {
                 Color.clear.contentShape(Rectangle())
                     .onTapGesture {
-                        withAnimation(.spring()) { isEditMode = false }
+                        isEditMode = false
                         saveLayout()
                     }
                     .zIndex(-1)
@@ -842,10 +842,6 @@ struct HomeScreen: View {
             }
         }
         items += dockApps.enumerated().map { LayoutItem(appId: $1.id, position: $0, area: "dock") }
-        
-        // 异步后台保存，防止主线程阻塞导致 UI 闪屏
-        DispatchQueue.global(qos: .background).async {
-            _ = self.layoutManager.saveLayout(items)
-        }
+        _ = layoutManager.saveLayout(items)
     }
 }
