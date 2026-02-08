@@ -641,7 +641,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 .offset { IntOffset(col * cwPx, row * chPx) }
                                 .width(with(density) { itemWidth.toDp() }).height(with(density) { itemHeight.toDp() })
                                 .graphicsLayer { if (isEditMode) rotationZ = wAngle }
-                                .pointerInput(cellIndex, item.id, pageIndex, isEditMode) {
+                                .pointerInput(cellIndex, item.id, pageIndex) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown()
                                         down.consume()
@@ -841,7 +841,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
 
                         Box(modifier = Modifier.size(60.dp)
                             .graphicsLayer { if (isEditMode) rotationZ = dwa }
-                            .pointerInput(dockIndex, app.id, isEditMode) {
+                            .pointerInput(dockIndex, app.id) {
                                 awaitEachGesture {
                                     val down = awaitFirstDown()
                                     down.consume()
