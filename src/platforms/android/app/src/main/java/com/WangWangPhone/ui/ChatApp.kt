@@ -62,38 +62,32 @@ fun WeIcon(
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified
 ) {
-    // 这里假设资源名称已经映射到 drawable 资源 ID
-    // 实际项目中需要确保 assets/wechat_ui_assets/icons/ 下的 SVG 已正确导入为 Vector Drawable
-    // 并通过 R.drawable.xxx 引用。这里简化为通过名称查找资源 ID。
     val context = LocalContext.current
-    // 尝试根据名称获取 drawable id (去除 .svg 后缀，替换中文等特殊字符为标准命名)
-    // 注意：这里需要确保 resource name 与实际 drawable 文件名一致
-    // 简单起见，我们假设 drawable 资源已经存在且命名规范
-    
-    // 模拟资源查找逻辑 (实际需替换为真实 drawable 加载)
-    // 由于我们是在模拟环境，这里仍然不得不使用 Text 占位，但在真实环境应替换为:
-    // Icon(painter = painterResource(id = resId), contentDescription = null, modifier = modifier, tint = tint)
-    
+    // 尝试查找 drawable 资源
+    // 1. 尝试直接按 name 查找 (例如 "nav_chat_selected")
+    // 2. 如果 name 包含中文 (例如 "导航栏_已选中_微信.svg")，需要先过滤后缀
+    val resName = name.replace(".svg", "")
+    val resId = remember(resName) {
+        context.resources.getIdentifier(resName, "drawable", context.packageName)
+    }
+
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
-        // [SVG_ENFORCED] 即使在模拟环境，也标记这里应当是 SVG
-        // 为了响应用户 "强制使用 SVG" 的要求，我们在这里不再显示 Emoji，而是显示一个占位符或尝试加载真实资源
-        // 如果资源未找到，显示一个红色的 X 表示缺失
-        
-        // 实际上，为了能编译通过并运行，我们还是得保留一个可见的东西
-        // 但我们会注释掉 Emoji 回退
-        
-        // Text(fallback, ...) // Emoji DISABLED
-        
-        // 临时替代方案：用一个带颜色的图标占位，代表 SVG
-        // 真实实现：
-        // val resId = context.resources.getIdentifier(name, "drawable", context.packageName)
-        // if (resId != 0) {
-        //     Icon(painter = painterResource(id = resId), ...)
-        // }
-        
-        // 由于没有真实的 R.drawable 生成，我们用 Icon + Painter 模拟加载
-        // 这里只是示意，实际必须有 drawable 文件
-       Text("SVG", fontSize = 10.sp, color = Color.Red)
+        if (resId != 0) {
+            Icon(
+                painter = painterResource(id = resId),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                tint = if (tint != Color.Unspecified) tint else LocalContentColor.current
+            )
+        } else {
+            // [DEBUG MODE] 只有在资源找不到时才显示红色占位符，方便调试
+            // 生产环境应显示透明或默认图标
+            // 此时显示 fallback emoji 也不失为一种调试手段，看看到底缺了啥，但用户要求强制SVG，所以这里只显示红框
+            // 为了避免 UI 崩溃，我们显示一个细微的红框表示缺失
+            Box(modifier = Modifier.fillMaxSize().border(1.dp, Color.Red)) {
+                 Text("MISSING", fontSize = 6.sp, color = Color.Red, modifier = Modifier.align(Alignment.Center))
+            }
+        }
     }
 }
 
