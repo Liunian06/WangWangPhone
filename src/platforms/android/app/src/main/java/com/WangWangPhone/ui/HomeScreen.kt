@@ -727,7 +727,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                             dragOverlayX = gridAreaOffset.x + col * cwPx.toFloat() + startPos.x
                                             dragOverlayY = gridAreaOffset.y + row * chPx.toFloat() + startPos.y
 
-                                            // 跟踪拖拽移动
+                                            // 跟踪拖拽移动（try/finally确保协程取消时清理状态）
+                                            try {
                                             while (true) {
                                                 val event = awaitPointerEvent()
                                                 val allUp = event.changes.all { it.changedToUp() }
@@ -752,7 +753,6 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                         }
                                                         if (isOverDock(dragOverlayX, dragOverlayY)) highlightCellIndex = -1
                                                     } else {
-                                                        // 手指抬起，取消自动翻页
                                                         autoScrollJob?.cancel(); autoScrollJob = null
                                                     }
                                                 }
@@ -848,8 +848,11 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                 }
                                                 saveCurrentLayout()
                                             }
-                                            autoScrollJob?.cancel(); autoScrollJob = null
-                                            draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1
+                                            } finally {
+                                                // 确保协程取消（如翻页）时也能清理拖拽状态
+                                                autoScrollJob?.cancel(); autoScrollJob = null
+                                                draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1
+                                            }
                                         }
                                     }
                                 },
@@ -979,6 +982,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                         dragOverlayX = dockAreaOffset.x + startPos.x + dockIndex * 85f
                                         dragOverlayY = dockAreaOffset.y + startPos.y
 
+                                        try {
                                         while (true) {
                                             val event = awaitPointerEvent()
                                             val allUp = event.changes.all { it.changedToUp() }
@@ -1035,8 +1039,10 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                             }
                                             saveCurrentLayout()
                                         }
-                                        autoScrollJob?.cancel(); autoScrollJob = null
-                                        draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
+                                        } finally {
+                                            autoScrollJob?.cancel(); autoScrollJob = null
+                                            draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
+                                        }
                                     }
                                 }
                             },
