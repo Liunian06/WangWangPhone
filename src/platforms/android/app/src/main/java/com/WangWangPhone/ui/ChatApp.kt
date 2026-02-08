@@ -318,9 +318,9 @@ fun WeChatHeader(
         }
 
         Row(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            WeIcon("搜索按钮", "🔍", modifier = Modifier.size(24.dp), tint = textColor)
+            WeIcon("ic_search", "🔍", modifier = Modifier.size(24.dp), tint = textColor)
             if (showAdd) {
-                WeIcon("聊天界面工具栏_加号", "⊕", modifier = Modifier.size(24.dp), tint = textColor)
+                WeIcon("ic_chat_add", "⊕", modifier = Modifier.size(24.dp), tint = textColor)
             }
         }
     }
@@ -334,10 +334,10 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
     data class TabItem(val id: String, val iconSelected: String, val iconNormal: String, val label: String, val fallback: String)
     
     val tabs = listOf(
-        TabItem("messages", "导航栏_已选中_微信", "导航栏_未选中_微信", "微信", "💬"),
-        TabItem("contacts", "导航栏_已选中_通讯录", "导航栏_未选中_通讯录", "通讯录", "👥"),
-        TabItem("moments", "导航栏_已选中_发现", "导航栏_未选中_发现", "发现", "🧭"),
-        TabItem("me", "导航栏_已选中_我", "导航栏_未选中_我", "我", "👤"),
+        TabItem("messages", "ic_tab_chat_selected", "ic_tab_chat_normal", "微信", "💬"),
+        TabItem("contacts", "ic_tab_contacts_selected", "ic_tab_contacts_normal", "通讯录", "👥"),
+        TabItem("moments", "ic_tab_discover_selected", "ic_tab_discover_normal", "发现", "🧭"),
+        TabItem("me", "ic_tab_me_selected", "ic_tab_me_normal", "我", "👤"),
     )
 
     val bg = if (WeTheme.isDark) Color(0xFF191919) else Color(0xFFF7F7F7)
@@ -659,9 +659,9 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
         // Header
         Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
-            WeIcon("全局按钮_返回", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
             Text(displayTitle, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1, color = WeTheme.TextPrimary)
-            WeIcon("nav_more", "···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(24.dp), tint = WeTheme.TextPrimary)
+            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
         }
         Divider(color = WeTheme.Separator, thickness = 0.5.dp)
 
@@ -724,7 +724,7 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            WeIcon("聊天界面工具栏_语音", "🎙️", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
+            WeIcon("ic_chat_voice", "🎙️", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
             BasicTextField(
                 value = inputText,
                 onValueChange = { inputText = it },
@@ -732,7 +732,7 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
                 textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary),
                 singleLine = true
             )
-            WeIcon("聊天界面工具栏_表情包贴纸", "😊", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
+            WeIcon("ic_chat_emoji", "😊", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
             
             val hasText = inputText.text.trim().isNotEmpty()
             if (hasText) {
@@ -748,7 +748,7 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
                      Text("发送", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                  }
             } else {
-                WeIcon("聊天界面工具栏_加号", "⊕", modifier = Modifier.size(28.dp).clickable {
+                WeIcon("ic_chat_add", "⊕", modifier = Modifier.size(28.dp).clickable {
                      // 更多菜单
                 }, tint = WeTheme.TextPrimary)
             }
@@ -773,9 +773,9 @@ fun ServiceScreen(onBack: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
         // Header
         Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
-            WeIcon("全局按钮_返回", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
             Text("服务", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
-            WeIcon("nav_more", "···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).size(24.dp), tint = WeTheme.TextPrimary)
+            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
         }
         Divider(color = WeTheme.Separator, thickness = 0.5.dp)
 
@@ -788,11 +788,11 @@ fun ServiceScreen(onBack: () -> Unit) {
         ) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WeIcon("service_money_code", "⊡", modifier = Modifier.size(36.dp), tint = Color.White)
+                    Text("⊡", fontSize = 36.sp, color = Color.White)
                     Text("收付款", fontSize = 14.sp, color = Color.White)
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    WeIcon("service_wallet", "💳", modifier = Modifier.size(36.dp), tint = Color.White)
+                    Text("💳", fontSize = 36.sp)
                     Text("钱包", fontSize = 14.sp, color = Color.White)
                     Text("¥888.88", fontSize = 12.sp, color = Color.White.copy(alpha = 0.7f))
                 }

@@ -239,9 +239,9 @@ struct ChatMainView: View {
                         // 返回按钮 (模拟)
                         // Button(action: onClose) { Text("‹").font(.system(size: 24)) }.foregroundColor(WeTheme.codeTextPrimary)
                         Spacer()
-                        WeIcon(name: "nav_search", fallback: "🔍", size: 24, color: WeTheme.codeTextPrimary)
+                        WeIcon(name: "ic_search", fallback: "🔍", size: 24, color: WeTheme.codeTextPrimary)
                         if currentTab != "moments" {
-                            WeIcon(name: "nav_add", fallback: "⊕", size: 24, color: WeTheme.codeTextPrimary)
+                            WeIcon(name: "ic_chat_add", fallback: "⊕", size: 24, color: WeTheme.codeTextPrimary)
                         }
                     }.padding(.horizontal, 12)
                     
@@ -276,10 +276,10 @@ struct ChatTabBarView: View {
     let totalUnread = wxConversations.reduce(0) { $0 + $1.unread }
     // id, iconSelected, iconNormal, label, fallback
     let tabs = [
-        ("messages", "tab_chat_selected", "tab_chat_normal", "微信", "💬"),
-        ("contacts", "tab_contacts_selected", "tab_contacts_normal", "通讯录", "👥"),
-        ("moments", "tab_discover_selected", "tab_discover_normal", "发现", "🧭"),
-        ("me", "tab_me_selected", "tab_me_normal", "我", "👤")
+        ("messages", "ic_tab_chat_selected", "ic_tab_chat_normal", "微信", "💬"),
+        ("contacts", "ic_tab_contacts_selected", "ic_tab_contacts_normal", "通讯录", "👥"),
+        ("moments", "ic_tab_discover_selected", "ic_tab_discover_normal", "发现", "🧭"),
+        ("me", "ic_tab_me_selected", "ic_tab_me_normal", "我", "👤")
     ]
 
     var body: some View {
@@ -532,10 +532,10 @@ struct ChatDetailView: View {
                 Text(isGroup ? "\(chatName)(\(Int.random(in: 10...50)))" : chatName)
                     .font(.system(size: 17, weight: .semibold)).lineLimit(1).foregroundColor(WeTheme.codeTextPrimary)
                 HStack {
-                    WeIcon(name: "nav_back", fallback: "‹", size: 24, color: WeTheme.codeTextPrimary)
+                    WeIcon(name: "ic_nav_back", fallback: "‹", size: 24, color: WeTheme.codeTextPrimary)
                         .onTapGesture(perform: onBack)
                     Spacer()
-                    WeIcon(name: "nav_more", fallback: "···", size: 24, color: WeTheme.codeTextPrimary)
+                    Text("···").font(.system(size: 20, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
                 }.padding(.horizontal, 12)
             }.frame(height: 50).background(WeTheme.codeBackground)
             Divider().overlay(WeTheme.codeSeparator)
@@ -579,7 +579,7 @@ struct ChatDetailView: View {
 
             Divider().overlay(WeTheme.codeSeparator)
             HStack(spacing: 12) {
-                WeIcon(name: "chat_voice", fallback: "🎙️", size: 28, color: WeTheme.codeTextPrimary)
+                WeIcon(name: "ic_chat_voice", fallback: "🎙️", size: 28, color: WeTheme.codeTextPrimary)
                 TextField("", text: $inputText)
                     .textFieldStyle(PlainTextFieldStyle())
                     .padding(8)
@@ -588,7 +588,7 @@ struct ChatDetailView: View {
                     .frame(height: 36)
                     .font(.system(size: 16))
                     .foregroundColor(WeTheme.codeTextPrimary)
-                WeIcon(name: "chat_emoji", fallback: "😊", size: 28, color: WeTheme.codeTextPrimary)
+                WeIcon(name: "ic_chat_emoji", fallback: "😊", size: 28, color: WeTheme.codeTextPrimary)
                 
                 if !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     Button(action: sendMessage) {
@@ -599,7 +599,7 @@ struct ChatDetailView: View {
                             .cornerRadius(4)
                     }
                 } else {
-                    WeIcon(name: "chat_more", fallback: "⊕", size: 28, color: WeTheme.codeTextPrimary)
+                    WeIcon(name: "ic_chat_add", fallback: "⊕", size: 28, color: WeTheme.codeTextPrimary)
                 }
             }.padding(10).background(WeTheme.codeBackground)
         }.background(WeTheme.codeBackground)
