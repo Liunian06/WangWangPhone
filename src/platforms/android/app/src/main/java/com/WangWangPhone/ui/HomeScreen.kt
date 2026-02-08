@@ -425,7 +425,6 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     val maxDockApps = 4
     var isEditMode by remember { mutableStateOf(false) }
     var pageCount by remember { mutableIntStateOf(1) }
-    val scope = rememberCoroutineScope()
 
     // 拖拽状态
     var draggedItem by remember { mutableStateOf<GridItem?>(null) }
@@ -525,6 +524,9 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         pageCount = allPages.size.coerceAtLeast(1)
     }
 
+    // 使用协程作用域来处理异步数据库操作，避免阻塞 UI 线程
+    val scope = rememberCoroutineScope()
+
     fun saveCurrentLayout() {
         val items = mutableListOf<LayoutItem>()
         allPages.forEachIndexed { pageIdx, page ->
@@ -534,7 +536,11 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
             }
         }
         dockApps.forEachIndexed { i, app -> items.add(LayoutItem(appId = app.id, position = i, area = "dock")) }
-        layoutDbHelper.saveLayout(items)
+
+        // 异步保存布局，彻底解决 JNI/DB 阻塞导致的闪屏问题
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            layoutDbHelper.saveLayout(items)
+        }
     }
 
     fun getCellFromGlobal(gx: Float, gy: Float): Int {
@@ -638,17 +644,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 .pointerInput(cellIndex, item.id, pageIndex) {
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { offset ->
-                                            // 1. 立即锁定被拖拽项，不等待编辑模式动画，消除视觉闪烁
-                                            draggedItem = item
-                                            dragSource = "grid"
-                                            dragSourceCellIndex = cellIndex
-                                            
-                                            // 2. 异步进入编辑模式，防止 JNI 或数据库操作阻塞主线程
-                                            if (!isEditMode) {
-                                                scope.launch {
-                                                    isEditMode = true
-                                                }
-                                            }
+                                            if (!isEditMode) isEditMode = true
+                                            draggedItem = item; dragSource = "grid"; dragSourceCellIndex = cellIndex
                                             dragSourcePageIndex = pageIndex
                                             dragOverlayX = gridAreaOffset.x + col * cwPx.toFloat() + offset.x
                                             dragOverlayY = gridAreaOffset.y + row * chPx.toFloat() + offset.y

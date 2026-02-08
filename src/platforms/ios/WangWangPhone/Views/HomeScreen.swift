@@ -287,20 +287,15 @@ struct PageGridView: View {
                 .onChanged { value in
                     switch value {
                     case .first(true):
-                        // 1. 先记录拖拽项，保证快照稳定，消除视觉跳变
+                        // 长按识别成功，进入编辑模式
+                        if !isEditMode {
+                            withAnimation(.spring()) { isEditMode = true }
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        }
                         if draggingItem == nil {
                             draggingItem = AnyGridItem(item: item)
                             draggingFromCell = cellIndex
                             draggingFromPage = pageIndex
-                        }
-                        // 2. 使用非阻塞方式触发布局变更，防止 JNI 或动画计算阻塞手势
-                        if !isEditMode {
-                            DispatchQueue.main.async {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                                    isEditMode = true
-                                }
-                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                            }
                         }
                     case .second(true, let drag):
                         // 长按后开始拖动
@@ -847,6 +842,10 @@ struct HomeScreen: View {
             }
         }
         items += dockApps.enumerated().map { LayoutItem(appId: $1.id, position: $0, area: "dock") }
-        _ = layoutManager.saveLayout(items)
+        
+        // 异步后台保存，防止主线程阻塞导致 UI 闪屏
+        DispatchQueue.global(qos: .background).async {
+            _ = self.layoutManager.saveLayout(items)
+        }
     }
 }
