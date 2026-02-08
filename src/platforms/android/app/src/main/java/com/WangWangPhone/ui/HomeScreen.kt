@@ -647,6 +647,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                         down.consume()
 
                                         var longPressTriggered = false
+                                        var tapDetected = false
                                         try {
                                             withTimeout(viewConfiguration.longPressTimeoutMillis) {
                                                 // 等待手指抬起（轻触）或超时（长按）
@@ -655,13 +656,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                     if (event.changes.all { it.changedToUp() }) {
                                                         // 手指在超时前抬起 = 轻触
                                                         event.changes.forEach { it.consume() }
-                                                        if (!isEditMode && item is AppIcon) {
-                                                            if (item.id == "settings") onSettingsClick()
-                                                            else if (item.id == "chat") onChatClick()
-                                                        } else if (isEditMode) {
-                                                            isEditMode = false; saveCurrentLayout()
-                                                        }
-                                                        return@awaitEachGesture
+                                                        tapDetected = true
+                                                        break
                                                     }
                                                     // 检查是否移动过多（取消长按识别）
                                                     val movedTooMuch = event.changes.any {
@@ -669,7 +665,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                         change.x * change.x + change.y * change.y > 100 // ~10px slop
                                                     }
                                                     if (movedTooMuch) {
-                                                        return@awaitEachGesture // 移动过多，交给父级（如翻页手势）
+                                                        break // 移动过多，放弃手势
                                                     }
                                                 }
                                             }
@@ -677,7 +673,15 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                             longPressTriggered = true
                                         }
 
-                                        if (longPressTriggered) {
+                                        if (tapDetected) {
+                                            // 轻触处理
+                                            if (!isEditMode && item is AppIcon) {
+                                                if (item.id == "settings") onSettingsClick()
+                                                else if (item.id == "chat") onChatClick()
+                                            } else if (isEditMode) {
+                                                isEditMode = false; saveCurrentLayout()
+                                            }
+                                        } else if (longPressTriggered) {
                                             // 长按成功 → 进入编辑模式 + 开始拖拽
                                             if (!isEditMode) isEditMode = true
                                             val startPos = down.position
@@ -843,32 +847,35 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                     down.consume()
 
                                     var longPressTriggered = false
+                                    var tapDetected = false
                                     try {
                                         withTimeout(viewConfiguration.longPressTimeoutMillis) {
                                             while (true) {
                                                 val event = awaitPointerEvent()
                                                 if (event.changes.all { it.changedToUp() }) {
                                                     event.changes.forEach { it.consume() }
-                                                    if (!isEditMode) {
-                                                        if (app.id == "settings") onSettingsClick()
-                                                        else if (app.id == "chat") onChatClick()
-                                                    } else {
-                                                        isEditMode = false; saveCurrentLayout()
-                                                    }
-                                                    return@awaitEachGesture
+                                                    tapDetected = true
+                                                    break
                                                 }
                                                 val movedTooMuch = event.changes.any {
                                                     val change = it.positionChange()
                                                     change.x * change.x + change.y * change.y > 100
                                                 }
-                                                if (movedTooMuch) return@awaitEachGesture
+                                                if (movedTooMuch) break
                                             }
                                         }
                                     } catch (_: PointerEventTimeoutCancellationException) {
                                         longPressTriggered = true
                                     }
 
-                                    if (longPressTriggered) {
+                                    if (tapDetected) {
+                                        if (!isEditMode) {
+                                            if (app.id == "settings") onSettingsClick()
+                                            else if (app.id == "chat") onChatClick()
+                                        } else {
+                                            isEditMode = false; saveCurrentLayout()
+                                        }
+                                    } else if (longPressTriggered) {
                                         if (!isEditMode) isEditMode = true
                                         val startPos = down.position
                                         draggedItem = app; dragSource = "dock"; dragSourceDockIndex = dockIndex
