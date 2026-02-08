@@ -567,8 +567,9 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
     // 自动翻页逻辑
     var autoScrollJob by remember { mutableStateOf<Job?>(null) }
     fun handleAutoScroll(globalX: Float) {
-        val screenWidth = gridAreaSize.width.toFloat() + gridAreaOffset.x * 2
-        val edgeThreshold = screenWidth * 0.1f // 屏幕10%边缘触发
+        val displayMetrics = context.resources.displayMetrics
+        val screenWidth = displayMetrics.widthPixels.toFloat()
+        val edgeThreshold = 100f // 固定 100px 边缘
         val currentPage = pagerState.currentPage
 
         if (globalX < edgeThreshold && currentPage > 0) {
@@ -774,16 +775,50 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                     val targetOccupant = targetPage[targetCell]
 
                                                     if (dragSourcePageIndex == currentPage) {
-                                                        if (targetOccupant != null && targetOccupant.spanX == currentItem.spanX && targetOccupant.spanY == currentItem.spanY) {
+                                                        // 计算目标区域覆盖的 items
+                                                        val targetCells = mutableListOf<Int>()
+                                                        for (r in 0 until currentItem.spanY) {
+                                                            for (c in 0 until currentItem.spanX) {
+                                                                targetCells.add(targetCell + r * GRID_COLUMNS + c)
+                                                            }
+                                                        }
+                                                        val conflictingItems = targetCells.mapNotNull { targetPage[it] }.filter { it.id != currentItem.id }.distinct()
+
+                                                        if (conflictingItems.size == 1 && conflictingItems[0].spanX == currentItem.spanX && conflictingItems[0].spanY == currentItem.spanY) {
+                                                            // Case 1: 同尺寸互换 (Widget <-> Widget 或 App <-> App)
+                                                            val targetItem = conflictingItems[0]
                                                             if (targetCell != dragSourceCellIndex) {
                                                                 targetPage.remove(dragSourceCellIndex)
                                                                 targetPage[targetCell] = currentItem
-                                                                targetPage[dragSourceCellIndex] = targetOccupant
+                                                                // 注意：这里需要找到 targetItem 原本的位置。
+                                                                // 如果 targetItem 也是大尺寸，它只在 map 中存了一个位置 (top-left)。
+                                                                // 简单互换：把 targetItem 放到 dragSourceCellIndex
+                                                                targetPage[dragSourceCellIndex] = targetItem
                                                             }
-                                                        } else {
+                                                        } else if (conflictingItems.isEmpty()) {
+                                                            // Case 2: 目标区域为空
                                                             if (checkOccupancy(targetPage, targetCell, currentItem.spanX, currentItem.spanY, dragSourceCellIndex)) {
                                                                 targetPage.remove(dragSourceCellIndex)
                                                                 targetPage[targetCell] = currentItem
+                                                            }
+                                                        } else if (currentItem.spanX > 1 && conflictingItems.all { it.spanX == 1 && it.spanY == 1 }) {
+                                                            // Case 3: Widget 覆盖多个 Apps -> 交换
+                                                            // 1. 移除源 Widget
+                                                            targetPage.remove(dragSourceCellIndex)
+                                                            // 2. 移除目标 Apps
+                                                            targetCells.forEach { targetPage.remove(it) }
+                                                            // 3. 放置 Widget
+                                                            targetPage[targetCell] = currentItem
+                                                            // 4. 将 Apps 填入源区域
+                                                            var idx = 0
+                                                            for (r in 0 until currentItem.spanY) {
+                                                                for (c in 0 until currentItem.spanX) {
+                                                                    if (idx < conflictingItems.size) {
+                                                                        val cIndex = dragSourceCellIndex + r * GRID_COLUMNS + c
+                                                                        if (cIndex < TOTAL_CELLS) targetPage[cIndex] = conflictingItems[idx]
+                                                                        idx++
+                                                                    }
+                                                                }
                                                             }
                                                         }
                                                     } else {

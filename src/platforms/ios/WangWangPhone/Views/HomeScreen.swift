@@ -201,8 +201,9 @@ struct PageGridView: View {
     @Environment(\.colorScheme) var colorScheme
     
     @State private var highlightCellIndex: Int = -1
-    @Binding var currentPage: Int  // 新增 binding
-    @Binding var pageCount: Int    // 新增 binding
+    @State private var lastScrollTime: TimeInterval = 0 // 节流控制
+    @Binding var currentPage: Int
+    @Binding var pageCount: Int
     
     var body: some View {
         GeometryReader { geometry in
@@ -336,14 +337,16 @@ struct PageGridView: View {
                             // 自动翻页
                             let screenWidth = UIScreen.main.bounds.width
                             let edgeThreshold: CGFloat = 50
-                            // 简单的时间节流
                             let now = Date().timeIntervalSince1970
-                            // 使用全局静态变量模拟节流（实际应放在State中）
                             
-                            if drag.location.x < edgeThreshold && currentPage > 0 {
-                                withAnimation { currentPage -= 1 }
-                            } else if drag.location.x > screenWidth - edgeThreshold && currentPage < pageCount - 1 {
-                                withAnimation { currentPage += 1 }
+                            if now - lastScrollTime > 0.8 { // 0.8秒冷却时间
+                                if drag.location.x < edgeThreshold && currentPage > 0 {
+                                    lastScrollTime = now
+                                    withAnimation { currentPage -= 1 }
+                                } else if drag.location.x > screenWidth - edgeThreshold && currentPage < pageCount - 1 {
+                                    lastScrollTime = now
+                                    withAnimation { currentPage += 1 }
+                                }
                             }
                         }
                     default:
@@ -357,18 +360,55 @@ struct PageGridView: View {
                             dockApps.append(currentItem as! AppIconData)
                         } else if highlightCellIndex != -1 {
                             let targetCell = highlightCellIndex
-                            let targetOccupant = gridPositions[targetCell]
+                            // 计算覆盖区域
+                            var targetCells: [Int] = []
+                            for r in 0..<currentItem.spanY {
+                                for c in 0..<currentItem.spanX {
+                                    targetCells.append(targetCell + r * gridColumns + c)
+                                }
+                            }
                             
-                            if let target = targetOccupant, target.item.spanX == currentItem.spanX && target.item.spanY == currentItem.spanY {
+                            // 查找冲突 items (排除自己)
+                            let conflictingItems = targetCells.compactMap { gridPositions[$0] }.filter { $0.item.id != currentItem.id }
+                            // 去重 (因为大 item 可能占多个格子)
+                            let uniqueConflicts = Array(Set(conflictingItems.map { $0.item.id })).compactMap { id in conflictingItems.first(where: { $0.item.id == id }) }
+
+                            if uniqueConflicts.count == 1 && uniqueConflicts[0].item.spanX == currentItem.spanX && uniqueConflicts[0].item.spanY == currentItem.spanY {
+                                // Case 1: 同尺寸互换
+                                let target = uniqueConflicts[0]
                                 if targetCell != cellIndex {
                                     gridPositions.removeValue(forKey: cellIndex)
                                     gridPositions[targetCell] = AnyGridItem(item: currentItem)
+                                    // 简单互换：把 target 放到 cellIndex
+                                    // 需注意：如果是大组件，这里只更新了左上角 key，这是符合逻辑的
                                     gridPositions[cellIndex] = target
                                 }
-                            } else {
+                            } else if uniqueConflicts.isEmpty {
+                                // Case 2: 目标为空
                                 if checkOccupancyGlobal(positions: gridPositions, startCell: targetCell, spanX: currentItem.spanX, spanY: currentItem.spanY, ignoreCell: cellIndex) {
                                     gridPositions.removeValue(forKey: cellIndex)
                                     gridPositions[targetCell] = AnyGridItem(item: currentItem)
+                                }
+                            } else if currentItem.spanX > 1 && uniqueConflicts.allSatisfy({ $0.item.spanX == 1 && $0.item.spanY == 1 }) {
+                                // Case 3: Widget 交换 Apps
+                                // 1. 移除源 Widget
+                                gridPositions.removeValue(forKey: cellIndex)
+                                // 2. 移除目标 Apps
+                                targetCells.forEach { gridPositions.removeValue(forKey: $0) }
+                                // 3. 放置 Widget
+                                gridPositions[targetCell] = AnyGridItem(item: currentItem)
+                                // 4. 将 Apps 填入源区域
+                                var idx = 0
+                                for r in 0..<currentItem.spanY {
+                                    for c in 0..<currentItem.spanX {
+                                        if idx < uniqueConflicts.count {
+                                            let cIndex = cellIndex + r * gridColumns + c
+                                            if cIndex < totalCells {
+                                                gridPositions[cIndex] = uniqueConflicts[idx]
+                                                idx += 1
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
