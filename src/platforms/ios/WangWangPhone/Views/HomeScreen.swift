@@ -271,16 +271,19 @@ struct PageGridView: View {
             }
         }
         .contentShape(Rectangle())
-        .onTapGesture {
-            if !isEditMode {
-                if let app = item as? AppIconData {
-                    if app.id == "settings" { onSettingsClick() }
-                    else if app.id == "chat" { onChatClick() }
-                }
-            }
-        }
         .rotationEffect(isEditMode ? .degrees(wiggle) : .degrees(0))
         .animation(isEditMode ? Animation.easeInOut(duration: 0.12 + Double(cellIndex % 3) * 0.03).repeatForever(autoreverses: true) : .linear(duration: 0.1), value: isEditMode)
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded {
+                    if !isEditMode {
+                        if let app = item as? AppIconData {
+                            if app.id == "settings" { onSettingsClick() }
+                            else if app.id == "chat" { onChatClick() }
+                        }
+                    }
+                }
+        )
         .gesture(
             LongPressGesture(minimumDuration: 0.5)
                 .sequenced(before: DragGesture(coordinateSpace: .global))
@@ -426,7 +429,10 @@ struct DraggableDockIconView: View {
         .animation(isEditMode && !isDragging ? Animation.easeInOut(duration: 0.12 + Double(dockIndex % 3) * 0.03).repeatForever(autoreverses: true) : .linear(duration: 0.1), value: isEditMode)
         .onAppear { if isEditMode { wiggleAmount = dockIndex % 2 == 0 ? -1.5 : 1.5 } }
         .onChange(of: isEditMode) { nv in wiggleAmount = nv ? (dockIndex % 2 == 0 ? -1.5 : 1.5) : 0 }
-        .onTapGesture { onTap() }
+        .simultaneousGesture(
+            TapGesture()
+                .onEnded { onTap() }
+        )
         .gesture(
             LongPressGesture(minimumDuration: 0.5)
                 .sequenced(before: DragGesture())

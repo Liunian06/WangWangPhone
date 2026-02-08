@@ -12,8 +12,11 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -30,7 +33,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
+import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -635,36 +641,78 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 .offset { IntOffset(col * cwPx, row * chPx) }
                                 .width(with(density) { itemWidth.toDp() }).height(with(density) { itemHeight.toDp() })
                                 .graphicsLayer { if (isEditMode) rotationZ = wAngle }
-                                .pointerInput(cellIndex, item.id, pageIndex) {
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = { offset ->
+                                .pointerInput(cellIndex, item.id, pageIndex, isEditMode) {
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown()
+                                        down.consume()
+
+                                        var longPressTriggered = false
+                                        try {
+                                            withTimeout(viewConfiguration.longPressTimeoutMillis) {
+                                                // 等待手指抬起（轻触）或超时（长按）
+                                                while (true) {
+                                                    val event = awaitPointerEvent()
+                                                    if (event.changes.all { it.changedToUp() }) {
+                                                        // 手指在超时前抬起 = 轻触
+                                                        event.changes.forEach { it.consume() }
+                                                        if (!isEditMode && item is AppIcon) {
+                                                            if (item.id == "settings") onSettingsClick()
+                                                            else if (item.id == "chat") onChatClick()
+                                                        } else if (isEditMode) {
+                                                            isEditMode = false; saveCurrentLayout()
+                                                        }
+                                                        return@awaitEachGesture
+                                                    }
+                                                    // 检查是否移动过多（取消长按识别）
+                                                    val movedTooMuch = event.changes.any {
+                                                        val change = it.positionChange()
+                                                        change.x * change.x + change.y * change.y > 100 // ~10px slop
+                                                    }
+                                                    if (movedTooMuch) {
+                                                        return@awaitEachGesture // 移动过多，交给父级（如翻页手势）
+                                                    }
+                                                }
+                                            }
+                                        } catch (_: PointerEventTimeoutCancellationException) {
+                                            longPressTriggered = true
+                                        }
+
+                                        if (longPressTriggered) {
+                                            // 长按成功 → 进入编辑模式 + 开始拖拽
                                             if (!isEditMode) isEditMode = true
+                                            val startPos = down.position
                                             draggedItem = item; dragSource = "grid"; dragSourceCellIndex = cellIndex
                                             dragSourcePageIndex = pageIndex
-                                            dragOverlayX = gridAreaOffset.x + col * cwPx.toFloat() + offset.x
-                                            dragOverlayY = gridAreaOffset.y + row * chPx.toFloat() + offset.y
-                                        },
-                                        onDrag = { change, dragAmount ->
-                                            change.consume()
-                                            dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
+                                            dragOverlayX = gridAreaOffset.x + col * cwPx.toFloat() + startPos.x
+                                            dragOverlayY = gridAreaOffset.y + row * chPx.toFloat() + startPos.y
 
-                                            val centerX = dragOverlayX
-                                            val centerY = dragOverlayY
-                                            val rawCell = getCellFromGlobal(centerX, centerY)
+                                            // 跟踪拖拽移动
+                                            while (true) {
+                                                val event = awaitPointerEvent()
+                                                val allUp = event.changes.all { it.changedToUp() }
+                                                event.changes.forEach { change ->
+                                                    if (!change.changedToUp()) {
+                                                        val dragAmount = change.positionChange()
+                                                        change.consume()
+                                                        dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
 
-                                            if (rawCell >= 0) {
-                                                val targetCol = rawCell % GRID_COLUMNS
-                                                val targetRow = rawCell / GRID_COLUMNS
-                                                val safeCol = (targetCol).coerceAtMost(GRID_COLUMNS - item.spanX)
-                                                val safeRow = (targetRow).coerceAtMost(GRID_ROWS - item.spanY)
-                                                highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
-                                            } else {
-                                                highlightCellIndex = -1
+                                                        val rawCell = getCellFromGlobal(dragOverlayX, dragOverlayY)
+                                                        if (rawCell >= 0) {
+                                                            val targetCol = rawCell % GRID_COLUMNS
+                                                            val targetRow = rawCell / GRID_COLUMNS
+                                                            val safeCol = targetCol.coerceAtMost(GRID_COLUMNS - item.spanX)
+                                                            val safeRow = targetRow.coerceAtMost(GRID_ROWS - item.spanY)
+                                                            highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
+                                                        } else {
+                                                            highlightCellIndex = -1
+                                                        }
+                                                        if (isOverDock(dragOverlayX, dragOverlayY)) highlightCellIndex = -1
+                                                    }
+                                                }
+                                                if (allUp) break
                                             }
 
-                                            if (isOverDock(dragOverlayX, dragOverlayY)) highlightCellIndex = -1
-                                        },
-                                        onDragEnd = {
+                                            // 拖拽结束 → 处理放置逻辑
                                             draggedItem?.let { currentItem ->
                                                 val currentPage = pagerState.currentPage
                                                 val sourcePage = if (dragSourcePageIndex < allPages.size) allPages[dragSourcePageIndex] else null
@@ -680,7 +728,6 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                     val targetOccupant = targetPage[targetCell]
 
                                                     if (dragSourcePageIndex == currentPage) {
-                                                        // 同页操作
                                                         if (targetOccupant != null && targetOccupant.spanX == currentItem.spanX && targetOccupant.spanY == currentItem.spanY) {
                                                             if (targetCell != dragSourceCellIndex) {
                                                                 targetPage.remove(dragSourceCellIndex)
@@ -694,7 +741,6 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                             }
                                                         }
                                                     } else {
-                                                        // 跨页操作
                                                         if (checkOccupancy(targetPage, targetCell, currentItem.spanX, currentItem.spanY, null)) {
                                                             sourcePage?.remove(dragSourceCellIndex)
                                                             targetPage[targetCell] = currentItem
@@ -704,21 +750,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                 saveCurrentLayout()
                                             }
                                             draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1
-                                        },
-                                        onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceCellIndex = -1; dragSourcePageIndex = -1 }
-                                    )
-                                }
-                                .pointerInput(item.id, isEditMode) {
-                                    detectTapGestures(
-                                        onTap = {
-                                            if (!isEditMode && item is AppIcon) {
-                                                if (item.id == "settings") onSettingsClick()
-                                                else if (item.id == "chat") onChatClick()
-                                            } else if (isEditMode) {
-                                                isEditMode = false; saveCurrentLayout()
-                                            }
                                         }
-                                    )
+                                    }
                                 },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -804,32 +837,68 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
 
                         Box(modifier = Modifier.size(60.dp)
                             .graphicsLayer { if (isEditMode) rotationZ = dwa }
-                            .pointerInput(dockIndex) {
-                                detectDragGesturesAfterLongPress(
-                                    onDragStart = { offset ->
-                                        if (!isEditMode) isEditMode = true
-                                        draggedItem = app; dragSource = "dock"; dragSourceDockIndex = dockIndex
-                                        dragOverlayX = dockAreaOffset.x + offset.x + dockIndex * 85f
-                                        dragOverlayY = dockAreaOffset.y + offset.y
-                                    },
-                                    onDrag = { change, dragAmount ->
-                                        change.consume()
-                                        dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
+                            .pointerInput(dockIndex, app.id, isEditMode) {
+                                awaitEachGesture {
+                                    val down = awaitFirstDown()
+                                    down.consume()
 
-                                        if (!isOverDock(dragOverlayX, dragOverlayY)) {
-                                            val centerX = dragOverlayX
-                                            val centerY = dragOverlayY
-                                            val rawCell = getCellFromGlobal(centerX, centerY)
-                                            if (rawCell >= 0) {
-                                                val targetCol = rawCell % GRID_COLUMNS
-                                                val targetRow = rawCell / GRID_COLUMNS
-                                                val safeCol = (targetCol).coerceAtMost(GRID_COLUMNS - 1)
-                                                val safeRow = (targetRow).coerceAtMost(GRID_ROWS - 1)
-                                                highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
-                                            } else { highlightCellIndex = -1 }
-                                        } else { highlightCellIndex = -1 }
-                                    },
-                                    onDragEnd = {
+                                    var longPressTriggered = false
+                                    try {
+                                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
+                                            while (true) {
+                                                val event = awaitPointerEvent()
+                                                if (event.changes.all { it.changedToUp() }) {
+                                                    event.changes.forEach { it.consume() }
+                                                    if (!isEditMode) {
+                                                        if (app.id == "settings") onSettingsClick()
+                                                        else if (app.id == "chat") onChatClick()
+                                                    } else {
+                                                        isEditMode = false; saveCurrentLayout()
+                                                    }
+                                                    return@awaitEachGesture
+                                                }
+                                                val movedTooMuch = event.changes.any {
+                                                    val change = it.positionChange()
+                                                    change.x * change.x + change.y * change.y > 100
+                                                }
+                                                if (movedTooMuch) return@awaitEachGesture
+                                            }
+                                        }
+                                    } catch (_: PointerEventTimeoutCancellationException) {
+                                        longPressTriggered = true
+                                    }
+
+                                    if (longPressTriggered) {
+                                        if (!isEditMode) isEditMode = true
+                                        val startPos = down.position
+                                        draggedItem = app; dragSource = "dock"; dragSourceDockIndex = dockIndex
+                                        dragOverlayX = dockAreaOffset.x + startPos.x + dockIndex * 85f
+                                        dragOverlayY = dockAreaOffset.y + startPos.y
+
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val allUp = event.changes.all { it.changedToUp() }
+                                            event.changes.forEach { change ->
+                                                if (!change.changedToUp()) {
+                                                    val dragAmount = change.positionChange()
+                                                    change.consume()
+                                                    dragOverlayX += dragAmount.x; dragOverlayY += dragAmount.y
+
+                                                    if (!isOverDock(dragOverlayX, dragOverlayY)) {
+                                                        val rawCell = getCellFromGlobal(dragOverlayX, dragOverlayY)
+                                                        if (rawCell >= 0) {
+                                                            val targetCol = rawCell % GRID_COLUMNS
+                                                            val targetRow = rawCell / GRID_COLUMNS
+                                                            val safeCol = targetCol.coerceAtMost(GRID_COLUMNS - 1)
+                                                            val safeRow = targetRow.coerceAtMost(GRID_ROWS - 1)
+                                                            highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
+                                                        } else { highlightCellIndex = -1 }
+                                                    } else { highlightCellIndex = -1 }
+                                                }
+                                            }
+                                            if (allUp) break
+                                        }
+
                                         draggedItem?.let { currentItem ->
                                             val currentPage = pagerState.currentPage
                                             val targetPage = if (currentPage < allPages.size) allPages[currentPage] else null
@@ -860,21 +929,8 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                             saveCurrentLayout()
                                         }
                                         draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
-                                    },
-                                    onDragCancel = { draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid" }
-                                )
-                            }
-                            .pointerInput(app.id, isEditMode) {
-                                detectTapGestures(
-                                    onTap = {
-                                        if (!isEditMode) {
-                                            if (app.id == "settings") onSettingsClick()
-                                            else if (app.id == "chat") onChatClick()
-                                        } else {
-                                            isEditMode = false; saveCurrentLayout()
-                                        }
                                     }
-                                )
+                                }
                             },
                             contentAlignment = Alignment.Center
                         ) {
