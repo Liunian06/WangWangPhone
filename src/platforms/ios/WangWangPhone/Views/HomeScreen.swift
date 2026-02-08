@@ -390,25 +390,36 @@ struct PageGridView: View {
                                     gridPositions[targetCell] = AnyGridItem(item: currentItem)
                                 }
                             } else if currentItem.spanX > 1 && uniqueConflicts.allSatisfy({ $0.item.spanX == 1 && $0.item.spanY == 1 }) {
-                                // Case 3: Widget 交换 Apps
+                                // Case 3: Widget 交换 Apps（支持源/目标重叠）
+                                var sourceCells: [Int] = []
+                                for r in 0..<currentItem.spanY {
+                                    for c in 0..<currentItem.spanX {
+                                        sourceCells.append(cellIndex + r * gridColumns + c)
+                                    }
+                                }
+                                let targetCellsSet = Set(targetCells)
+                                let availableCells = sourceCells.filter { !targetCellsSet.contains($0) }
+                                
                                 // 1. 移除源 Widget
                                 gridPositions.removeValue(forKey: cellIndex)
                                 // 2. 移除目标 Apps
                                 targetCells.forEach { gridPositions.removeValue(forKey: $0) }
                                 // 3. 放置 Widget
                                 gridPositions[targetCell] = AnyGridItem(item: currentItem)
-                                // 4. 将 Apps 填入源区域
+                                // 4. 将 Apps 放入可用cells
                                 var idx = 0
-                                for r in 0..<currentItem.spanY {
-                                    for c in 0..<currentItem.spanX {
-                                        if idx < uniqueConflicts.count {
-                                            let cIndex = cellIndex + r * gridColumns + c
-                                            if cIndex < totalCells {
-                                                gridPositions[cIndex] = uniqueConflicts[idx]
-                                                idx += 1
-                                            }
-                                        }
+                                for cell in availableCells {
+                                    if idx < uniqueConflicts.count && cell < totalCells {
+                                        gridPositions[cell] = uniqueConflicts[idx]
+                                        idx += 1
                                     }
+                                }
+                                // 溢出App找页面空位
+                                while idx < uniqueConflicts.count {
+                                    if let emptyCell = (0..<totalCells).first(where: { gridPositions[$0] == nil }) {
+                                        gridPositions[emptyCell] = uniqueConflicts[idx]
+                                    }
+                                    idx += 1
                                 }
                             }
                         }

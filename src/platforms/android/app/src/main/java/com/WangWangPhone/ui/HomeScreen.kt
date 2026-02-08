@@ -575,18 +575,18 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
         if (globalX < edgeThreshold && currentPage > 0) {
             if (autoScrollJob?.isActive != true) {
                 autoScrollJob = coroutineScope.launch {
-                    delay(400) // 延迟避免误触
+                    delay(500)
                     if (pagerState.currentPage > 0) {
-                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                        pagerState.scrollToPage(pagerState.currentPage - 1)
                     }
                 }
             }
         } else if (globalX > screenWidth - edgeThreshold && currentPage < pageCount - 1) {
             if (autoScrollJob?.isActive != true) {
                 autoScrollJob = coroutineScope.launch {
-                    delay(400)
+                    delay(500)
                     if (pagerState.currentPage < pageCount - 1) {
-                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                        pagerState.scrollToPage(pagerState.currentPage + 1)
                     }
                 }
             }
@@ -803,22 +803,40 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                                             }
                                                         } else if (currentItem.spanX > 1 && conflictingItems.all { it.spanX == 1 && it.spanY == 1 }) {
                                                             // Case 3: Widget 覆盖多个 Apps -> 交换
+                                                            // 计算源区域cells和目标区域cells
+                                                            val sourceCells = mutableListOf<Int>()
+                                                            for (r in 0 until currentItem.spanY) {
+                                                                for (c in 0 until currentItem.spanX) {
+                                                                    sourceCells.add(dragSourceCellIndex + r * GRID_COLUMNS + c)
+                                                                }
+                                                            }
+                                                            val targetCellsSet = targetCells.toSet()
+                                                            // 可用于放置被挤开App的cells = 源区域中不与目标区域重叠的cells
+                                                            val availableCells = sourceCells.filter { it !in targetCellsSet }
+
                                                             // 1. 移除源 Widget
                                                             targetPage.remove(dragSourceCellIndex)
                                                             // 2. 移除目标 Apps
                                                             targetCells.forEach { targetPage.remove(it) }
                                                             // 3. 放置 Widget
                                                             targetPage[targetCell] = currentItem
-                                                            // 4. 将 Apps 填入源区域
+                                                            // 4. 将 Apps 放入可用cells，溢出的找页面空位
                                                             var idx = 0
-                                                            for (r in 0 until currentItem.spanY) {
-                                                                for (c in 0 until currentItem.spanX) {
-                                                                    if (idx < conflictingItems.size) {
-                                                                        val cIndex = dragSourceCellIndex + r * GRID_COLUMNS + c
-                                                                        if (cIndex < TOTAL_CELLS) targetPage[cIndex] = conflictingItems[idx]
-                                                                        idx++
-                                                                    }
+                                                            for (cell in availableCells) {
+                                                                if (idx < conflictingItems.size && cell < TOTAL_CELLS) {
+                                                                    targetPage[cell] = conflictingItems[idx]
+                                                                    idx++
                                                                 }
+                                                            }
+                                                            // 溢出的App找页面空位
+                                                            while (idx < conflictingItems.size) {
+                                                                val emptyCell = (0 until TOTAL_CELLS).firstOrNull {
+                                                                    checkOccupancy(targetPage, it, 1, 1, null)
+                                                                }
+                                                                if (emptyCell != null) {
+                                                                    targetPage[emptyCell] = conflictingItems[idx]
+                                                                }
+                                                                idx++
                                                             }
                                                         }
                                                     } else {
