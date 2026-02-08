@@ -727,7 +727,7 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
                      Text("发送", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                  }
             } else {
-                WeIcon("聊天界面工具栏_加号", "⊕", modifier = Modifier.size(28.dp), modifier.clickable {
+                WeIcon("聊天界面工具栏_加号", "⊕", modifier = Modifier.size(28.dp).clickable {
                      // 更多菜单
                 }, tint = WeTheme.TextPrimary)
             }
