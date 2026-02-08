@@ -624,7 +624,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
 
                         // 渲染网格内容
                         currentPageGrid.forEach { (cellIndex, item) ->
-                            if (draggedItem?.id == item.id && dragSource == "grid" && dragSourcePageIndex == pageIndex) return@forEach
+                            val isDraggedFromHere = draggedItem?.id == item.id && dragSource == "grid" && dragSourcePageIndex == pageIndex
 
                             val row = cellIndex / GRID_COLUMNS; val col = cellIndex % GRID_COLUMNS
                             val infT = rememberInfiniteTransition(label = "w_${item.id}")
@@ -640,7 +640,10 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                             Box(modifier = Modifier
                                 .offset { IntOffset(col * cwPx, row * chPx) }
                                 .width(with(density) { itemWidth.toDp() }).height(with(density) { itemHeight.toDp() })
-                                .graphicsLayer { if (isEditMode) rotationZ = wAngle }
+                                .graphicsLayer {
+                                    if (isEditMode) rotationZ = wAngle
+                                    if (isDraggedFromHere) alpha = 0f
+                                }
                                 .pointerInput(cellIndex, item.id, pageIndex) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown()
@@ -829,9 +832,7 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                     if (dockApps.isEmpty() && isEditMode) Text("拖拽应用到此处", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
 
                     dockApps.forEachIndexed { dockIndex, app ->
-                        if (draggedItem?.id == app.id && dragSource == "dock") {
-                            Spacer(modifier = Modifier.size(60.dp)); return@forEachIndexed
-                        }
+                        val isDraggedFromDock = draggedItem?.id == app.id && dragSource == "dock"
                         val dwt = rememberInfiniteTransition(label = "dw_$dockIndex")
                         val dwa by dwt.animateFloat(
                             initialValue = if (dockIndex % 2 == 0) -1.5f else 1.5f,
@@ -840,7 +841,10 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
                                 RepeatMode.Reverse), label = "dwa_$dockIndex")
 
                         Box(modifier = Modifier.size(60.dp)
-                            .graphicsLayer { if (isEditMode) rotationZ = dwa }
+                            .graphicsLayer {
+                                if (isEditMode) rotationZ = dwa
+                                if (isDraggedFromDock) alpha = 0f
+                            }
                             .pointerInput(dockIndex, app.id) {
                                 awaitEachGesture {
                                     val down = awaitFirstDown()
