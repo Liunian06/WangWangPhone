@@ -3,6 +3,7 @@ package com.WangWangPhone.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -248,7 +249,7 @@ fun ChatMainScreen(
     onOpenChat: (String) -> Unit,
     onOpenService: () -> Unit
 ) {
-    val titles = mapOf("messages" to "微信", "contacts" to "通讯录", "moments" to "发现", "me" to "我")
+    val titles = mapOf("messages" to "微信", "contacts" to "通讯录", "moments" to "朋友圈", "me" to "我")
     val bgColor = WeTheme.Background
 
     Column(modifier = Modifier.fillMaxSize().background(bgColor).statusBarsPadding()) {
@@ -314,17 +315,8 @@ fun WeChatHeader(
         modifier = Modifier.fillMaxWidth().height(50.dp).background(bgColor),
         contentAlignment = Alignment.Center
     ) {
-        if (showBack) {
-            // 这里用 "微信" 代替返回箭头，或者根据层级显示
-             Text("‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).clickable { onClose() }, fontSize = 24.sp, color = textColor)
-        } else {
-             Text(title, modifier = Modifier.align(Alignment.CenterStart).padding(start = 16.dp), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = textColor)
-        }
-        
-        // 中间标题通常在子页面显示，主Tab页标题在左侧或中间
-        if (showBack) {
-             Text(title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = textColor)
-        }
+        // 标题始终居中显示
+        Text(title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = textColor)
 
         Row(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             WeIcon("ic_search", "🔍", modifier = Modifier.size(24.dp), tint = textColor)
@@ -333,7 +325,6 @@ fun WeChatHeader(
             }
         }
     }
-    // 微信主页Header下通常没有分割线，或者滚动后才有
 }
 
 @Composable
@@ -360,7 +351,10 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
             val color = if (isActive) WeTheme.TabTextSelected else WeTheme.TabTextNormal
             
             Column(
-                modifier = Modifier.weight(1f).clickable { onTabChange(item.id) },
+                modifier = Modifier.weight(1f).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null // 去掉点击时的矩形阴影ripple效果
+                ) { onTabChange(item.id) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {

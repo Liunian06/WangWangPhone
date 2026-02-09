@@ -215,39 +215,23 @@ struct ChatMainView: View {
     var onClose: () -> Void
     var onOpenChat: (String) -> Void
     var onOpenService: () -> Void
-    private let titles = ["messages": "微信", "contacts": "通讯录", "moments": "发现", "me": "我"]
+    private let titles = ["messages": "微信", "contacts": "通讯录", "moments": "朋友圈", "me": "我"]
 
     var body: some View {
         VStack(spacing: 0) {
             // Header
             if currentTab != "me" { // "我" 页面通常没有顶部 Header
                 ZStack {
-                    // 只有消息页显示中间标题(且是左侧显示)，通讯录等显示中间
-                    if currentTab == "messages" || currentTab == "contacts" || currentTab == "moments" {
-                         HStack {
-                            if currentTab == "messages" {
-                                Text("微信").font(.system(size: 18, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
-                            } else {
-                                Text(titles[currentTab] ?? "").font(.system(size: 18, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
-                            }
-                            Spacer()
-                        }
-                        .padding(.leading, 16)
-                    }
+                    // 所有Tab页标题居中显示
+                    Text(titles[currentTab] ?? "").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
                     
                     HStack(spacing: 16) {
-                        // 返回按钮 (模拟)
-                        // Button(action: onClose) { Text("‹").font(.system(size: 24)) }.foregroundColor(WeTheme.codeTextPrimary)
                         Spacer()
                         WeIcon(name: "ic_search", fallback: "🔍", size: 24, color: WeTheme.codeTextPrimary)
                         if currentTab != "moments" {
                             WeIcon(name: "ic_chat_add", fallback: "⊕", size: 24, color: WeTheme.codeTextPrimary)
                         }
                     }.padding(.horizontal, 12)
-                    
-                    if currentTab != "messages" { // 通讯录和发现页 标题居中
-                        Text(titles[currentTab] ?? "").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
-                    }
                     
                 }.frame(height: 50).background(WeTheme.codeBackground)
                 Divider().overlay(WeTheme.codeSeparator)
