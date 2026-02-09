@@ -350,10 +350,12 @@ struct MessagesTabView: View {
                     Button(action: { onOpenChat(conv.id) }) {
                         HStack(spacing: 8) {
                             // Avatar容器，比头像稍大以容纳溢出的未读角标
-                            ZStack(alignment: .topTrailing) {
+                            // 52pt容器中心=(26,26)，48pt头像居中后右上角=(50,2)
+                            // offset = (24, -24) 让角标中心对齐头像右上角
+                            ZStack {
                                 RoundedRectangle(cornerRadius: 4).fill(conv.iconBg).frame(width: 48, height: 48)
                                     .overlay(Text(conv.avatar).font(.system(size: 24)))
-                                UnreadBadgeView(conv: conv).offset(x: 6, y: -4)
+                                UnreadBadgeView(conv: conv).offset(x: 24, y: -24)
                             }.frame(width: 52, height: 52)
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack {

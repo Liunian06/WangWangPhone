@@ -457,6 +457,8 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Avatar - 用一个更大的Box包裹，让未读角标可以溢出到头像外面
+                // 52dp容器中心=(26,26)，48dp头像居中后右上角=(50,2)
+                // offset = (50-26, 2-26) = (24, -24) 让角标中心对齐头像右上角
                 Box(
                     modifier = Modifier.size(52.dp),
                     contentAlignment = Alignment.Center
@@ -467,8 +469,8 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                     ) {
                         Text(conv.avatar, fontSize = 24.sp)
                     }
-                    // 未读角标
-                    UnreadBadge(conv = conv, modifier = Modifier.align(Alignment.TopEnd))
+                    // 未读角标 - 中心对齐到头像右上角
+                    UnreadBadge(conv = conv, modifier = Modifier.offset(x = 24.dp, y = (-24).dp))
                 }
 
                 Spacer(Modifier.width(8.dp))
