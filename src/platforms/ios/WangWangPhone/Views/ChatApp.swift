@@ -274,8 +274,8 @@ struct ChatTabBarView: View {
             ForEach(tabs, id: \.0) { tab in
                 let isSelected = currentTab == tab.0
                 VStack(spacing: 2) {
-                    // 图标28pt，中心=(14,14)，右上角=(28,0)
-                    // offset = (14, -14) 让角标中心对齐图标右上角
+                    // 图标28pt，右上角=(28,0)
+                    // 用 .position 精确定位角标中心到图标右上角
                     ZStack {
                         WeIcon(
                             name: isSelected ? tab.1 : tab.2,
@@ -285,9 +285,9 @@ struct ChatTabBarView: View {
                         )
                         
                         if tab.0 == "messages" && totalUnread > 0 {
-                            TabUnreadBadgeView(count: totalUnread).offset(x: 14, y: -14)
+                            TabUnreadBadgeView(count: totalUnread).position(x: 28, y: 0)
                         }
-                    }
+                    }.frame(width: 28, height: 28)
                     Text(tab.3).font(.system(size: 10, weight: .medium))
                         .foregroundColor(isSelected ? WeTheme.codeBrandGreen : WeTheme.codeTextPrimary)
                 }
@@ -352,12 +352,12 @@ struct MessagesTabView: View {
                     Button(action: { onOpenChat(conv.id) }) {
                         HStack(spacing: 8) {
                             // Avatar容器，比头像稍大以容纳溢出的未读角标
-                            // 52pt容器中心=(26,26)，48pt头像居中后右上角=(50,2)
-                            // offset = (24, -24) 让角标中心对齐头像右上角
+                            // 52pt容器，48pt头像居中，头像右上角在(50, 2)
+                            // 用 .position(x:y:) 精确定位角标中心到头像右上角
                             ZStack {
                                 RoundedRectangle(cornerRadius: 4).fill(conv.iconBg).frame(width: 48, height: 48)
                                     .overlay(Text(conv.avatar).font(.system(size: 24)))
-                                UnreadBadgeView(conv: conv).offset(x: 24, y: -24)
+                                UnreadBadgeView(conv: conv).position(x: 50, y: 2)
                             }.frame(width: 52, height: 52)
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack {

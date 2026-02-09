@@ -362,15 +362,21 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // 图标28dp，中心=(14,14)，右上角=(28,0)
-                // offset = (28-14, 0-14) = (14, -14) 让角标中心对齐图标右上角
-                Box {
+                Box(contentAlignment = Alignment.Center) {
                     val iconName = if (isActive) item.iconSelected else item.iconNormal
                     // selected图标自带绿色，normal图标需要tint为当前文字颜色
                     WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
                     
                     if (item.id == "messages" && totalUnread > 0) {
-                        TabUnreadBadge(count = totalUnread, modifier = Modifier.offset(x = 14.dp, y = (-14).dp))
+                        // 角标中心对齐到图标右上角(28,0)
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(0.dp)
+                                .wrapContentSize(unbounded = true, align = Alignment.Center)
+                        ) {
+                            TabUnreadBadge(count = totalUnread)
+                        }
                     }
                 }
                 Spacer(Modifier.height(2.dp))
@@ -459,8 +465,6 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Avatar - 用一个更大的Box包裹，让未读角标可以溢出到头像外面
-                // 52dp容器中心=(26,26)，48dp头像居中后右上角=(50,2)
-                // offset = (50-26, 2-26) = (24, -24) 让角标中心对齐头像右上角
                 Box(
                     modifier = Modifier.size(52.dp),
                     contentAlignment = Alignment.Center
@@ -471,8 +475,19 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                     ) {
                         Text(conv.avatar, fontSize = 24.sp)
                     }
-                    // 未读角标 - 中心对齐到头像右上角
-                    UnreadBadge(conv = conv, modifier = Modifier.offset(x = 24.dp, y = (-24).dp))
+                    // 未读角标 - 角标中心对齐到头像右上角
+                    // 1. align(TopEnd) 把0dp锚点放在容器右上角(52,0)
+                    // 2. offset(-2,2) 移到头像右上角(50,2)
+                    // 3. wrapContentSize(unbounded=true, Center) 让角标中心对齐锚点
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = (-2).dp, y = 2.dp)
+                            .size(0.dp)
+                            .wrapContentSize(unbounded = true, align = Alignment.Center)
+                    ) {
+                        UnreadBadge(conv = conv)
+                    }
                 }
 
                 Spacer(Modifier.width(8.dp))
