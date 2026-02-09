@@ -699,61 +699,98 @@ fun MomentsTab() {
 @Composable
 fun MeTab(onOpenService: () -> Unit, onOpenMoments: () -> Unit) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        // 个人信息卡片
-        Row(
-            modifier = Modifier.fillMaxWidth().background(Color.White).padding(24.dp, 24.dp, 16.dp, 16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // 个人信息卡片 - 高度扩展 1.25 倍
+        Column(
+            modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)
+                .padding(start = 24.dp, end = 24.dp, top = 60.dp, bottom = 24.dp)
         ) {
-            Box(
-                modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF5F5DC)),
-                contentAlignment = Alignment.Center
-            ) { Text("🐱", fontSize = 32.sp) }
-            Spacer(Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("我的昵称", fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.height(4.dp))
-                Text("账号：WangWang_User", fontSize = 14.sp, color = Color(0xFF888888))
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 头像 - 使用圆角矩形
+                Box(
+                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)).background(Color.LightGray),
+                    contentAlignment = Alignment.Center
+                ) {
+                    // 这里应该显示用户头像，暂时用Emoji替代
+                    Text("🐱", fontSize = 32.sp)
+                }
+                Spacer(Modifier.width(20.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("我的昵称", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
+                    Spacer(Modifier.height(10.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("微信号：WangWang_User", fontSize = 16.sp, color = WeTheme.TextSecondary)
+                        Spacer(Modifier.width(8.dp))
+                        // 二维码图标 placeholder
+                        WeIcon("ic_badge_more", "▒", modifier = Modifier.size(16.dp), tint = WeTheme.TextSecondary)
+                        Spacer(Modifier.width(4.dp))
+                        Text("›", fontSize = 16.sp, color = WeTheme.TextHint)
+                    }
+                }
             }
-            Text("⊞ ›", fontSize = 20.sp, color = Color(0xFF888888))
-        }
-        Row(modifier = Modifier.fillMaxWidth().background(Color.White).padding(8.dp, 0.dp, 16.dp, 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Box(modifier = Modifier.border(0.5.dp, Color(0xFFE0E0E0), RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
-                Text("+ 状态", fontSize = 13.sp, color = Color(0xFF888888))
-            }
-            Box(modifier = Modifier.border(0.5.dp, Color(0xFFE0E0E0), RoundedCornerShape(16.dp)).padding(horizontal = 12.dp, vertical = 4.dp)) {
-                Text("👤👤👤 等40个朋友 ●", fontSize = 13.sp, color = Color(0xFF888888))
+            
+            Spacer(Modifier.height(24.dp))
+            
+            // 状态和朋友按钮
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier.border(0.5.dp, Color(0xFFE0E0E0), RoundedCornerShape(50))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text("+ 状态", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                }
+                Box(
+                    modifier = Modifier.border(0.5.dp, Color(0xFFE0E0E0), RoundedCornerShape(50))
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text("👤👤👤 等40个朋友 ●", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                }
             }
         }
 
         // 菜单
-        data class MenuItem(val icon: String, val label: String, val action: (() -> Unit)? = null)
+        data class MenuItem(
+            val icon: String,
+            val label: String,
+            val tint: Color = Color.Unspecified,
+            val fallback: String,
+            val action: (() -> Unit)? = null
+        )
+        
         val menuGroups = listOf(
-            listOf(MenuItem("✅", "服务", onOpenService)),
             listOf(
-                MenuItem("⭐", "收藏"),
-                MenuItem("🖼️", "朋友圈", onOpenMoments),
-                MenuItem("📺", "视频号和公众号"),
-                MenuItem("🛒", "订单与卡包"),
-                MenuItem("😊", "表情"),
+                MenuItem("ic_pay_logo", "服务", Color(0xFF07C160), "✅", onOpenService)
             ),
-            listOf(MenuItem("⚙️", "设置")),
+            listOf(
+                MenuItem("ic_favorites", "收藏", Color.Unspecified, "⭐"),
+                MenuItem("ic_moment", "朋友圈", Color.Unspecified, "🖼️", onOpenMoments),
+                MenuItem("ic_album", "视频号和公众号", Color(0xFFFA9D3B), "📺"), // 使用橙色
+                MenuItem("ic_cards", "订单与卡包", Color.Unspecified, "🛒"),
+                MenuItem("ic_chat_emoji", "表情", Color(0xFFFFC300), "😊"), // 假设表情是黄色的
+            ),
+            listOf(
+                MenuItem("ic_setting", "设置", Color(0xFF1976D2), "⚙️") // 蓝色设置图标
+            ),
         )
 
         menuGroups.forEach { group ->
             Spacer(Modifier.height(8.dp))
             group.forEachIndexed { idx, item ->
                 Row(
-                    modifier = Modifier.fillMaxWidth().background(Color.White)
+                    modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)
                         .then(if (item.action != null) Modifier.clickable { item.action!!() } else Modifier)
-                        .padding(14.dp, 14.dp),
+                        .padding(16.dp, 16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(item.icon, fontSize = 20.sp, modifier = Modifier.width(24.dp))
-                    Spacer(Modifier.width(14.dp))
-                    Text(item.label, fontSize = 16.sp, modifier = Modifier.weight(1f))
-                    Text("›", fontSize = 14.sp, color = Color(0xFFC0C0C0))
+                    WeIcon(item.icon, item.fallback, modifier = Modifier.size(24.dp), tint = item.tint)
+                    Spacer(Modifier.width(16.dp))
+                    Text(item.label, fontSize = 16.sp, color = WeTheme.TextPrimary, modifier = Modifier.weight(1f))
+                    Text("›", fontSize = 16.sp, color = Color(0xFFC0C0C0))
                 }
-                if (idx < group.size - 1) Divider(color = Color(0xFFECECEC), thickness = 0.5.dp)
+                if (idx < group.size - 1) {
+                    Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 56.dp))
+                }
             }
         }
     }

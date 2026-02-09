@@ -526,44 +526,69 @@ struct MeTabView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                HStack(spacing: 14) {
-                    RoundedRectangle(cornerRadius: 10).fill(Color(red: 0.96, green: 0.96, blue: 0.86))
-                        .frame(width: 64, height: 64).overlay(Text("🐱").font(.system(size: 32)))
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("我的昵称").font(.system(size: 18, weight: .semibold))
-                        Text("账号：WangWang_User").font(.system(size: 14)).foregroundColor(.gray)
+                // 个人信息卡片 - 高度扩展 1.25 倍
+                VStack(spacing: 0) {
+                    HStack(spacing: 20) {
+                        // 头像
+                        RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.3))
+                            .frame(width: 72, height: 72)
+                            .overlay(Text("🐱").font(.system(size: 32)))
+                        
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("我的昵称").font(.system(size: 22, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                            HStack(spacing: 4) {
+                                Text("微信号：WangWang_User").font(.system(size: 16)).foregroundColor(WeTheme.codeTextSecondary)
+                                Spacer().frame(width: 8)
+                                WeIcon(name: "ic_badge_more", fallback: "▒", size: 16, color: WeTheme.codeTextSecondary)
+                                Text("›").foregroundColor(WeTheme.codeTextHint).font(.system(size: 16))
+                            }
+                        }
+                        Spacer()
                     }
-                    Spacer()
-                    Text("⊞ ›").foregroundColor(.gray).font(.system(size: 20))
-                }.padding(.horizontal, 16).padding(.top, 24).padding(.bottom, 16).background(Color.white)
+                    
+                    Spacer().frame(height: 24)
+                    
+                    // 状态和朋友按钮
+                    HStack(spacing: 12) {
+                        Text("+ 状态").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary).padding(.horizontal, 14).padding(.vertical, 6)
+                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color(white: 0.88), lineWidth: 0.5))
+                        Text("👤👤👤 等40个朋友 ●").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary).padding(.horizontal, 14).padding(.vertical, 6)
+                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color(white: 0.88), lineWidth: 0.5))
+                        Spacer()
+                    }
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 60) // 增加顶部padding以模拟扩展高度
+                .padding(.bottom, 24)
+                .background(WeTheme.codeBackgroundCell)
 
-                HStack(spacing: 10) {
-                    Text("+ 状态").font(.system(size: 13)).foregroundColor(.gray).padding(.horizontal, 12).padding(.vertical, 4)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(white: 0.88), lineWidth: 0.5))
-                    Text("👤👤👤 等40个朋友 ●").font(.system(size: 13)).foregroundColor(.gray).padding(.horizontal, 12).padding(.vertical, 4)
-                        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(white: 0.88), lineWidth: 0.5))
-                    Spacer()
-                }.padding(.horizontal, 16).padding(.bottom, 16).background(Color.white)
-
-                let menuGroups: [[(String, String, (() -> Void)?)]] = [
-                    [("✅", "服务", onOpenService)],
-                    [("⭐", "收藏", nil), ("🖼️", "朋友圈", onOpenMoments), ("📺", "视频号和公众号", nil), ("🛒", "订单与卡包", nil), ("😊", "表情", nil)],
-                    [("⚙️", "设置", nil)],
+                // 菜单
+                // iconName, label, tintColor, fallback, action
+                let menuGroups: [[(String, String, Color?, String, (() -> Void)?)]] = [
+                    [("ic_pay_logo", "服务", Color(hex: 0x07C160), "✅", onOpenService)],
+                    [
+                        ("ic_favorites", "收藏", nil, "⭐", nil),
+                        ("ic_moment", "朋友圈", nil, "🖼️", onOpenMoments),
+                        ("ic_album", "视频号和公众号", Color(hex: 0xFA9D3B), "📺", nil), // 橙色
+                        ("ic_cards", "订单与卡包", nil, "🛒", nil),
+                        ("ic_chat_emoji", "表情", Color(hex: 0xFFC300), "😊", nil) // 黄色
+                    ],
+                    [("ic_setting", "设置", Color(hex: 0x1976D2), "⚙️", nil)], // 蓝色
                 ]
 
                 ForEach(menuGroups.indices, id: \.self) { gi in
                     Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
                     ForEach(menuGroups[gi].indices, id: \.self) { mi in
                         let item = menuGroups[gi][mi]
-                        Button(action: { item.2?() }) {
-                            HStack(spacing: 14) {
-                                Text(item.0).font(.system(size: 20)).frame(width: 24)
-                                Text(item.1).font(.system(size: 16)).foregroundColor(.black)
+                        Button(action: { item.4?() }) {
+                            HStack(spacing: 16) {
+                                WeIcon(name: item.0, fallback: item.3, size: 24, color: item.2)
+                                Text(item.1).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
                                 Spacer()
-                                Text("›").foregroundColor(Color(white: 0.75)).font(.system(size: 14))
-                            }.padding(14).background(Color.white)
+                                Text("›").foregroundColor(Color(white: 0.75)).font(.system(size: 16))
+                            }.padding(16).background(WeTheme.codeBackgroundCell)
                         }.buttonStyle(PlainButtonStyle())
-                        if mi < menuGroups[gi].count - 1 { Divider() }
+                        if mi < menuGroups[gi].count - 1 { Divider().padding(.leading, 56) }
                     }
                 }
             }
