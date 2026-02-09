@@ -274,7 +274,9 @@ struct ChatTabBarView: View {
             ForEach(tabs, id: \.0) { tab in
                 let isSelected = currentTab == tab.0
                 VStack(spacing: 2) {
-                    ZStack(alignment: .topTrailing) {
+                    // 图标28pt，中心=(14,14)，右上角=(28,0)
+                    // offset = (14, -14) 让角标中心对齐图标右上角
+                    ZStack {
                         WeIcon(
                             name: isSelected ? tab.1 : tab.2,
                             fallback: tab.4,
@@ -283,7 +285,7 @@ struct ChatTabBarView: View {
                         )
                         
                         if tab.0 == "messages" && totalUnread > 0 {
-                            TabUnreadBadgeView(count: totalUnread).offset(x: 10, y: -6)
+                            TabUnreadBadgeView(count: totalUnread).offset(x: 14, y: -14)
                         }
                     }
                     Text(tab.3).font(.system(size: 10, weight: .medium))

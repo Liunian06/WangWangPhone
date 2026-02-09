@@ -362,13 +362,15 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                // 图标28dp，中心=(14,14)，右上角=(28,0)
+                // offset = (28-14, 0-14) = (14, -14) 让角标中心对齐图标右上角
                 Box {
                     val iconName = if (isActive) item.iconSelected else item.iconNormal
                     // selected图标自带绿色，normal图标需要tint为当前文字颜色
                     WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
                     
                     if (item.id == "messages" && totalUnread > 0) {
-                        TabUnreadBadge(count = totalUnread, modifier = Modifier.offset(x = 10.dp, y = (-2).dp))
+                        TabUnreadBadge(count = totalUnread, modifier = Modifier.offset(x = 14.dp, y = (-14).dp))
                     }
                 }
                 Spacer(Modifier.height(2.dp))
