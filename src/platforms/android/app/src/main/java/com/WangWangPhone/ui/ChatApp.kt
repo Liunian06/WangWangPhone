@@ -1,7 +1,11 @@
 
 package com.WangWangPhone.ui
 
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -19,13 +23,17 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import com.WangWangPhone.core.UserProfileDbHelper
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -44,7 +52,7 @@ object WeTheme {
     val Separator: Color @Composable get() = if (isDark) Color(0xFF2C2C2C) else Color(0x19000000)
     
     val TabTextSelected: Color @Composable get() = BrandGreen
-    val TabTextNormal: Color @Composable get() = if (isDark) Color(0xFF555555) else Color(0xFF191919) // 微信底部Tab未选中是黑色而不是灰色
+    val TabTextNormal: Color @Composable get() = if (isDark) Color(0xFF555555) else Color(0xFF191919)
     
     val BubbleSent: Color @Composable get() = if (isDark) Color(0xFF2EA260) else Color(0xFF95EC69)
     val BubbleReceived: Color @Composable get() = if (isDark) Color(0xFF2C2C2C) else Color(0xFFFFFFFF)
@@ -55,18 +63,14 @@ object WeTheme {
 // ============================================
 // 资源加载辅助
 // ============================================
-// 强制使用 SVG 图标，不再回退到 Emoji
 @Composable
 fun WeIcon(
     name: String,
-    fallback: String, // 保留参数但忽略，强制加载资源
+    fallback: String,
     modifier: Modifier = Modifier,
     tint: Color = Color.Unspecified
 ) {
     val context = LocalContext.current
-    // 尝试查找 drawable 资源
-    // 1. 尝试直接按 name 查找 (例如 "nav_chat_selected")
-    // 2. 如果 name 包含中文 (例如 "导航栏_已选中_微信.svg")，需要先过滤后缀
     val resName = name.replace(".svg", "")
     val resId = remember(resName) {
         context.resources.getIdentifier(resName, "drawable", context.packageName)
@@ -82,7 +86,6 @@ fun WeIcon(
                     tint = tint
                 )
             } else {
-                // 不应用tint，保留图标原始颜色（如selected状态的绿色）
                 Image(
                     painter = painterResource(id = resId),
                     contentDescription = null,
@@ -90,10 +93,6 @@ fun WeIcon(
                 )
             }
         } else {
-            // [DEBUG MODE] 只有在资源找不到时才显示红色占位符，方便调试
-            // 生产环境应显示透明或默认图标
-            // 此时显示 fallback emoji 也不失为一种调试手段，看看到底缺了啥，但用户要求强制SVG，所以这里只显示红框
-            // 为了避免 UI 崩溃，我们显示一个细微的红框表示缺失
             Box(modifier = Modifier.fillMaxSize().border(1.dp, Color.Red)) {
                  Text("MISSING", fontSize = 6.sp, color = Color.Red, modifier = Modifier.align(Alignment.Center))
             }
@@ -104,7 +103,6 @@ fun WeIcon(
 // ============================================
 // 数据模型
 // ============================================
-// 会话类型：普通聊天、公众号、服务号
 enum class ConvType { CHAT, SUBSCRIPTION, SERVICE }
 
 data class Conversation(
@@ -216,6 +214,14 @@ fun ChatAppScreen(onClose: () -> Unit) {
     var currentView by remember { mutableStateOf("main") }
     var currentChatId by remember { mutableStateOf<String?>(null) }
 
+    // 用户资料状态 - 在顶层管理，传递给子组件
+    val context = LocalContext.current
+    val profileDbHelper = remember { UserProfileDbHelper(context) }
+    var userNickname by remember { mutableStateOf(profileDbHelper.getUserProfile().nickname) }
+    var userSignature by remember { mutableStateOf(profileDbHelper.getUserProfile().signature) }
+    var avatarPath by remember { mutableStateOf(profileDbHelper.getAvatarFilePath()) }
+    var coverPath by remember { mutableStateOf(profileDbHelper.getCoverFilePath()) }
+
     BackHandler {
         when (currentView) {
             "chat-detail" -> { currentView = "main"; currentChatId = null }
@@ -227,7 +233,8 @@ fun ChatAppScreen(onClose: () -> Unit) {
     when (currentView) {
         "chat-detail" -> ChatDetailScreen(
             chatId = currentChatId ?: "",
-            onBack = { currentView = "main"; currentChatId = null }
+            onBack = { currentView = "main"; currentChatId = null },
+            avatarPath = avatarPath
         )
         "service" -> ServiceScreen(
             onBack = { currentView = "main"; currentTab = "me" }
@@ -237,7 +244,27 @@ fun ChatAppScreen(onClose: () -> Unit) {
             onTabChange = { currentTab = it },
             onClose = onClose,
             onOpenChat = { id -> currentChatId = id; currentView = "chat-detail" },
-            onOpenService = { currentView = "service" }
+            onOpenService = { currentView = "service" },
+            userNickname = userNickname,
+            userSignature = userSignature,
+            avatarPath = avatarPath,
+            coverPath = coverPath,
+            onNicknameChanged = { newName ->
+                profileDbHelper.updateNickname(newName)
+                userNickname = newName
+            },
+            onSignatureChanged = { newSig ->
+                profileDbHelper.updateSignature(newSig)
+                userSignature = newSig
+            },
+            onAvatarChanged = { uri ->
+                profileDbHelper.updateAvatar(uri)
+                avatarPath = profileDbHelper.getAvatarFilePath()
+            },
+            onCoverChanged = { uri ->
+                profileDbHelper.updateCover(uri)
+                coverPath = profileDbHelper.getCoverFilePath()
+            }
         )
     }
 }
@@ -251,7 +278,15 @@ fun ChatMainScreen(
     onTabChange: (String) -> Unit,
     onClose: () -> Unit,
     onOpenChat: (String) -> Unit,
-    onOpenService: () -> Unit
+    onOpenService: () -> Unit,
+    userNickname: String,
+    userSignature: String,
+    avatarPath: String?,
+    coverPath: String?,
+    onNicknameChanged: (String) -> Unit,
+    onSignatureChanged: (String) -> Unit,
+    onAvatarChanged: (Uri) -> Unit,
+    onCoverChanged: (Uri) -> Unit
 ) {
     val titles = mapOf("messages" to "微信", "contacts" to "通讯录", "moments" to "朋友圈", "me" to "我")
     val bgColor = WeTheme.Background
@@ -262,7 +297,6 @@ fun ChatMainScreen(
             when (currentTab) {
                 "messages" -> {
                     Column {
-                        // 微信首页顶部只有 微信(n) 标题，加号和搜索，无返回键
                         WeChatHeader(
                             title = titles[currentTab] ?: "",
                             onClose = onClose,
@@ -277,7 +311,7 @@ fun ChatMainScreen(
                             title = titles[currentTab] ?: "",
                             onClose = onClose,
                             showBack = false,
-                            showAdd = true // 通讯录页显示加好友
+                            showAdd = true
                         )
                         ContactsTab(onOpenChat)
                     }
@@ -289,12 +323,25 @@ fun ChatMainScreen(
                             onClose = onClose,
                             showBack = false
                         )
-                        MomentsTab()
+                        MomentsTab(
+                            userNickname = userNickname,
+                            userSignature = userSignature,
+                            avatarPath = avatarPath,
+                            coverPath = coverPath,
+                            onAvatarChanged = onAvatarChanged,
+                            onCoverChanged = onCoverChanged,
+                            onNicknameChanged = onNicknameChanged,
+                            onSignatureChanged = onSignatureChanged
+                        )
                     }
                 }
                 "me" -> {
-                    // "我" 页面通常没有Header，或者Header是透明的
-                    MeTab(onOpenService = onOpenService, onOpenMoments = { onTabChange("moments") })
+                    MeTab(
+                        onOpenService = onOpenService,
+                        onOpenMoments = { onTabChange("moments") },
+                        userNickname = userNickname,
+                        avatarPath = avatarPath
+                    )
                 }
             }
         }
@@ -319,7 +366,6 @@ fun WeChatHeader(
         modifier = Modifier.fillMaxWidth().height(50.dp).background(bgColor),
         contentAlignment = Alignment.Center
     ) {
-        // 标题始终居中显示
         Text(title, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = textColor)
 
         Row(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -334,7 +380,6 @@ fun WeChatHeader(
 @Composable
 fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
     val totalUnread = mockConversations.sumOf { it.unread }
-    // Tab定义: id, 选中图标, 未选中图标, 标签
     data class TabItem(val id: String, val iconSelected: String, val iconNormal: String, val label: String, val fallback: String)
     
     val tabs = listOf(
@@ -357,18 +402,16 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
             Column(
                 modifier = Modifier.weight(1f).clickable(
                     interactionSource = remember { MutableInteractionSource() },
-                    indication = null // 去掉点击时的矩形阴影ripple效果
+                    indication = null
                 ) { onTabChange(item.id) },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     val iconName = if (isActive) item.iconSelected else item.iconNormal
-                    // selected图标自带绿色，normal图标需要tint为当前文字颜色
                     WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
                     
                     if (item.id == "messages" && totalUnread > 0) {
-                        // 角标中心对齐到图标右上角偏下一点(28,4)，避免超出Tab栏
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
@@ -390,15 +433,11 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
 // ============================================
 // Tab1: 消息列表
 // ============================================
-// ============================================
-// 未读消息角标组件
-// ============================================
 @Composable
 fun UnreadBadge(conv: Conversation, modifier: Modifier = Modifier) {
     if (conv.unread <= 0) return
     
     when {
-        // 公众号/服务号：显示 "New" 角标
         conv.type == ConvType.SUBSCRIPTION || conv.type == ConvType.SERVICE -> {
             Image(
                 painter = painterResource(id = LocalContext.current.resources.getIdentifier("ic_badge_new", "drawable", LocalContext.current.packageName)),
@@ -406,7 +445,6 @@ fun UnreadBadge(conv: Conversation, modifier: Modifier = Modifier) {
                 modifier = modifier.height(18.dp).width(38.dp)
             )
         }
-        // 免打扰：显示红色小圆点
         conv.muted -> {
             Image(
                 painter = painterResource(id = LocalContext.current.resources.getIdentifier("ic_badge_dot", "drawable", LocalContext.current.packageName)),
@@ -414,7 +452,6 @@ fun UnreadBadge(conv: Conversation, modifier: Modifier = Modifier) {
                 modifier = modifier.size(8.dp)
             )
         }
-        // 未读 > 99：显示 "99+" 角标
         conv.unread > 99 -> {
             Image(
                 painter = painterResource(id = LocalContext.current.resources.getIdentifier("ic_badge_more", "drawable", LocalContext.current.packageName)),
@@ -422,7 +459,6 @@ fun UnreadBadge(conv: Conversation, modifier: Modifier = Modifier) {
                 modifier = modifier.height(18.dp).width(33.dp)
             )
         }
-        // 普通未读 1-99：红色圆形 + 白色数字
         else -> {
             Box(
                 modifier = modifier.size(18.dp).background(Color(0xFFFA5151), CircleShape),
@@ -434,7 +470,6 @@ fun UnreadBadge(conv: Conversation, modifier: Modifier = Modifier) {
     }
 }
 
-// 底部Tab栏用的未读角标（汇总数字）
 @Composable
 fun TabUnreadBadge(count: Int, modifier: Modifier = Modifier) {
     if (count <= 0) return
@@ -465,7 +500,6 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                 modifier = Modifier.fillMaxWidth().clickable { onOpenChat(conv.id) }.background(WeTheme.BackgroundCell).padding(16.dp, 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar - 用一个更大的Box包裹，让未读角标可以溢出到头像外面
                 Box(
                     modifier = Modifier.size(52.dp),
                     contentAlignment = Alignment.Center
@@ -476,10 +510,6 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                     ) {
                         Text(conv.avatar, fontSize = 24.sp)
                     }
-                    // 未读角标 - 角标中心对齐到头像右上角
-                    // 1. align(TopEnd) 把0dp锚点放在容器右上角(52,0)
-                    // 2. offset(-2,2) 移到头像右上角(50,2)
-                    // 3. wrapContentSize(unbounded=true, Center) 让角标中心对齐锚点
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -519,7 +549,6 @@ fun ContactsTab(onOpenChat: (String) -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
-            // 功能入口
             mockContactGroups.forEach { g ->
                 Row(
                     modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp, 10.dp),
@@ -535,13 +564,11 @@ fun ContactsTab(onOpenChat: (String) -> Unit) {
                 Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 68.dp))
             }
 
-            // 星标朋友
             if (mockStarred.isNotEmpty()) {
                 Text("星标朋友", modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
                 mockStarred.forEach { c -> ContactItemRow(c, onOpenChat) }
             }
 
-            // 按字母分组
             var curLetter = ""
             mockContactList.forEach { c ->
                 if (c.letter.isNotEmpty() && c.letter != curLetter) {
@@ -552,7 +579,6 @@ fun ContactsTab(onOpenChat: (String) -> Unit) {
             }
         }
 
-        // 右侧字母索引
         val letters = listOf("↑", "☆") + mockContactList.map { it.letter }.filter { it.isNotEmpty() }.distinct() + listOf("#")
         Column(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 2.dp),
@@ -585,31 +611,178 @@ fun ContactItemRow(contact: Contact, onOpenChat: (String) -> Unit) {
 }
 
 // ============================================
+// 用户头像组件（复用：支持从文件加载或显示默认emoji）
+// ============================================
+@Composable
+fun UserAvatarImage(
+    avatarPath: String?,
+    size: androidx.compose.ui.unit.Dp,
+    cornerRadius: androidx.compose.ui.unit.Dp = 10.dp,
+    defaultEmoji: String = "🐱",
+    defaultEmojiSize: androidx.compose.ui.unit.TextUnit = 32.sp,
+    modifier: Modifier = Modifier
+) {
+    if (avatarPath != null) {
+        val bitmap = remember(avatarPath) { BitmapFactory.decodeFile(avatarPath) }
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "头像",
+                modifier = modifier.size(size).clip(RoundedCornerShape(cornerRadius)),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = modifier.size(size).clip(RoundedCornerShape(cornerRadius)).background(Color(0xFFF5F5DC)),
+                contentAlignment = Alignment.Center
+            ) { Text(defaultEmoji, fontSize = defaultEmojiSize) }
+        }
+    } else {
+        Box(
+            modifier = modifier.size(size).clip(RoundedCornerShape(cornerRadius)).background(Color(0xFFF5F5DC)),
+            contentAlignment = Alignment.Center
+        ) { Text(defaultEmoji, fontSize = defaultEmojiSize) }
+    }
+}
+
+// ============================================
+// 文本编辑对话框
+// ============================================
+@Composable
+fun TextEditDialog(
+    title: String,
+    currentValue: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var text by remember { mutableStateOf(currentValue) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color.White,
+            tonalElevation = 8.dp
+        ) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF191919))
+                Spacer(Modifier.height(16.dp))
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .background(Color(0xFFF5F5F5), RoundedCornerShape(8.dp))
+                        .padding(12.dp),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = Color(0xFF191919)),
+                    singleLine = true
+                )
+                Spacer(Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text("取消", color = Color(0xFF999999))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = { onConfirm(text); onDismiss() }) {
+                        Text("确定", color = Color(0xFF07C160))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============================================
 // Tab3: 朋友圈
 // ============================================
 @Composable
-fun MomentsTab() {
-    // 头像尺寸和偏移量：头像64dp，约1/3(≈22dp)突出到封面下方白色区域
+fun MomentsTab(
+    userNickname: String,
+    userSignature: String,
+    avatarPath: String?,
+    coverPath: String?,
+    onAvatarChanged: (Uri) -> Unit,
+    onCoverChanged: (Uri) -> Unit,
+    onNicknameChanged: (String) -> Unit,
+    onSignatureChanged: (String) -> Unit
+) {
     val avatarSize = 64.dp
-    val avatarOverlap = 22.dp // 头像突出到白色区域的部分
+    val avatarOverlap = 22.dp
     val coverHeight = 300.dp
+
+    // 图片选择器
+    val coverLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { onCoverChanged(it) }
+    }
+    val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let { onAvatarChanged(it) }
+    }
+
+    // 编辑对话框状态
+    var showNicknameDialog by remember { mutableStateOf(false) }
+    var showSignatureDialog by remember { mutableStateOf(false) }
+
+    if (showNicknameDialog) {
+        TextEditDialog(
+            title = "修改昵称",
+            currentValue = userNickname,
+            onDismiss = { showNicknameDialog = false },
+            onConfirm = { onNicknameChanged(it) }
+        )
+    }
+
+    if (showSignatureDialog) {
+        TextEditDialog(
+            title = "修改签名",
+            currentValue = userSignature,
+            onDismiss = { showSignatureDialog = false },
+            onConfirm = { onSignatureChanged(it) }
+        )
+    }
 
     LazyColumn(modifier = Modifier.fillMaxSize().background(Color.White)) {
         // 封面 + 头像 + 签名区域
         item {
-            // 整体容器：封面高度 + 头像突出部分 + 签名文字区域
             Column(modifier = Modifier.fillMaxWidth()) {
                 // 封面 + 头像叠加区域
                 Box(
                     modifier = Modifier.fillMaxWidth().height(coverHeight + avatarOverlap)
                 ) {
-                    // 封面背景
+                    // 封面背景（可点击更换）
                     Box(
                         modifier = Modifier.fillMaxWidth().height(coverHeight)
-                            .background(Brush.linearGradient(listOf(Color(0xFF667EEA), Color(0xFF764BA2))))
-                    )
+                            .clickable { coverLauncher.launch("image/*") }
+                    ) {
+                        if (coverPath != null) {
+                            val coverBitmap = remember(coverPath) { BitmapFactory.decodeFile(coverPath) }
+                            if (coverBitmap != null) {
+                                Image(
+                                    bitmap = coverBitmap.asImageBitmap(),
+                                    contentDescription = "朋友圈封面",
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(modifier = Modifier.fillMaxSize()
+                                    .background(Brush.linearGradient(listOf(Color(0xFF667EEA), Color(0xFF764BA2)))))
+                            }
+                        } else {
+                            Box(modifier = Modifier.fillMaxSize()
+                                .background(Brush.linearGradient(listOf(Color(0xFF667EEA), Color(0xFF764BA2)))))
+                        }
+                        // 封面右下角提示文字
+                        Text(
+                            "点击更换封面",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            modifier = Modifier.align(Alignment.BottomStart).padding(12.dp)
+                        )
+                    }
 
-                    // 昵称 + 头像，对齐到容器底部，头像自然突出到白色区域
+                    // 昵称 + 头像
                     Row(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -617,26 +790,41 @@ fun MomentsTab() {
                         verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // 昵称底部与封面底部对齐（向上偏移头像突出部分的高度）
-                        Text("我的昵称", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(bottom = avatarOverlap + 6.dp))
+                        // 昵称（可点击编辑）
+                        Text(
+                            userNickname,
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(bottom = avatarOverlap + 6.dp)
+                                .clickable { showNicknameDialog = true }
+                        )
+                        // 头像（可点击更换）
                         Box(
-                            modifier = Modifier.size(avatarSize)
+                            modifier = Modifier
+                                .size(avatarSize)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(Color(0xFFF5F5DC))
-                                .border(2.dp, Color.White, RoundedCornerShape(10.dp)),
-                            contentAlignment = Alignment.Center
-                        ) { Text("🐱", fontSize = 32.sp) }
+                                .border(2.dp, Color.White, RoundedCornerShape(10.dp))
+                                .clickable { avatarLauncher.launch("image/*") }
+                        ) {
+                            UserAvatarImage(
+                                avatarPath = avatarPath,
+                                size = avatarSize,
+                                cornerRadius = 10.dp
+                            )
+                        }
                     }
                 }
 
-                // 用户签名文字区域
+                // 用户签名文字区域（可点击编辑）
                 Box(
-                    modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 10.dp),
+                    modifier = Modifier.fillMaxWidth().background(Color.White)
+                        .clickable { showSignatureDialog = true }
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
                     contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
-                        "游荡的孤高灵魂不需要栖身之地",
+                        userSignature,
                         fontSize = 13.sp,
                         color = Color(0xFF999999),
                         maxLines = 1
@@ -697,9 +885,14 @@ fun MomentsTab() {
 // Tab4: 我的页面
 // ============================================
 @Composable
-fun MeTab(onOpenService: () -> Unit, onOpenMoments: () -> Unit) {
+fun MeTab(
+    onOpenService: () -> Unit,
+    onOpenMoments: () -> Unit,
+    userNickname: String,
+    avatarPath: String?
+) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        // 个人信息卡片 - 高度扩展 1.25 倍
+        // 个人信息卡片
         Column(
             modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)
                 .padding(start = 24.dp, end = 24.dp, top = 60.dp, bottom = 24.dp)
@@ -707,22 +900,19 @@ fun MeTab(onOpenService: () -> Unit, onOpenMoments: () -> Unit) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 头像 - 使用圆角矩形
-                Box(
-                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(8.dp)).background(Color.LightGray),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // 这里应该显示用户头像，暂时用Emoji替代
-                    Text("🐱", fontSize = 32.sp)
-                }
+                // 头像
+                UserAvatarImage(
+                    avatarPath = avatarPath,
+                    size = 72.dp,
+                    cornerRadius = 8.dp
+                )
                 Spacer(Modifier.width(20.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("我的昵称", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
+                    Text(userNickname, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
                     Spacer(Modifier.height(10.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("微信号：WangWang_User", fontSize = 16.sp, color = WeTheme.TextSecondary)
                         Spacer(Modifier.width(8.dp))
-                        // 二维码图标 placeholder
                         WeIcon("ic_badge_more", "▒", modifier = Modifier.size(16.dp), tint = WeTheme.TextSecondary)
                         Spacer(Modifier.width(4.dp))
                         Text("›", fontSize = 16.sp, color = WeTheme.TextHint)
@@ -765,12 +955,12 @@ fun MeTab(onOpenService: () -> Unit, onOpenMoments: () -> Unit) {
             listOf(
                 MenuItem("ic_favorites", "收藏", Color.Unspecified, "⭐"),
                 MenuItem("ic_moment", "朋友圈", Color.Unspecified, "🖼️", onOpenMoments),
-                MenuItem("ic_album", "视频号和公众号", Color(0xFFFA9D3B), "📺"), // 使用橙色
+                MenuItem("ic_album", "视频号和公众号", Color(0xFFFA9D3B), "📺"),
                 MenuItem("ic_cards", "订单与卡包", Color.Unspecified, "🛒"),
-                MenuItem("ic_chat_emoji", "表情", Color(0xFFFFC300), "😊"), // 假设表情是黄色的
+                MenuItem("ic_chat_emoji", "表情", Color(0xFFFFC300), "😊"),
             ),
             listOf(
-                MenuItem("ic_setting", "设置", Color(0xFF1976D2), "⚙️") // 蓝色设置图标
+                MenuItem("ic_setting", "设置", Color(0xFF1976D2), "⚙️")
             ),
         )
 
@@ -800,7 +990,7 @@ fun MeTab(onOpenService: () -> Unit, onOpenMoments: () -> Unit) {
 // 聊天详情页
 // ============================================
 @Composable
-fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
+fun ChatDetailScreen(chatId: String, onBack: () -> Unit, avatarPath: String? = null) {
     val conv = mockConversations.find { it.id == chatId }
     val chatName = conv?.name ?: "聊天"
     val messages = remember {
@@ -836,7 +1026,7 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
         LazyColumn(
             modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
             state = listState,
-            verticalArrangement = Arrangement.spacedBy(16.dp), // 增加消息间距
+            verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
             items(messages.size) { idx ->
@@ -854,13 +1044,18 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
                         ) {
                             Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f, fill = false).widthIn(max = 260.dp)) {
                                 Box(
-                                    modifier = Modifier.background(WeTheme.BubbleSent, RoundedCornerShape(4.dp)).padding(12.dp, 10.dp) // 圆角更小
+                                    modifier = Modifier.background(WeTheme.BubbleSent, RoundedCornerShape(4.dp)).padding(12.dp, 10.dp)
                                 ) { Text(msg.text, fontSize = 16.sp, lineHeight = 24.sp, color = WeTheme.TextPrimary) }
                             }
                             Spacer(Modifier.width(10.dp))
-                            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
-                                Text("🐱", fontSize = 20.sp)
-                            }
+                            // 发送消息的头像使用用户头像
+                            UserAvatarImage(
+                                avatarPath = avatarPath,
+                                size = 40.dp,
+                                cornerRadius = 4.dp,
+                                defaultEmoji = "🐱",
+                                defaultEmojiSize = 20.sp
+                            )
                         }
                     }
                     "received" -> {
@@ -903,7 +1098,6 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
             
             val hasText = inputText.text.trim().isNotEmpty()
             if (hasText) {
-                // 发送按钮
                  Box(
                      modifier = Modifier.height(32.dp).width(56.dp).background(WeTheme.BrandGreen, RoundedCornerShape(4.dp)).clickable {
                          messages.add(ChatMessage("sent", text = inputText.text.trim()))
@@ -916,7 +1110,6 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit) {
                  }
             } else {
                 WeIcon("ic_chat_add", "⊕", modifier = Modifier.size(28.dp).clickable {
-                     // 更多菜单
                 }, tint = WeTheme.TextPrimary)
             }
         }
@@ -968,7 +1161,6 @@ fun ServiceScreen(onBack: () -> Unit) {
 
         Spacer(Modifier.weight(1f))
 
-        // 底部提示
         Text(
             "所有服务已关闭，前往设置 ›",
             modifier = Modifier.fillMaxWidth().padding(20.dp),

@@ -1,10 +1,11 @@
 
+
 import SwiftUI
+import PhotosUI
 
 // MARK: - WeTheme & Assets
-// 适配 iOS 深色/浅色模式 (Light/Dark Mode)
 struct WeTheme {
-    static let brandGreen = Color("BrandGreen") // 需在 Assets 中定义，或用代码动态判断
+    static let brandGreen = Color("BrandGreen")
     static let background = Color("WeChatBackground")
     static let backgroundCell = Color("WeChatCellBackground")
     static let textPrimary = Color("WeChatTextPrimary")
@@ -14,12 +15,10 @@ struct WeTheme {
     static let bubbleSent = Color("WeChatBubbleSent")
     static let bubbleReceived = Color("WeChatBubbleReceived")
     
-    // Fallback colors if Assets not ready (using code-based dynamic colors)
     static func dynamicColor(light: Color, dark: Color) -> Color {
         Color(UIColor { $0.userInterfaceStyle == .dark ? UIColor(dark) : UIColor(light) })
     }
     
-    // Hardcoded fallback colors based on COLORS.md
     static let codeBrandGreen = dynamicColor(light: Color(hex: 0x07C160), dark: Color(hex: 0x06AD56))
     static let codeBackground = dynamicColor(light: Color(hex: 0xEDEDED), dark: Color(hex: 0x111111))
     static let codeBackgroundCell = dynamicColor(light: Color(hex: 0xFFFFFF), dark: Color(hex: 0x191919))
@@ -43,21 +42,57 @@ extension Color {
     }
 }
 
-// 资源加载辅助：强制加载 Assets 中的 SVG/PDF，不再回退到 Emoji
 struct WeIcon: View {
     let name: String
-    let fallback: String // 参数保留但不再使用
+    let fallback: String
     var size: CGFloat = 24
     var color: Color? = nil
     
     var body: some View {
-        // 强制只加载 Image，如果图片不存在，显示空或占位符
         Image(name)
             .resizable()
             .renderingMode(color != nil ? .template : .original)
             .aspectRatio(contentMode: .fit)
             .frame(width: size, height: size)
             .foregroundColor(color)
+    }
+}
+
+// MARK: - Image Picker
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var isPresented: Bool
+    var onImagePicked: (UIImage) -> Void
+
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.sourceType = .photoLibrary
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: ImagePicker
+
+        init(_ parent: ImagePicker) {
+            self.parent = parent
+        }
+
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let image = info[.originalImage] as? UIImage {
+                parent.onImagePicked(image)
+            }
+            parent.isPresented = false
+        }
+
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.isPresented = false
+        }
     }
 }
 
@@ -189,6 +224,30 @@ let wxChatMessages: [String: [WXChatMessage]] = [
     ],
 ]
 
+// MARK: - User Avatar Component
+struct UserAvatarView: View {
+    let avatarImage: UIImage?
+    var size: CGFloat = 64
+    var cornerRadius: CGFloat = 10
+    var defaultEmoji: String = "🐱"
+    var defaultEmojiSize: CGFloat = 32
+
+    var body: some View {
+        if let image = avatarImage {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(Color(red: 0.96, green: 0.96, blue: 0.86))
+                .frame(width: size, height: size)
+                .overlay(Text(defaultEmoji).font(.system(size: defaultEmojiSize)))
+        }
+    }
+}
+
 // MARK: - Main Entry
 struct ChatAppView: View {
     @Binding var isPresented: Bool
@@ -196,17 +255,30 @@ struct ChatAppView: View {
     @State private var currentView = "main"
     @State private var currentChatId: String? = nil
 
+    // 用户资料状态
+    @State private var userNickname: String = UserProfileManager.shared.getUserProfile().nickname
+    @State private var userSignature: String = UserProfileManager.shared.getUserProfile().signature
+    @State private var avatarImage: UIImage? = UserProfileManager.shared.getAvatarImage()
+    @State private var coverImage: UIImage? = UserProfileManager.shared.getCoverImage()
+
     var body: some View {
         ZStack {
             switch currentView {
             case "chat-detail":
-                ChatDetailView(chatId: currentChatId ?? "", onBack: { currentView = "main"; currentChatId = nil })
+                ChatDetailView(chatId: currentChatId ?? "", onBack: { currentView = "main"; currentChatId = nil }, avatarImage: avatarImage)
             case "service":
                 ServicePageView(onBack: { currentView = "main"; currentTab = "me" })
             default:
-                ChatMainView(currentTab: $currentTab, onClose: { isPresented = false },
+                ChatMainView(
+                    currentTab: $currentTab,
+                    onClose: { isPresented = false },
                     onOpenChat: { id in currentChatId = id; currentView = "chat-detail" },
-                    onOpenService: { currentView = "service" })
+                    onOpenService: { currentView = "service" },
+                    userNickname: $userNickname,
+                    userSignature: $userSignature,
+                    avatarImage: $avatarImage,
+                    coverImage: $coverImage
+                )
             }
         }
     }
@@ -218,16 +290,17 @@ struct ChatMainView: View {
     var onClose: () -> Void
     var onOpenChat: (String) -> Void
     var onOpenService: () -> Void
+    @Binding var userNickname: String
+    @Binding var userSignature: String
+    @Binding var avatarImage: UIImage?
+    @Binding var coverImage: UIImage?
     private let titles = ["messages": "微信", "contacts": "通讯录", "moments": "朋友圈", "me": "我"]
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            if currentTab != "me" { // "我" 页面通常没有顶部 Header
+            if currentTab != "me" {
                 ZStack {
-                    // 所有Tab页标题居中显示
                     Text(titles[currentTab] ?? "").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
-                    
                     HStack(spacing: 16) {
                         Spacer()
                         WeIcon(name: "ic_search", fallback: "🔍", size: 24, color: WeTheme.codeTextPrimary)
@@ -235,18 +308,26 @@ struct ChatMainView: View {
                             WeIcon(name: "ic_chat_add", fallback: "⊕", size: 24, color: WeTheme.codeTextPrimary)
                         }
                     }.padding(.horizontal, 12)
-                    
                 }.frame(height: 50).background(WeTheme.codeBackground)
                 Divider().overlay(WeTheme.codeSeparator)
             }
 
-            // Content
             Group {
                 switch currentTab {
                 case "messages": MessagesTabView(onOpenChat: onOpenChat)
                 case "contacts": ContactsTabView(onOpenChat: onOpenChat)
-                case "moments": MomentsTabView()
-                case "me": MeTabView(onOpenService: onOpenService, onOpenMoments: { currentTab = "moments" })
+                case "moments": MomentsTabView(
+                    userNickname: $userNickname,
+                    userSignature: $userSignature,
+                    avatarImage: $avatarImage,
+                    coverImage: $coverImage
+                )
+                case "me": MeTabView(
+                    onOpenService: onOpenService,
+                    onOpenMoments: { currentTab = "moments" },
+                    userNickname: userNickname,
+                    avatarImage: avatarImage
+                )
                 default: EmptyView()
                 }
             }.frame(maxHeight: .infinity)
@@ -261,7 +342,6 @@ struct ChatMainView: View {
 struct ChatTabBarView: View {
     @Binding var currentTab: String
     let totalUnread = wxConversations.reduce(0) { $0 + $1.unread }
-    // id, iconSelected, iconNormal, label, fallback
     let tabs = [
         ("messages", "ic_tab_chat_selected", "ic_tab_chat_normal", "微信", "💬"),
         ("contacts", "ic_tab_contacts_selected", "ic_tab_contacts_normal", "通讯录", "👥"),
@@ -274,16 +354,13 @@ struct ChatTabBarView: View {
             ForEach(tabs, id: \.0) { tab in
                 let isSelected = currentTab == tab.0
                 VStack(spacing: 2) {
-                    // 图标28pt，右上角=(28,0)
-                    // 用 .position 精确定位角标中心到图标右上角
                     ZStack {
                         WeIcon(
                             name: isSelected ? tab.1 : tab.2,
                             fallback: tab.4,
                             size: 28,
-                            color: isSelected ? nil : WeTheme.codeTextPrimary // selected图标自带绿色不需要tint，normal图标需要tint
+                            color: isSelected ? nil : WeTheme.codeTextPrimary
                         )
-                        
                         if tab.0 == "messages" && totalUnread > 0 {
                             TabUnreadBadgeView(count: totalUnread).position(x: 28, y: 4)
                         }
@@ -308,16 +385,12 @@ struct UnreadBadgeView: View {
         if conv.unread <= 0 {
             EmptyView()
         } else if conv.type == .subscription || conv.type == .service {
-            // 公众号/服务号：显示 "New" 角标
             Image("ic_badge_new").resizable().aspectRatio(contentMode: .fit).frame(width: 38, height: 18)
         } else if conv.muted {
-            // 免打扰：显示红色小圆点
             Image("ic_badge_dot").resizable().aspectRatio(contentMode: .fit).frame(width: 8, height: 8)
         } else if conv.unread > 99 {
-            // 未读 > 99：显示 "99+" 角标
             Image("ic_badge_more").resizable().aspectRatio(contentMode: .fit).frame(width: 33, height: 18)
         } else {
-            // 普通未读 1-99：红色圆形 + 白色数字
             ZStack {
                 Circle().fill(Color(hex: 0xFA5151)).frame(width: 18, height: 18)
                 Text("\(conv.unread)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
@@ -351,9 +424,6 @@ struct MessagesTabView: View {
                 ForEach(wxConversations) { conv in
                     Button(action: { onOpenChat(conv.id) }) {
                         HStack(spacing: 8) {
-                            // Avatar容器，比头像稍大以容纳溢出的未读角标
-                            // 52pt容器，48pt头像居中，头像右上角在(50, 2)
-                            // 用 .position(x:y:) 精确定位角标中心到头像右上角
                             ZStack {
                                 RoundedRectangle(cornerRadius: 4).fill(conv.iconBg).frame(width: 48, height: 48)
                                     .overlay(Text(conv.avatar).font(.system(size: 24)))
@@ -435,43 +505,71 @@ struct ContactRow: View {
 
 // MARK: - Moments Tab
 struct MomentsTabView: View {
-    // 头像尺寸和偏移量：头像64pt，约1/3(≈22pt)突出到封面下方白色区域
+    @Binding var userNickname: String
+    @Binding var userSignature: String
+    @Binding var avatarImage: UIImage?
+    @Binding var coverImage: UIImage?
+
     private let avatarSize: CGFloat = 64
     private let avatarOverlap: CGFloat = 22
     private let coverHeight: CGFloat = 300
+
+    // 图片选择器
+    @State private var showCoverPicker = false
+    @State private var showAvatarPicker = false
+
+    // 文本编辑
+    @State private var showNicknameAlert = false
+    @State private var showSignatureAlert = false
+    @State private var editingText = ""
 
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
                 // 封面 + 头像 + 签名区域
                 VStack(spacing: 0) {
-                    // 封面 + 头像叠加区域
                     ZStack(alignment: .bottomTrailing) {
-                        // 封面背景（只占coverHeight高度）
                         VStack(spacing: 0) {
-                            LinearGradient(colors: [Color(red: 0.4, green: 0.49, blue: 0.92), Color(red: 0.46, green: 0.29, blue: 0.64)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                                .frame(height: coverHeight)
-                            // 白色区域填充头像突出部分
+                            // 封面（可点击更换）
+                            ZStack(alignment: .bottomLeading) {
+                                if let cover = coverImage {
+                                    Image(uiImage: cover)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(height: coverHeight)
+                                        .clipped()
+                                } else {
+                                    LinearGradient(colors: [Color(red: 0.4, green: 0.49, blue: 0.92), Color(red: 0.46, green: 0.29, blue: 0.64)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                        .frame(height: coverHeight)
+                                }
+                                // 封面提示
+                                Text("点击更换封面").font(.system(size: 11)).foregroundColor(.white.opacity(0.7)).padding(12)
+                            }
+                            .frame(height: coverHeight)
+                            .onTapGesture { showCoverPicker = true }
+
                             Color.white.frame(height: avatarOverlap)
                         }
 
-                        // 昵称 + 头像，头像底部与容器底部对齐，从而突出到白色区域
+                        // 昵称 + 头像
                         HStack(alignment: .bottom, spacing: 12) {
-                            // 昵称底部与封面底部对齐（向上偏移头像突出部分的高度）
-                            Text("我的昵称").foregroundColor(.white).font(.system(size: 18, weight: .semibold))
+                            Text(userNickname).foregroundColor(.white).font(.system(size: 18, weight: .semibold))
                                 .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
                                 .padding(.bottom, avatarOverlap + 6)
-                            RoundedRectangle(cornerRadius: 10).fill(Color(red: 0.96, green: 0.96, blue: 0.86))
-                                .frame(width: avatarSize, height: avatarSize)
-                                .overlay(Text("🐱").font(.system(size: 32)))
+                                .onTapGesture {
+                                    editingText = userNickname
+                                    showNicknameAlert = true
+                                }
+                            UserAvatarView(avatarImage: avatarImage, size: avatarSize, cornerRadius: 10)
                                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white, lineWidth: 2))
+                                .onTapGesture { showAvatarPicker = true }
                         }.padding(.trailing, 16).padding(.bottom, 0)
                     }
 
-                    // 用户签名文字区域（右对齐）
+                    // 用户签名
                     HStack {
                         Spacer()
-                        Text("游荡的孤高灵魂不需要栖身之地")
+                        Text(userSignature)
                             .font(.system(size: 13))
                             .foregroundColor(Color(hex: 0x999999))
                             .lineLimit(1)
@@ -479,6 +577,10 @@ struct MomentsTabView: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
                     .background(Color.white)
+                    .onTapGesture {
+                        editingText = userSignature
+                        showSignatureAlert = true
+                    }
                 }
 
                 ForEach(wxMoments) { m in
@@ -516,6 +618,34 @@ struct MomentsTabView: View {
                 }
             }
         }
+        .sheet(isPresented: $showCoverPicker) {
+            ImagePicker(isPresented: $showCoverPicker) { image in
+                UserProfileManager.shared.updateCover(image)
+                coverImage = image
+            }
+        }
+        .sheet(isPresented: $showAvatarPicker) {
+            ImagePicker(isPresented: $showAvatarPicker) { image in
+                UserProfileManager.shared.updateAvatar(image)
+                avatarImage = image
+            }
+        }
+        .alert("修改昵称", isPresented: $showNicknameAlert) {
+            TextField("昵称", text: $editingText)
+            Button("取消", role: .cancel) {}
+            Button("确定") {
+                UserProfileManager.shared.updateNickname(editingText)
+                userNickname = editingText
+            }
+        }
+        .alert("修改签名", isPresented: $showSignatureAlert) {
+            TextField("签名", text: $editingText)
+            Button("取消", role: .cancel) {}
+            Button("确定") {
+                UserProfileManager.shared.updateSignature(editingText)
+                userSignature = editingText
+            }
+        }
     }
 }
 
@@ -523,19 +653,17 @@ struct MomentsTabView: View {
 struct MeTabView: View {
     var onOpenService: () -> Void
     var onOpenMoments: () -> Void
+    var userNickname: String
+    var avatarImage: UIImage?
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // 个人信息卡片 - 高度扩展 1.25 倍
                 VStack(spacing: 0) {
                     HStack(spacing: 20) {
-                        // 头像
-                        RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.3))
-                            .frame(width: 72, height: 72)
-                            .overlay(Text("🐱").font(.system(size: 32)))
-                        
+                        UserAvatarView(avatarImage: avatarImage, size: 72, cornerRadius: 8)
                         VStack(alignment: .leading, spacing: 10) {
-                            Text("我的昵称").font(.system(size: 22, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                            Text(userNickname).font(.system(size: 22, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
                             HStack(spacing: 4) {
                                 Text("微信号：WangWang_User").font(.system(size: 16)).foregroundColor(WeTheme.codeTextSecondary)
                                 Spacer().frame(width: 8)
@@ -545,10 +673,7 @@ struct MeTabView: View {
                         }
                         Spacer()
                     }
-                    
                     Spacer().frame(height: 24)
-                    
-                    // 状态和朋友按钮
                     HStack(spacing: 12) {
                         Text("+ 状态").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary).padding(.horizontal, 14).padding(.vertical, 6)
                             .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color(white: 0.88), lineWidth: 0.5))
@@ -558,22 +683,20 @@ struct MeTabView: View {
                     }
                 }
                 .padding(.horizontal, 24)
-                .padding(.top, 60) // 增加顶部padding以模拟扩展高度
+                .padding(.top, 60)
                 .padding(.bottom, 24)
                 .background(WeTheme.codeBackgroundCell)
 
-                // 菜单
-                // iconName, label, tintColor, fallback, action
                 let menuGroups: [[(String, String, Color?, String, (() -> Void)?)]] = [
                     [("ic_pay_logo", "服务", Color(hex: 0x07C160), "✅", onOpenService)],
                     [
                         ("ic_favorites", "收藏", nil, "⭐", nil),
                         ("ic_moment", "朋友圈", nil, "🖼️", onOpenMoments),
-                        ("ic_album", "视频号和公众号", Color(hex: 0xFA9D3B), "📺", nil), // 橙色
+                        ("ic_album", "视频号和公众号", Color(hex: 0xFA9D3B), "📺", nil),
                         ("ic_cards", "订单与卡包", nil, "🛒", nil),
-                        ("ic_chat_emoji", "表情", Color(hex: 0xFFC300), "😊", nil) // 黄色
+                        ("ic_chat_emoji", "表情", Color(hex: 0xFFC300), "😊", nil)
                     ],
-                    [("ic_setting", "设置", Color(hex: 0x1976D2), "⚙️", nil)], // 蓝色
+                    [("ic_setting", "设置", Color(hex: 0x1976D2), "⚙️", nil)],
                 ]
 
                 ForEach(menuGroups.indices, id: \.self) { gi in
@@ -600,6 +723,7 @@ struct MeTabView: View {
 struct ChatDetailView: View {
     let chatId: String
     var onBack: () -> Void
+    var avatarImage: UIImage?
     @State private var messages: [WXChatMessage] = []
     @State private var inputText: String = ""
 
@@ -638,8 +762,7 @@ struct ChatDetailView: View {
                                         .frame(minHeight: 40)
                                         .background(WeTheme.codeBubbleSent).cornerRadius(4)
                                         .foregroundColor(WeTheme.codeTextPrimary)
-                                    RoundedRectangle(cornerRadius: 4).fill(WeTheme.codeBackgroundCell).frame(width: 40, height: 40)
-                                        .overlay(Text("🐱").font(.system(size: 20)))
+                                    UserAvatarView(avatarImage: avatarImage, size: 40, cornerRadius: 4, defaultEmoji: "🐱", defaultEmojiSize: 20)
                                 }
                             case "received":
                                 HStack(alignment: .top, spacing: 10) {

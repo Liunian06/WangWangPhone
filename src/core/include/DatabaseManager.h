@@ -43,6 +43,15 @@ struct WeatherCacheRecord {
     long long updated_at;         // 更新时间戳
 };
 
+// 用户资料记录结构
+struct UserProfileRecord {
+    std::string nickname;         // 用户昵称
+    std::string signature;        // 个性签名
+    std::string avatar_file;      // 头像文件名（持久化存储）
+    std::string cover_file;       // 朋友圈封面文件名（持久化存储）
+    long long updated_at;         // 更新时间戳
+};
+
 class DatabaseManager {
 public:
     static DatabaseManager& getInstance();
@@ -76,6 +85,14 @@ public:
     bool getWeatherCache(const std::string& city, const std::string& date, WeatherCacheRecord& outRecord);
     bool clearExpiredWeatherCache(const std::string& todayDate);
     bool clearAllWeatherCache();
+
+    // 用户资料相关操作
+    bool saveUserProfile(const UserProfileRecord& record);
+    bool getUserProfile(UserProfileRecord& outRecord);
+    bool updateUserNickname(const std::string& nickname);
+    bool updateUserSignature(const std::string& signature);
+    bool updateUserAvatar(const std::string& avatarFile);
+    bool updateUserCover(const std::string& coverFile);
 
     // 获取数据库路径
     std::string getDatabasePath() const;

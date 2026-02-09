@@ -123,6 +123,25 @@ bool DatabaseManager::createTables() {
         );
     )";
 
+    // 创建用户资料表
+    const char* createUserProfileTableSQL = R"(
+        CREATE TABLE IF NOT EXISTS user_profile (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            nickname TEXT NOT NULL DEFAULT '我的昵称',
+            signature TEXT NOT NULL DEFAULT '游荡的孤高灵魂不需要栖身之地',
+            avatar_file TEXT DEFAULT '',
+            cover_file TEXT DEFAULT '',
+            created_at INTEGER DEFAULT (strftime('%s', 'now')),
+            updated_at INTEGER DEFAULT (strftime('%s', 'now'))
+        );
+    )";
+
+    // 插入默认用户资料（如果不存在）
+    const char* insertDefaultProfileSQL = R"(
+        INSERT OR IGNORE INTO user_profile (id, nickname, signature, avatar_file, cover_file)
+        VALUES (1, '我的昵称', '游荡的孤高灵魂不需要栖身之地', '', '');
+    )";
+
     if (!executeSQL(createLicenseTableSQL)) {
         std::cerr << "创建 license 表失败" << std::endl;
         return false;
@@ -150,6 +169,16 @@ bool DatabaseManager::createTables() {
 
     if (!executeSQL(createWeatherCacheTableSQL)) {
         std::cerr << "创建 weather_cache 表失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(createUserProfileTableSQL)) {
+        std::cerr << "创建 user_profile 表失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(insertDefaultProfileSQL)) {
+        std::cerr << "插入默认用户资料失败" << std::endl;
         return false;
     }
 
@@ -548,6 +577,158 @@ bool DatabaseManager::clearExpiredWeatherCache(const std::string& todayDate) {
 
 bool DatabaseManager::clearAllWeatherCache() {
     return executeSQL("DELETE FROM weather_cache;");
+}
+
+// ==================== 用户资料操作 ====================
+
+bool DatabaseManager::saveUserProfile(const UserProfileRecord& record) {
+    if (!db) return false;
+
+    const char* upsertSQL = R"(
+        INSERT OR REPLACE INTO user_profile (id, nickname, signature, avatar_file, cover_file, updated_at)
+        VALUES (1, ?, ?, ?, ?, strftime('%s', 'now'));
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), upsertSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) {
+        std::cerr << "准备用户资料 SQL 语句失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    sqlite3_bind_text(stmt, 1, record.nickname.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 2, record.signature.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 3, record.avatar_file.c_str(), -1, SQLITE_TRANSIENT);
+    sqlite3_bind_text(stmt, 4, record.cover_file.c_str(), -1, SQLITE_TRANSIENT);
+
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    if (result != SQLITE_DONE) {
+        std::cerr << "保存用户资料失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    std::cout << "用户资料已保存: nickname=" << record.nickname << std::endl;
+    return true;
+}
+
+bool DatabaseManager::getUserProfile(UserProfileRecord& outRecord) {
+    if (!db) return false;
+
+    const char* selectSQL = R"(
+        SELECT nickname, signature, avatar_file, cover_file, updated_at
+        FROM user_profile
+        WHERE id = 1
+        LIMIT 1;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(
+        static_cast<sqlite3*>(db), selectSQL, -1, &stmt, nullptr);
+
+    if (result != SQLITE_OK) {
+        std::cerr << "准备用户资料查询语句失败: "
+                  << sqlite3_errmsg(static_cast<sqlite3*>(db)) << std::endl;
+        return false;
+    }
+
+    result = sqlite3_step(stmt);
+
+    if (result == SQLITE_ROW) {
+        const char* nickname = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        const char* signature = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        const char* avatar = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 2));
+        const char* cover = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3));
+
+        outRecord.nickname = nickname ? nickname : "我的昵称";
+        outRecord.signature = signature ? signature : "";
+        outRecord.avatar_file = avatar ? avatar : "";
+        outRecord.cover_file = cover ? cover : "";
+        outRecord.updated_at = sqlite3_column_int64(stmt, 4);
+
+        sqlite3_finalize(stmt);
+        return true;
+    }
+
+    sqlite3_finalize(stmt);
+    return false;
+}
+
+bool DatabaseManager::updateUserNickname(const std::string& nickname) {
+    if (!db) return false;
+
+    const char* updateSQL = R"(
+        UPDATE user_profile SET nickname = ?, updated_at = strftime('%s', 'now') WHERE id = 1;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(static_cast<sqlite3*>(db), updateSQL, -1, &stmt, nullptr);
+    if (result != SQLITE_OK) return false;
+
+    sqlite3_bind_text(stmt, 1, nickname.c_str(), -1, SQLITE_TRANSIENT);
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return result == SQLITE_DONE;
+}
+
+bool DatabaseManager::updateUserSignature(const std::string& signature) {
+    if (!db) return false;
+
+    const char* updateSQL = R"(
+        UPDATE user_profile SET signature = ?, updated_at = strftime('%s', 'now') WHERE id = 1;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(static_cast<sqlite3*>(db), updateSQL, -1, &stmt, nullptr);
+    if (result != SQLITE_OK) return false;
+
+    sqlite3_bind_text(stmt, 1, signature.c_str(), -1, SQLITE_TRANSIENT);
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return result == SQLITE_DONE;
+}
+
+bool DatabaseManager::updateUserAvatar(const std::string& avatarFile) {
+    if (!db) return false;
+
+    const char* updateSQL = R"(
+        UPDATE user_profile SET avatar_file = ?, updated_at = strftime('%s', 'now') WHERE id = 1;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(static_cast<sqlite3*>(db), updateSQL, -1, &stmt, nullptr);
+    if (result != SQLITE_OK) return false;
+
+    sqlite3_bind_text(stmt, 1, avatarFile.c_str(), -1, SQLITE_TRANSIENT);
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return result == SQLITE_DONE;
+}
+
+bool DatabaseManager::updateUserCover(const std::string& coverFile) {
+    if (!db) return false;
+
+    const char* updateSQL = R"(
+        UPDATE user_profile SET cover_file = ?, updated_at = strftime('%s', 'now') WHERE id = 1;
+    )";
+
+    sqlite3_stmt* stmt = nullptr;
+    int result = sqlite3_prepare_v2(static_cast<sqlite3*>(db), updateSQL, -1, &stmt, nullptr);
+    if (result != SQLITE_OK) return false;
+
+    sqlite3_bind_text(stmt, 1, coverFile.c_str(), -1, SQLITE_TRANSIENT);
+    result = sqlite3_step(stmt);
+    sqlite3_finalize(stmt);
+
+    return result == SQLITE_DONE;
 }
 
 } // namespace wwj_core
