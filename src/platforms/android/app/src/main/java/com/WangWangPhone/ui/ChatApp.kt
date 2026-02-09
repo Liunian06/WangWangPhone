@@ -368,11 +368,11 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
                     WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
                     
                     if (item.id == "messages" && totalUnread > 0) {
-                        // 角标中心对齐到图标右上角偏下一点(28,3)，避免超出Tab栏
+                        // 角标中心对齐到图标右上角偏下一点(28,4)，避免超出Tab栏
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
-                                .offset(y = 3.dp)
+                                .offset(y = 4.dp)
                                 .size(0.dp)
                                 .wrapContentSize(unbounded = true, align = Alignment.Center)
                         ) {
@@ -589,20 +589,56 @@ fun ContactItemRow(contact: Contact, onOpenChat: (String) -> Unit) {
 // ============================================
 @Composable
 fun MomentsTab() {
+    // 头像尺寸和偏移量：头像64dp，约1/3(≈22dp)突出到封面下方白色区域
+    val avatarSize = 64.dp
+    val avatarOverlap = 22.dp // 头像突出到白色区域的部分
+    val coverHeight = 300.dp
+
     LazyColumn(modifier = Modifier.fillMaxSize().background(Color.White)) {
-        // 封面
+        // 封面 + 头像 + 签名区域
         item {
-            Box(
-                modifier = Modifier.fillMaxWidth().height(300.dp)
-                    .background(Brush.linearGradient(listOf(Color(0xFF667EEA), Color(0xFF764BA2)))),
-                contentAlignment = Alignment.BottomEnd
-            ) {
-                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("我的昵称", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            // 整体容器：封面高度 + 头像突出部分 + 签名文字区域
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // 封面 + 头像叠加区域
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(coverHeight + avatarOverlap)
+                ) {
+                    // 封面背景
                     Box(
-                        modifier = Modifier.size(64.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFFF5F5DC)).border(2.dp, Color.White, RoundedCornerShape(10.dp)),
-                        contentAlignment = Alignment.Center
-                    ) { Text("🐱", fontSize = 32.sp) }
+                        modifier = Modifier.fillMaxWidth().height(coverHeight)
+                            .background(Brush.linearGradient(listOf(Color(0xFF667EEA), Color(0xFF764BA2))))
+                    )
+
+                    // 昵称 + 头像，对齐到容器底部，头像自然突出到白色区域
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text("我的昵称", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        Box(
+                            modifier = Modifier.size(avatarSize)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(Color(0xFFF5F5DC))
+                                .border(2.dp, Color.White, RoundedCornerShape(10.dp)),
+                            contentAlignment = Alignment.Center
+                        ) { Text("🐱", fontSize = 32.sp) }
+                    }
+                }
+
+                // 用户签名文字区域
+                Box(
+                    modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "游荡的孤高灵魂不需要栖身之地",
+                        fontSize = 13.sp,
+                        color = Color(0xFF999999),
+                        maxLines = 1
+                    )
                 }
             }
         }

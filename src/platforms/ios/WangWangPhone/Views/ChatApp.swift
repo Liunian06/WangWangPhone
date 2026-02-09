@@ -285,7 +285,7 @@ struct ChatTabBarView: View {
                         )
                         
                         if tab.0 == "messages" && totalUnread > 0 {
-                            TabUnreadBadgeView(count: totalUnread).position(x: 28, y: 3)
+                            TabUnreadBadgeView(count: totalUnread).position(x: 28, y: 4)
                         }
                     }.frame(width: 28, height: 28)
                     Text(tab.3).font(.system(size: 10, weight: .medium))
@@ -435,19 +435,49 @@ struct ContactRow: View {
 
 // MARK: - Moments Tab
 struct MomentsTabView: View {
+    // 头像尺寸和偏移量：头像64pt，约1/3(≈22pt)突出到封面下方白色区域
+    private let avatarSize: CGFloat = 64
+    private let avatarOverlap: CGFloat = 22
+    private let coverHeight: CGFloat = 300
+
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
-                // Cover
-                ZStack(alignment: .bottomTrailing) {
-                    LinearGradient(colors: [Color(red: 0.4, green: 0.49, blue: 0.92), Color(red: 0.46, green: 0.29, blue: 0.64)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                        .frame(height: 300)
-                    HStack(spacing: 12) {
-                        Text("我的昵称").foregroundColor(.white).font(.system(size: 18, weight: .semibold))
-                        RoundedRectangle(cornerRadius: 10).fill(Color(red: 0.96, green: 0.96, blue: 0.86))
-                            .frame(width: 64, height: 64).overlay(Text("🐱").font(.system(size: 32)))
-                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white, lineWidth: 2))
-                    }.padding(16)
+                // 封面 + 头像 + 签名区域
+                VStack(spacing: 0) {
+                    // 封面 + 头像叠加区域
+                    ZStack(alignment: .bottomTrailing) {
+                        // 封面背景（只占coverHeight高度）
+                        VStack(spacing: 0) {
+                            LinearGradient(colors: [Color(red: 0.4, green: 0.49, blue: 0.92), Color(red: 0.46, green: 0.29, blue: 0.64)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                .frame(height: coverHeight)
+                            // 白色区域填充头像突出部分
+                            Color.white.frame(height: avatarOverlap)
+                        }
+
+                        // 昵称 + 头像，头像底部与容器底部对齐，从而突出到白色区域
+                        HStack(spacing: 12) {
+                            Text("我的昵称").foregroundColor(.white).font(.system(size: 18, weight: .semibold))
+                                .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                            RoundedRectangle(cornerRadius: 10).fill(Color(red: 0.96, green: 0.96, blue: 0.86))
+                                .frame(width: avatarSize, height: avatarSize)
+                                .overlay(Text("🐱").font(.system(size: 32)))
+                                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white, lineWidth: 2))
+                        }.padding(.trailing, 16).padding(.bottom, 0)
+                    }
+
+                    // 用户签名文字区域
+                    HStack {
+                        Spacer()
+                        Text("游荡的孤高灵魂不需要栖身之地")
+                            .font(.system(size: 13))
+                            .foregroundColor(Color(hex: 0x999999))
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.white)
                 }
 
                 ForEach(wxMoments) { m in
