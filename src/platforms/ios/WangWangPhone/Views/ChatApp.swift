@@ -285,7 +285,7 @@ struct ChatTabBarView: View {
                         )
                         
                         if tab.0 == "messages" && totalUnread > 0 {
-                            TabUnreadBadgeView(count: totalUnread).position(x: 28, y: 0)
+                            TabUnreadBadgeView(count: totalUnread).position(x: 28, y: 3)
                         }
                     }.frame(width: 28, height: 28)
                     Text(tab.3).font(.system(size: 10, weight: .medium))

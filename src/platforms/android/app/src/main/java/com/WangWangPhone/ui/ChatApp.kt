@@ -368,10 +368,11 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
                     WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
                     
                     if (item.id == "messages" && totalUnread > 0) {
-                        // 角标中心对齐到图标右上角(28,0)
+                        // 角标中心对齐到图标右上角偏下一点(28,3)，避免超出Tab栏
                         Box(
                             modifier = Modifier
                                 .align(Alignment.TopEnd)
+                                .offset(y = 3.dp)
                                 .size(0.dp)
                                 .wrapContentSize(unbounded = true, align = Alignment.Center)
                         ) {
