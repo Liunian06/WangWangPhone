@@ -292,7 +292,7 @@ struct ChatTabBarView: View {
                             name: isSelected ? tab.1 : tab.2,
                             fallback: tab.4,
                             size: 28,
-                            color: isSelected && tab.4.count == 1 ? WeTheme.codeBrandGreen : nil // Emoji fallback needs color, Image might handle itself or use template
+                            color: isSelected ? nil : WeTheme.codeTextPrimary // selected图标自带绿色不需要tint，normal图标需要tint
                         )
                         
                         if tab.0 == "messages" && totalUnread > 0 {

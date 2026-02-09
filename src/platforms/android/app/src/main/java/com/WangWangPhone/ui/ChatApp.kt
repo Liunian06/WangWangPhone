@@ -73,12 +73,21 @@ fun WeIcon(
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         if (resId != 0) {
-            Icon(
-                painter = painterResource(id = resId),
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                tint = if (tint != Color.Unspecified) tint else LocalContentColor.current
-            )
+            if (tint != Color.Unspecified) {
+                Icon(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize(),
+                    tint = tint
+                )
+            } else {
+                // 不应用tint，保留图标原始颜色（如selected状态的绿色）
+                Image(
+                    painter = painterResource(id = resId),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         } else {
             // [DEBUG MODE] 只有在资源找不到时才显示红色占位符，方便调试
             // 生产环境应显示透明或默认图标
@@ -357,8 +366,8 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
             ) {
                 Box {
                     val iconName = if (isActive) item.iconSelected else item.iconNormal
-                    // 图标本身自带颜色（SVG），如果是纯色图标则需要Tint，这里假设SVG自带色或后续处理
-                    WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive && item.fallback.length == 1) WeTheme.BrandGreen else Color.Unspecified)
+                    // selected图标自带绿色，normal图标需要tint为当前文字颜色
+                    WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
                     
                     if (item.id == "messages" && totalUnread > 0) {
                         Box(
