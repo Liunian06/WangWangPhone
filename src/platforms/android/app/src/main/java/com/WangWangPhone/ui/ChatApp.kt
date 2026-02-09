@@ -257,11 +257,11 @@ fun ChatMainScreen(
             when (currentTab) {
                 "messages" -> {
                     Column {
-                        // 微信首页顶部只有 微信(n) 标题，加号和搜索
+                        // 微信首页顶部只有 微信(n) 标题，加号和搜索，无返回键
                         WeChatHeader(
                             title = titles[currentTab] ?: "",
                             onClose = onClose,
-                            showBack = true
+                            showBack = false
                         )
                         MessagesTab(onOpenChat)
                     }
