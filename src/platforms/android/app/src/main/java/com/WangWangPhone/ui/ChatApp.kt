@@ -104,6 +104,9 @@ fun WeIcon(
 // ============================================
 // 数据模型
 // ============================================
+// 会话类型：普通聊天、公众号、服务号
+enum class ConvType { CHAT, SUBSCRIPTION, SERVICE }
+
 data class Conversation(
     val id: String,
     val name: String,
@@ -112,7 +115,8 @@ data class Conversation(
     val time: String,
     val unread: Int = 0,
     val muted: Boolean = false,
-    val iconBg: Color = Color(0xFF4CAF50)
+    val iconBg: Color = Color(0xFF4CAF50),
+    val type: ConvType = ConvType.CHAT
 )
 
 data class ContactGroup(val id: String, val name: String, val icon: String, val color: Color)
@@ -126,12 +130,12 @@ data class ChatMessage(val type: String, val name: String = "", val avatar: Stri
 val mockConversations = listOf(
     Conversation("c1", "文件传输助手", "📁", "你好，这是一条测试消息", "12:51", iconBg = Color(0xFFFF9800)),
     Conversation("c2", "小明", "😊", "[语音] 14\"", "11:38", unread = 2, iconBg = Color(0xFF4CAF50)),
-    Conversation("c3", "工作群", "👥", "张三: 收到，谢谢大家的配合", "周四", muted = true, iconBg = Color(0xFF2196F3)),
+    Conversation("c3", "工作群", "👥", "张三: 收到，谢谢大家的配合", "周四", muted = true, unread = 1, iconBg = Color(0xFF2196F3)),
     Conversation("c4", "家人群", "🏠", "妈妈: [链接] 今日菜谱推荐...", "周三", iconBg = Color(0xFFE91E63)),
     Conversation("c5", "同学群", "🎓", "李华: 科目一快考完了", "1月30日", iconBg = Color(0xFF9C27B0)),
-    Conversation("c6", "技术交流群", "💻", "王工: 新版本已经部署上线", "12月2日", muted = true, iconBg = Color(0xFF607D8B)),
-    Conversation("c7", "公众号", "📰", "[3条] 今日科技资讯速览...", "16:37", unread = 3, iconBg = Color(0xFF1976D2)),
-    Conversation("c8", "服务号", "🔔", "[5条通知] 您的快递已到达...", "16:30", unread = 5, iconBg = Color(0xFFD32F2F)),
+    Conversation("c6", "技术交流群", "💻", "王工: 新版本已经部署上线", "12月2日", muted = true, unread = 1, iconBg = Color(0xFF607D8B)),
+    Conversation("c7", "公众号", "📰", "[3条] 今日科技资讯速览...", "16:37", unread = 3, iconBg = Color(0xFF1976D2), type = ConvType.SUBSCRIPTION),
+    Conversation("c8", "服务号", "🔔", "[5条通知] 您的快递已到达...", "16:30", unread = 5, iconBg = Color(0xFFD32F2F), type = ConvType.SERVICE),
     Conversation("c9", "技术攻关群", "🔧", "应该就好了", "16:11", iconBg = Color(0xFF795548)),
 )
 
@@ -364,10 +368,7 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
                     WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
                     
                     if (item.id == "messages" && totalUnread > 0) {
-                        Box(
-                            modifier = Modifier.offset(x = 10.dp, y = (-2).dp).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 4.dp).height(16.dp).widthIn(min = 16.dp),
-                            contentAlignment = Alignment.Center
-                        ) { Text("$totalUnread", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
+                        TabUnreadBadge(count = totalUnread, modifier = Modifier.offset(x = 10.dp, y = (-2).dp))
                     }
                 }
                 Spacer(Modifier.height(2.dp))
@@ -380,6 +381,73 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
 // ============================================
 // Tab1: 消息列表
 // ============================================
+// ============================================
+// 未读消息角标组件
+// ============================================
+@Composable
+fun UnreadBadge(conv: Conversation, modifier: Modifier = Modifier) {
+    if (conv.unread <= 0) return
+    
+    when {
+        // 公众号/服务号：显示 "New" 角标
+        conv.type == ConvType.SUBSCRIPTION || conv.type == ConvType.SERVICE -> {
+            Image(
+                painter = painterResource(id = LocalContext.current.resources.getIdentifier("ic_badge_new", "drawable", LocalContext.current.packageName)),
+                contentDescription = "New",
+                modifier = modifier.height(18.dp).width(38.dp)
+            )
+        }
+        // 免打扰：显示红色小圆点
+        conv.muted -> {
+            Image(
+                painter = painterResource(id = LocalContext.current.resources.getIdentifier("ic_badge_dot", "drawable", LocalContext.current.packageName)),
+                contentDescription = "dot",
+                modifier = modifier.size(8.dp)
+            )
+        }
+        // 未读 > 99：显示 "99+" 角标
+        conv.unread > 99 -> {
+            Image(
+                painter = painterResource(id = LocalContext.current.resources.getIdentifier("ic_badge_more", "drawable", LocalContext.current.packageName)),
+                contentDescription = "99+",
+                modifier = modifier.height(18.dp).width(33.dp)
+            )
+        }
+        // 普通未读 1-99：红色圆形 + 白色数字
+        else -> {
+            Box(
+                modifier = modifier.size(18.dp).background(Color(0xFFFA5151), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("${conv.unread}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+// 底部Tab栏用的未读角标（汇总数字）
+@Composable
+fun TabUnreadBadge(count: Int, modifier: Modifier = Modifier) {
+    if (count <= 0) return
+    when {
+        count > 99 -> {
+            Image(
+                painter = painterResource(id = LocalContext.current.resources.getIdentifier("ic_badge_more", "drawable", LocalContext.current.packageName)),
+                contentDescription = "99+",
+                modifier = modifier.height(18.dp).width(33.dp)
+            )
+        }
+        else -> {
+            Box(
+                modifier = modifier.size(18.dp).background(Color(0xFFFA5151), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("$count", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
 @Composable
 fun MessagesTab(onOpenChat: (String) -> Unit) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -388,9 +456,9 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                 modifier = Modifier.fillMaxWidth().clickable { onOpenChat(conv.id) }.background(WeTheme.BackgroundCell).padding(16.dp, 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar - 用一个更大的Box包裹，让未读红点可以溢出到头像外面
+                // Avatar - 用一个更大的Box包裹，让未读角标可以溢出到头像外面
                 Box(
-                    modifier = Modifier.size(52.dp), // 比头像稍大，给红点留出溢出空间
+                    modifier = Modifier.size(52.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Box(
@@ -399,12 +467,8 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                     ) {
                         Text(conv.avatar, fontSize = 24.sp)
                     }
-                    if (conv.unread > 0) {
-                        Box(
-                            modifier = Modifier.align(Alignment.TopEnd).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 5.dp).height(16.dp).widthIn(min = 16.dp),
-                            contentAlignment = Alignment.Center
-                        ) { Text("${conv.unread}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-                    }
+                    // 未读角标
+                    UnreadBadge(conv = conv, modifier = Modifier.align(Alignment.TopEnd))
                 }
 
                 Spacer(Modifier.width(8.dp))
@@ -412,7 +476,7 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(conv.name, fontSize = 16.sp, maxLines = 1, color = WeTheme.TextPrimary)
-                        Text(conv.time, fontSize = 11.sp, color = WeTheme.TextHint) // 时间字体更小
+                        Text(conv.time, fontSize = 11.sp, color = WeTheme.TextHint)
                     }
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -421,7 +485,7 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                     }
                 }
             }
-            Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 76.dp)) // 分割线左对齐文字
+            Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 76.dp))
         }
     }
 }

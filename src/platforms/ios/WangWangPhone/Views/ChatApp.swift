@@ -62,6 +62,8 @@ struct WeIcon: View {
 }
 
 // MARK: - Data Models
+enum WXConvType { case chat, subscription, service }
+
 struct WXConversation: Identifiable {
     let id: String
     let name: String
@@ -71,6 +73,7 @@ struct WXConversation: Identifiable {
     var unread: Int = 0
     var muted: Bool = false
     let iconBg: Color
+    var type: WXConvType = .chat
 }
 
 struct WXContactGroup: Identifiable {
@@ -109,12 +112,12 @@ struct WXChatMessage: Identifiable {
 let wxConversations: [WXConversation] = [
     WXConversation(id: "c1", name: "文件传输助手", avatar: "📁", lastMsg: "你好，这是一条测试消息", time: "12:51", iconBg: Color(red: 1.0, green: 0.6, blue: 0.0)),
     WXConversation(id: "c2", name: "小明", avatar: "😊", lastMsg: "[语音] 14\"", time: "11:38", unread: 2, iconBg: .green),
-    WXConversation(id: "c3", name: "工作群", avatar: "👥", lastMsg: "张三: 收到，谢谢大家的配合", time: "周四", muted: true, iconBg: .blue),
+    WXConversation(id: "c3", name: "工作群", avatar: "👥", lastMsg: "张三: 收到，谢谢大家的配合", time: "周四", muted: true, unread: 1, iconBg: .blue),
     WXConversation(id: "c4", name: "家人群", avatar: "🏠", lastMsg: "妈妈: [链接] 今日菜谱推荐...", time: "周三", iconBg: .pink),
     WXConversation(id: "c5", name: "同学群", avatar: "🎓", lastMsg: "李华: 科目一快考完了", time: "1月30日", iconBg: .purple),
-    WXConversation(id: "c6", name: "技术交流群", avatar: "💻", lastMsg: "王工: 新版本已部署上线", time: "12月2日", muted: true, iconBg: .gray),
-    WXConversation(id: "c7", name: "公众号", avatar: "📰", lastMsg: "[3条] 今日科技资讯速览...", time: "16:37", unread: 3, iconBg: Color(red: 0.1, green: 0.46, blue: 0.82)),
-    WXConversation(id: "c8", name: "服务号", avatar: "🔔", lastMsg: "[5条通知] 您的快递已到达...", time: "16:30", unread: 5, iconBg: .red),
+    WXConversation(id: "c6", name: "技术交流群", avatar: "💻", lastMsg: "王工: 新版本已部署上线", time: "12月2日", muted: true, unread: 1, iconBg: .gray),
+    WXConversation(id: "c7", name: "公众号", avatar: "📰", lastMsg: "[3条] 今日科技资讯速览...", time: "16:37", unread: 3, iconBg: Color(red: 0.1, green: 0.46, blue: 0.82), type: .subscription),
+    WXConversation(id: "c8", name: "服务号", avatar: "🔔", lastMsg: "[5条通知] 您的快递已到达...", time: "16:30", unread: 5, iconBg: .red, type: .service),
     WXConversation(id: "c9", name: "技术攻关群", avatar: "🔧", lastMsg: "应该就好了", time: "16:11", iconBg: .brown),
 ]
 
@@ -280,9 +283,7 @@ struct ChatTabBarView: View {
                         )
                         
                         if tab.0 == "messages" && totalUnread > 0 {
-                            Text("\(totalUnread)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
-                                .padding(.horizontal, 5).padding(.vertical, 2).background(Color.red).clipShape(Capsule())
-                                .offset(x: 10, y: -6)
+                            TabUnreadBadgeView(count: totalUnread).offset(x: 10, y: -6)
                         }
                     }
                     Text(tab.3).font(.system(size: 10, weight: .medium))
@@ -298,6 +299,47 @@ struct ChatTabBarView: View {
     }
 }
 
+// MARK: - Unread Badge Components
+struct UnreadBadgeView: View {
+    let conv: WXConversation
+    var body: some View {
+        if conv.unread <= 0 {
+            EmptyView()
+        } else if conv.type == .subscription || conv.type == .service {
+            // 公众号/服务号：显示 "New" 角标
+            Image("ic_badge_new").resizable().aspectRatio(contentMode: .fit).frame(width: 38, height: 18)
+        } else if conv.muted {
+            // 免打扰：显示红色小圆点
+            Image("ic_badge_dot").resizable().aspectRatio(contentMode: .fit).frame(width: 8, height: 8)
+        } else if conv.unread > 99 {
+            // 未读 > 99：显示 "99+" 角标
+            Image("ic_badge_more").resizable().aspectRatio(contentMode: .fit).frame(width: 33, height: 18)
+        } else {
+            // 普通未读 1-99：红色圆形 + 白色数字
+            ZStack {
+                Circle().fill(Color(hex: 0xFA5151)).frame(width: 18, height: 18)
+                Text("\(conv.unread)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+            }
+        }
+    }
+}
+
+struct TabUnreadBadgeView: View {
+    let count: Int
+    var body: some View {
+        if count <= 0 {
+            EmptyView()
+        } else if count > 99 {
+            Image("ic_badge_more").resizable().aspectRatio(contentMode: .fit).frame(width: 33, height: 18)
+        } else {
+            ZStack {
+                Circle().fill(Color(hex: 0xFA5151)).frame(width: 18, height: 18)
+                Text("\(count)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+            }
+        }
+    }
+}
+
 // MARK: - Messages Tab
 struct MessagesTabView: View {
     var onOpenChat: (String) -> Void
@@ -307,15 +349,12 @@ struct MessagesTabView: View {
                 ForEach(wxConversations) { conv in
                     Button(action: { onOpenChat(conv.id) }) {
                         HStack(spacing: 8) {
-                            // Avatar容器，比头像稍大以容纳溢出的未读红点
+                            // Avatar容器，比头像稍大以容纳溢出的未读角标
                             ZStack(alignment: .topTrailing) {
                                 RoundedRectangle(cornerRadius: 4).fill(conv.iconBg).frame(width: 48, height: 48)
                                     .overlay(Text(conv.avatar).font(.system(size: 24)))
-                                if conv.unread > 0 {
-                                    Text("\(conv.unread)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
-                                        .padding(.horizontal, 5).padding(.vertical, 2).background(Color.red).clipShape(Capsule()).offset(x: 8, y: -4)
-                                }
-                            }.frame(width: 52, height: 52) // 给红点留出溢出空间
+                                UnreadBadgeView(conv: conv).offset(x: 6, y: -4)
+                            }.frame(width: 52, height: 52)
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack {
                                     Text(conv.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary).lineLimit(1)
