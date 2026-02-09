@@ -306,15 +306,16 @@ struct MessagesTabView: View {
             LazyVStack(spacing: 0) {
                 ForEach(wxConversations) { conv in
                     Button(action: { onOpenChat(conv.id) }) {
-                        HStack(spacing: 12) {
+                        HStack(spacing: 8) {
+                            // Avatar容器，比头像稍大以容纳溢出的未读红点
                             ZStack(alignment: .topTrailing) {
                                 RoundedRectangle(cornerRadius: 4).fill(conv.iconBg).frame(width: 48, height: 48)
                                     .overlay(Text(conv.avatar).font(.system(size: 24)))
                                 if conv.unread > 0 {
                                     Text("\(conv.unread)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
-                                        .padding(.horizontal, 5).padding(.vertical, 2).background(Color.red).clipShape(Capsule()).offset(x: 6, y: -6)
+                                        .padding(.horizontal, 5).padding(.vertical, 2).background(Color.red).clipShape(Capsule()).offset(x: 8, y: -4)
                                 }
-                            }
+                            }.frame(width: 52, height: 52) // 给红点留出溢出空间
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack {
                                     Text(conv.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary).lineLimit(1)
@@ -324,7 +325,7 @@ struct MessagesTabView: View {
                                 HStack {
                                     Text(conv.lastMsg).font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary).lineLimit(1)
                                     Spacer()
-                                    if conv.muted { Text("🔇").font(.system(size: 14)).foregroundColor(WeTheme.codeTextHint) }
+                                    if conv.muted { WeIcon(name: "ic_mute", fallback: "🔇", size: 16, color: WeTheme.codeTextHint) }
                                 }
                             }
                         }.padding(16).background(WeTheme.codeBackgroundCell)

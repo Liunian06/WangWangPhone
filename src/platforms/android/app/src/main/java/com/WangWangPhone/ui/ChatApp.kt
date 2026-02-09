@@ -388,21 +388,26 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                 modifier = Modifier.fillMaxWidth().clickable { onOpenChat(conv.id) }.background(WeTheme.BackgroundCell).padding(16.dp, 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar
+                // Avatar - 用一个更大的Box包裹，让未读红点可以溢出到头像外面
                 Box(
-                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg), // 微信头像圆角较小
+                    modifier = Modifier.size(52.dp), // 比头像稍大，给红点留出溢出空间
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(conv.avatar, fontSize = 24.sp)
+                    Box(
+                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(conv.avatar, fontSize = 24.sp)
+                    }
                     if (conv.unread > 0) {
                         Box(
-                            modifier = Modifier.align(Alignment.TopEnd).offset(x = 6.dp, y = (-6).dp).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 5.dp),
+                            modifier = Modifier.align(Alignment.TopEnd).background(Color(0xFFFA5151), CircleShape).padding(horizontal = 5.dp).height(16.dp).widthIn(min = 16.dp),
                             contentAlignment = Alignment.Center
                         ) { Text("${conv.unread}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
                     }
                 }
 
-                Spacer(Modifier.width(12.dp))
+                Spacer(Modifier.width(8.dp))
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -412,7 +417,7 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                     Spacer(Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(conv.lastMsg, fontSize = 14.sp, color = WeTheme.TextSecondary, maxLines = 1, modifier = Modifier.weight(1f))
-                        if (conv.muted) Text("🔇", fontSize = 14.sp, color = WeTheme.TextHint)
+                        if (conv.muted) WeIcon("ic_mute", "🔇", modifier = Modifier.size(16.dp), tint = WeTheme.TextHint)
                     }
                 }
             }
