@@ -614,10 +614,12 @@ fun MomentsTab() {
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
                             .padding(end = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("我的昵称", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+                        // 昵称底部与封面底部对齐（向上偏移头像突出部分的高度）
+                        Text("我的昵称", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(bottom = avatarOverlap + 6.dp))
                         Box(
                             modifier = Modifier.size(avatarSize)
                                 .clip(RoundedCornerShape(10.dp))
@@ -631,7 +633,7 @@ fun MomentsTab() {
                 // 用户签名文字区域
                 Box(
                     modifier = Modifier.fillMaxWidth().background(Color.White).padding(horizontal = 16.dp, vertical = 10.dp),
-                    contentAlignment = Alignment.Center
+                    contentAlignment = Alignment.CenterEnd
                 ) {
                     Text(
                         "游荡的孤高灵魂不需要栖身之地",

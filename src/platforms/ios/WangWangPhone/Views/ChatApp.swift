@@ -456,9 +456,11 @@ struct MomentsTabView: View {
                         }
 
                         // 昵称 + 头像，头像底部与容器底部对齐，从而突出到白色区域
-                        HStack(spacing: 12) {
+                        HStack(alignment: .bottom, spacing: 12) {
+                            // 昵称底部与封面底部对齐（向上偏移头像突出部分的高度）
                             Text("我的昵称").foregroundColor(.white).font(.system(size: 18, weight: .semibold))
                                 .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                .padding(.bottom, avatarOverlap + 6)
                             RoundedRectangle(cornerRadius: 10).fill(Color(red: 0.96, green: 0.96, blue: 0.86))
                                 .frame(width: avatarSize, height: avatarSize)
                                 .overlay(Text("🐱").font(.system(size: 32)))
@@ -466,14 +468,13 @@ struct MomentsTabView: View {
                         }.padding(.trailing, 16).padding(.bottom, 0)
                     }
 
-                    // 用户签名文字区域
+                    // 用户签名文字区域（右对齐）
                     HStack {
                         Spacer()
                         Text("游荡的孤高灵魂不需要栖身之地")
                             .font(.system(size: 13))
                             .foregroundColor(Color(hex: 0x999999))
                             .lineLimit(1)
-                        Spacer()
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
