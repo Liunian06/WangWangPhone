@@ -21,7 +21,7 @@ struct LicensePayload {
 
 /// 授权操作结果
 enum LicenseResult {
-    case success(LicenseRecord)
+    case success(LicenseRecord, needsRestart: Bool)
     case error(String)
 }
 
@@ -144,7 +144,7 @@ class LicenseManager {
             if self.saveLicenseRecord(record) {
                 self.cachedLicense = record
                 DispatchQueue.main.async {
-                    completion(.success(record))
+                    completion(.success(record, needsRestart: true))
                 }
             } else {
                 DispatchQueue.main.async {
@@ -345,8 +345,12 @@ class LicenseManager {
         return result == SQLITE_DONE
     }
     
-    /// 解析激活码 (模拟实现)
-    /// TODO: 当 C++ Core 就绪后，通过桥接调用真正的 RSA 验签
+    /// RSA 公钥 (SPKI 格式 Base64)
+    /// 2026-02-10: 更新公钥
+    private let publicKeyBase64 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxQxw4O380suUJS1ibRjKiX59SVqfUh4ao7/t+lXFaHEPDfL19vgmNaZGFY6pBkLuRZdGqkyiFmNFyWLH6VQf9kmhwL6HO3Qie//9jGIJMMohcPcNVz/cFOfnT1ojYrh+6Q2tODzLDm9EQG669ketzCdC3TynjtbzzyXY+JoL85L1MIhtsqAUFbBd4uAEG16z+OmT4BPi1UdPIKgVt7PdxqLtww2v7t60XwB1MiNo0GIDjhZHH9k1Mbu/IWZcW6pXgCaE+5rxG47gADN384n3zhLot/CbR5aYA0vnheQipjRG8oe4YTApGQ2rFvF+yUYXzcGOJFYkl8CvvPXXw8rFLQIDAQAB"
+    
+    /// 解析并验证激活码
+    /// 使用 RSA 公钥验证签名，确保激活码的真实性
     private func parseLicenseKey(_ licenseKey: String) -> LicensePayload? {
         // 格式: WANGWANG-[Payload-Base64].[Signature-Base64]
         let rest = String(licenseKey.dropFirst("WANGWANG-".count))
@@ -354,18 +358,69 @@ class LicenseManager {
         
         guard parts.count == 2 else { return nil }
         
-        // TODO: 验证签名
-        // TODO: Base64 解码并解析 JSON
+        let payloadBase64 = String(parts[0])
+        let signatureBase64 = String(parts[1])
         
-        // 模拟解析 - 使用当前时间 + 365天作为过期时间
-        let now = Int64(Date().timeIntervalSince1970)
-        let expiration = now + (365 * 24 * 60 * 60)
+        // 1. Base64 解码 Payload
+        guard let payloadData = Data(base64Encoded: payloadBase64),
+              let payloadJson = String(data: payloadData, encoding: .utf8) else {
+            return nil
+        }
+        
+        // 2. 验证 RSA 签名
+        guard let publicKeyData = Data(base64Encoded: publicKeyBase64) else {
+            return nil
+        }
+        
+        // 创建公钥
+        let keyDict: [CFString: Any] = [
+            kSecAttrKeyType: kSecAttrKeyTypeRSA,
+            kSecAttrKeyClass: kSecAttrKeyClassPublic,
+            kSecAttrKeySizeInBits: 2048
+        ]
+        
+        var error: Unmanaged<CFError>?
+        guard let publicKey = SecKeyCreateWithData(publicKeyData as CFData, keyDict as CFDictionary, &error) else {
+            print("LicenseManager: 无法创建公钥 - \(error?.takeRetainedValue().localizedDescription ?? "未知错误")")
+            return nil
+        }
+        
+        // 验证签名
+        guard let signatureData = Data(base64Encoded: signatureBase64),
+              let payloadBytes = payloadJson.data(using: .utf8) else {
+            return nil
+        }
+        
+        let algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256
+        
+        guard SecKeyIsAlgorithmSupported(publicKey, .verify, algorithm) else {
+            print("LicenseManager: 不支持的签名算法")
+            return nil
+        }
+        
+        let isValid = SecKeyVerifySignature(publicKey, algorithm, payloadBytes as CFData, signatureData as CFData, &error)
+        
+        if !isValid {
+            print("LicenseManager: 签名验证失败 - \(error?.takeRetainedValue().localizedDescription ?? "签名无效")")
+            return nil
+        }
+        
+        // 3. 解析 JSON Payload
+        guard let jsonData = payloadJson.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let machineId = json["mid"] as? String,
+              let expirationTime = json["exp"] as? Int64 else {
+            return nil
+        }
+        
+        let type = json["type"] as? String ?? "standard"
+        let salt = json["salt"] as? String ?? ""
         
         return LicensePayload(
-            machineId: getMachineId(),
-            expirationTime: expiration,
-            type: "pro",
-            salt: "generated"
+            machineId: machineId,
+            expirationTime: expirationTime,
+            type: type,
+            salt: salt
         )
     }
 }

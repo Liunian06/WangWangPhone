@@ -100,7 +100,7 @@ class LicenseManager private constructor(private val context: Context) {
             
             if (dbHelper.saveLicenseRecord(record)) {
                 cachedLicense = record
-                LicenseResult.Success(record)
+                LicenseResult.Success(record, needsRestart = true)
             } else {
                 LicenseResult.Error("保存授权信息失败")
             }
@@ -201,8 +201,14 @@ class LicenseManager private constructor(private val context: Context) {
     }
     
     /**
-     * 解析激活码 (模拟实现)
-     * TODO: 当 C++ Core 就绪后，通过 JNI 调用真正的 RSA 验签
+     * RSA 公钥 (SPKI 格式 Base64)
+     * 2026-02-10: 更新公钥
+     */
+    private val publicKeyBase64 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxQxw4O380suUJS1ibRjKiX59SVqfUh4ao7/t+lXFaHEPDfL19vgmNaZGFY6pBkLuRZdGqkyiFmNFyWLH6VQf9kmhwL6HO3Qie//9jGIJMMohcPcNVz/cFOfnT1ojYrh+6Q2tODzLDm9EQG669ketzCdC3TynjtbzzyXY+JoL85L1MIhtsqAUFbBd4uAEG16z+OmT4BPi1UdPIKgVt7PdxqLtww2v7t60XwB1MiNo0GIDjhZHH9k1Mbu/IWZcW6pXgCaE+5rxG47gADN384n3zhLot/CbR5aYA0vnheQipjRG8oe4YTApGQ2rFvF+yUYXzcGOJFYkl8CvvPXXw8rFLQIDAQAB"
+
+    /**
+     * 解析并验证激活码
+     * 使用 RSA 公钥验证签名，确保激活码的真实性
      */
     private fun parseLicenseKey(licenseKey: String): LicensePayload? {
         try {
@@ -212,22 +218,42 @@ class LicenseManager private constructor(private val context: Context) {
             if (parts.size != 2) return null
             
             val payloadBase64 = parts[0]
-            // val signatureBase64 = parts[1]
+            val signatureBase64 = parts[1]
             
-            // TODO: 验证签名
-            // TODO: Base64 解码并解析 JSON
+            // 1. Base64 解码 Payload
+            val payloadJson = String(android.util.Base64.decode(payloadBase64, android.util.Base64.DEFAULT), Charsets.UTF_8)
             
-            // 模拟解析 - 使用当前时间 + 365天作为过期时间
-            val now = System.currentTimeMillis() / 1000
-            val expiration = now + (365 * 24 * 60 * 60)
+            // 2. 验证 RSA 签名
+            val publicKeyBytes = android.util.Base64.decode(publicKeyBase64, android.util.Base64.DEFAULT)
+            val keySpec = java.security.spec.X509EncodedKeySpec(publicKeyBytes)
+            val keyFactory = java.security.KeyFactory.getInstance("RSA")
+            val publicKey = keyFactory.generatePublic(keySpec)
+            
+            val signature = java.security.Signature.getInstance("SHA256withRSA")
+            signature.initVerify(publicKey)
+            signature.update(payloadJson.toByteArray(Charsets.UTF_8))
+            
+            val signatureBytes = android.util.Base64.decode(signatureBase64, android.util.Base64.DEFAULT)
+            if (!signature.verify(signatureBytes)) {
+                // 签名验证失败
+                return null
+            }
+            
+            // 3. 解析 JSON Payload
+            val jsonObject = org.json.JSONObject(payloadJson)
+            val machineId = jsonObject.getString("mid")
+            val expirationTime = jsonObject.getLong("exp")
+            val type = jsonObject.optString("type", "standard")
+            val salt = jsonObject.optString("salt", "")
             
             return LicensePayload(
-                machineId = getMachineId(),
-                expirationTime = expiration,
-                type = "pro",
-                salt = "generated"
+                machineId = machineId,
+                expirationTime = expirationTime,
+                type = type,
+                salt = salt
             )
         } catch (e: Exception) {
+            e.printStackTrace()
             return null
         }
     }
@@ -265,6 +291,6 @@ data class LicensePayload(
  * 授权操作结果
  */
 sealed class LicenseResult {
-    data class Success(val record: LicenseRecord) : LicenseResult()
+    data class Success(val record: LicenseRecord, val needsRestart: Boolean = true) : LicenseResult()
     data class Error(val message: String) : LicenseResult()
 }
