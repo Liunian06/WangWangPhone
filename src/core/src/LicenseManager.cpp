@@ -200,9 +200,25 @@ void LicenseManager::setPublicKey(const std::string& key) {
     this->publicKey = key;
 }
 
+// 辅助函数：清理字符串中的空白字符
+static std::string removeWhitespace(const std::string& str) {
+    std::string result;
+    result.reserve(str.size());
+    for (char c : str) {
+        if (c != ' ' && c != '\t' && c != '\n' && c != '\r') {
+            result += c;
+        }
+    }
+    return result;
+}
+
 bool LicenseManager::verifyLicense(const std::string& licenseKey, const std::string& currentMachineId) {
+    // 清理激活码中的所有空白字符
+    std::string cleanedKey = removeWhitespace(licenseKey);
+    std::cout << "LicenseManager: 清理后的激活码长度: " << cleanedKey.size() << std::endl;
+    
     LicensePayload payload;
-    if (!decodeAndVerify(licenseKey, payload)) {
+    if (!decodeAndVerify(cleanedKey, payload)) {
         std::cerr << "LicenseManager: 激活码解析失败" << std::endl;
         return false;
     }
@@ -227,8 +243,8 @@ bool LicenseManager::verifyLicense(const std::string& licenseKey, const std::str
     this->currentPayload = payload;
     this->activated = true;
 
-    // 保存到数据库
-    if (!saveLicenseToDatabase(licenseKey, payload)) {
+    // 保存到数据库（使用清理后的激活码）
+    if (!saveLicenseToDatabase(cleanedKey, payload)) {
         std::cerr << "LicenseManager: 保存授权信息到数据库失败" << std::endl;
         // 即使保存失败，内存中的授权状态仍然有效
     }
@@ -270,15 +286,6 @@ bool LicenseManager::restoreLicenseFromDatabase(const std::string& currentMachin
     LicensePayload verifiedPayload;
     if (!decodeAndVerify(record.license_key, verifiedPayload)) {
         std::cerr << "LicenseManager: 数据库中的授权密钥 RSA 签名验证失败（公钥可能已更新）" << std::endl;
-        clearLicense();
-        return false;
-    }
-
-    // 【新增】安全阈值检查：废除所有旧版本的授权
-    // 2026-02-10 19:30:00 (UTC+8) 之前的所有授权均视为无效（对应公钥更新时间）
-    // 阈值：1770723000 (2026-02-10 19:30:00 UTC+8)
-    if (record.activation_time < 1770723000) {
-        std::cerr << "LicenseManager: 授权记录早于安全阈值，强制失效" << std::endl;
         clearLicense();
         return false;
     }

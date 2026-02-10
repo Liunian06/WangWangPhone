@@ -88,14 +88,6 @@ class LicenseManager private constructor(private val context: Context) {
             return false
         }
         
-        // 【新增】安全阈值检查：废除所有旧版本的授权
-        // 2026-02-10 19:30:00 (UTC+8) 之前的所有授权均视为无效（对应公钥更新时间）
-        // 阈值：1770723000 (2026-02-10 19:30:00 UTC+8)
-        if (record.activationTime < 1770723000) {
-            android.util.Log.w("LicenseManager", "启动验证失败：授权记录早于安全阈值，强制失效")
-            return false
-        }
-        
         // 4. 验证签名中的载荷与数据库记录是否一致
         if (payload.machineId != record.machineId || payload.expirationTime != record.expirationTime) {
             android.util.Log.w("LicenseManager", "启动验证失败：载荷数据与数据库记录不一致")
@@ -124,14 +116,18 @@ class LicenseManager private constructor(private val context: Context) {
      */
     suspend fun verifyLicense(licenseKey: String): LicenseResult = withContext(Dispatchers.IO) {
         try {
+            // 清理激活码中的所有空白字符（换行、空格、制表符等）
+            val cleanedKey = licenseKey.replace(Regex("[\\s\\r\\n]+"), "")
+            android.util.Log.d("LicenseManager", "清理后的激活码长度: ${cleanedKey.length}")
+            
             // 检查格式
-            if (!licenseKey.startsWith("WANGWANG-")) {
+            if (!cleanedKey.startsWith("WANGWANG-")) {
                 return@withContext LicenseResult.Error("激活码格式无效")
             }
             
             // 解析激活码
-            val payload = parseLicenseKey(licenseKey)
-                ?: return@withContext LicenseResult.Error("激活码解析失败")
+            val payload = parseLicenseKey(cleanedKey)
+                ?: return@withContext LicenseResult.Error("激活码解析失败，请检查激活码是否正确")
             
             // 验证机器码
             val currentMachineId = getMachineId()
@@ -145,9 +141,9 @@ class LicenseManager private constructor(private val context: Context) {
                 return@withContext LicenseResult.Error("授权已过期")
             }
             
-            // 保存到数据库
+            // 保存到数据库（使用清理后的激活码）
             val record = LicenseRecord(
-                licenseKey = licenseKey,
+                licenseKey = cleanedKey,
                 machineId = payload.machineId,
                 expirationTime = payload.expirationTime,
                 licenseType = payload.type,
@@ -271,13 +267,21 @@ class LicenseManager private constructor(private val context: Context) {
      */
     private fun parseLicenseKey(licenseKey: String): LicensePayload? {
         try {
+            // 清理激活码中可能包含的空白字符
+            val cleanedLicenseKey = licenseKey.replace(Regex("[\\s\\r\\n]+"), "")
+            
             // 格式: WANGWANG-[Payload-Base64].[Signature-Base64]
-            val rest = licenseKey.removePrefix("WANGWANG-")
+            val rest = cleanedLicenseKey.removePrefix("WANGWANG-")
             val parts = rest.split(".")
-            if (parts.size != 2) return null
+            if (parts.size != 2) {
+                android.util.Log.e("LicenseManager", "parseLicenseKey: 格式错误，分割后部分数量=${parts.size}，期望2")
+                return null
+            }
             
             val payloadBase64 = parts[0]
             val signatureBase64 = parts[1]
+            
+            android.util.Log.d("LicenseManager", "parseLicenseKey: payloadBase64长度=${payloadBase64.length}, signatureBase64长度=${signatureBase64.length}")
             
             // 1. Base64 解码 Payload
             // 确保 Padding 正确
@@ -285,10 +289,11 @@ class LicenseManager private constructor(private val context: Context) {
             while (paddedPayloadBase64.length % 4 != 0) {
                 paddedPayloadBase64 += "="
             }
-            val payloadJson = String(android.util.Base64.decode(paddedPayloadBase64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            val payloadJson = String(android.util.Base64.decode(paddedPayloadBase64, android.util.Base64.NO_WRAP), Charsets.UTF_8)
+            android.util.Log.d("LicenseManager", "parseLicenseKey: payloadJson=$payloadJson")
             
             // 2. 验证 RSA 签名
-            val publicKeyBytes = android.util.Base64.decode(publicKeyBase64, android.util.Base64.DEFAULT)
+            val publicKeyBytes = android.util.Base64.decode(publicKeyBase64, android.util.Base64.NO_WRAP)
             val keySpec = java.security.spec.X509EncodedKeySpec(publicKeyBytes)
             val keyFactory = java.security.KeyFactory.getInstance("RSA")
             val publicKey = keyFactory.generatePublic(keySpec)
@@ -301,11 +306,15 @@ class LicenseManager private constructor(private val context: Context) {
             while (paddedSignatureBase64.length % 4 != 0) {
                 paddedSignatureBase64 += "="
             }
-            val signatureBytes = android.util.Base64.decode(paddedSignatureBase64, android.util.Base64.DEFAULT)
+            val signatureBytes = android.util.Base64.decode(paddedSignatureBase64, android.util.Base64.NO_WRAP)
+            android.util.Log.d("LicenseManager", "parseLicenseKey: signatureBytes长度=${signatureBytes.size}")
+            
             if (!signature.verify(signatureBytes)) {
-                // 签名验证失败
+                android.util.Log.e("LicenseManager", "parseLicenseKey: RSA签名验证失败")
                 return null
             }
+            
+            android.util.Log.i("LicenseManager", "parseLicenseKey: RSA签名验证通过")
             
             // 3. 解析 JSON Payload
             val jsonObject = org.json.JSONObject(payloadJson)
@@ -321,7 +330,7 @@ class LicenseManager private constructor(private val context: Context) {
                 salt = salt
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("LicenseManager", "parseLicenseKey: 解析异常", e)
             return null
         }
     }

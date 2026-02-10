@@ -110,14 +110,6 @@ class LicenseManager {
             return false
         }
         
-        // 【新增】安全阈值检查：废除所有旧版本的授权
-        // 2026-02-10 19:30:00 (UTC+8) 之前的所有授权均视为无效（对应公钥更新时间）
-        // 阈值：1770723000 (2026-02-10 19:30:00 UTC+8)
-        if record.activationTime < 1770723000 {
-            print("LicenseManager: 启动验证失败：授权记录早于安全阈值，强制失效")
-            return false
-        }
-        
         // 4. 验证签名中的载荷与数据库记录是否一致
         if payload.machineId != record.machineId || payload.expirationTime != record.expirationTime {
             print("LicenseManager: 启动验证失败：载荷数据与数据库记录不一致")
@@ -151,8 +143,12 @@ class LicenseManager {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             guard let self = self else { return }
             
+            // 清理激活码中的所有空白字符（换行、空格、制表符等）
+            let cleanedKey = licenseKey.components(separatedBy: .whitespacesAndNewlines).joined()
+            print("LicenseManager: 清理后的激活码长度: \(cleanedKey.count)")
+            
             // 检查格式
-            guard licenseKey.hasPrefix("WANGWANG-") else {
+            guard cleanedKey.hasPrefix("WANGWANG-") else {
                 DispatchQueue.main.async {
                     completion(.error("激活码格式无效"))
                 }
@@ -160,9 +156,9 @@ class LicenseManager {
             }
             
             // 解析激活码
-            guard let payload = self.parseLicenseKey(licenseKey) else {
+            guard let payload = self.parseLicenseKey(cleanedKey) else {
                 DispatchQueue.main.async {
-                    completion(.error("激活码解析失败"))
+                    completion(.error("激活码解析失败，请检查激活码是否正确"))
                 }
                 return
             }
@@ -185,9 +181,9 @@ class LicenseManager {
                 return
             }
             
-            // 保存到数据库
+            // 保存到数据库（使用清理后的激活码）
             let record = LicenseRecord(
-                licenseKey: licenseKey,
+                licenseKey: cleanedKey,
                 machineId: payload.machineId,
                 expirationTime: payload.expirationTime,
                 licenseType: payload.type,
@@ -408,14 +404,22 @@ class LicenseManager {
     /// 解析并验证激活码
     /// 使用 RSA 公钥验证签名，确保激活码的真实性
     private func parseLicenseKey(_ licenseKey: String) -> LicensePayload? {
+        // 清理激活码中可能包含的空白字符
+        let cleanedLicenseKey = licenseKey.components(separatedBy: .whitespacesAndNewlines).joined()
+        
         // 格式: WANGWANG-[Payload-Base64].[Signature-Base64]
-        let rest = String(licenseKey.dropFirst("WANGWANG-".count))
+        let rest = String(cleanedLicenseKey.dropFirst("WANGWANG-".count))
         let parts = rest.split(separator: ".")
         
-        guard parts.count == 2 else { return nil }
+        guard parts.count == 2 else {
+            print("LicenseManager: parseLicenseKey: 格式错误，分割后部分数量=\(parts.count)，期望2")
+            return nil
+        }
         
         let payloadBase64 = String(parts[0])
         let signatureBase64 = String(parts[1])
+        
+        print("LicenseManager: parseLicenseKey: payloadBase64长度=\(payloadBase64.count), signatureBase64长度=\(signatureBase64.count)")
         
         // 1. Base64 解码 Payload
         // 修复 Base64 解码兼容性问题，添加 Padding
@@ -430,8 +434,11 @@ class LicenseManager {
             return nil
         }
         
+        print("LicenseManager: parseLicenseKey: payloadJson=\(payloadJson)")
+        
         // 2. 验证 RSA 签名
         guard let publicKeyData = Data(base64Encoded: publicKeyBase64) else {
+            print("LicenseManager: 公钥 Base64 解码失败")
             return nil
         }
         
@@ -460,6 +467,8 @@ class LicenseManager {
             return nil
         }
         
+        print("LicenseManager: parseLicenseKey: signatureBytes长度=\(signatureData.count)")
+        
         let algorithm: SecKeyAlgorithm = .rsaSignatureMessagePKCS1v15SHA256
         
         guard SecKeyIsAlgorithmSupported(publicKey, .verify, algorithm) else {
@@ -470,15 +479,36 @@ class LicenseManager {
         let isValid = SecKeyVerifySignature(publicKey, algorithm, payloadBytes as CFData, signatureData as CFData, &error)
         
         if !isValid {
-            print("LicenseManager: 签名验证失败 - \(error?.takeRetainedValue().localizedDescription ?? "签名无效")")
+            print("LicenseManager: RSA签名验证失败 - \(error?.takeRetainedValue().localizedDescription ?? "签名无效")")
             return nil
         }
         
+        print("LicenseManager: parseLicenseKey: RSA签名验证通过")
+        
         // 3. 解析 JSON Payload
         guard let jsonData = payloadJson.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let machineId = json["mid"] as? String,
-              let expirationTime = json["exp"] as? Int64 else {
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+            print("LicenseManager: JSON 解析失败")
+            return nil
+        }
+        
+        guard let machineId = json["mid"] as? String else {
+            print("LicenseManager: JSON 中缺少 mid 字段")
+            return nil
+        }
+        
+        // 兼容 exp 字段的多种类型（Int, Int64, Double 等）
+        let expirationTime: Int64
+        if let expInt64 = json["exp"] as? Int64 {
+            expirationTime = expInt64
+        } else if let expInt = json["exp"] as? Int {
+            expirationTime = Int64(expInt)
+        } else if let expDouble = json["exp"] as? Double {
+            expirationTime = Int64(expDouble)
+        } else if let expNSNumber = json["exp"] as? NSNumber {
+            expirationTime = expNSNumber.int64Value
+        } else {
+            print("LicenseManager: JSON 中缺少或无效的 exp 字段, 实际类型: \(type(of: json["exp"]))")
             return nil
         }
         
