@@ -351,6 +351,7 @@ fun HomeScreen() {
     var showActivation by remember { mutableStateOf(false) }
     var showDisplaySettings by remember { mutableStateOf(false) }
     var showChatApp by remember { mutableStateOf(false) }
+    var showActivationAlert by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val licenseManager = remember { LicenseManager.getInstance(context) }
     val wallpaperDbHelper = remember { WallpaperDbHelper(context) }
@@ -360,8 +361,35 @@ fun HomeScreen() {
     var homeWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)) }
     val isDark = isSystemInDarkTheme()
     Box(modifier = Modifier.fillMaxSize()) {
-        HomeScreenContent(isDark = isDark, onSettingsClick = { showSettings = true },
-            onChatClick = { showChatApp = true }, homeWallpaperPath = homeWallpaperPath)
+        HomeScreenContent(
+            isDark = isDark,
+            isActivated = isActivated,
+            onSettingsClick = { showSettings = true },
+            onChatClick = { showChatApp = true },
+            onActivationAlert = { showActivationAlert = true },
+            homeWallpaperPath = homeWallpaperPath
+        )
+        
+        if (showActivationAlert) {
+             androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showActivationAlert = false },
+                title = { Text("未激活") },
+                text = { Text("请先激活软件") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            showActivationAlert = false
+                            showSettings = true
+                            showActivation = true
+                        }
+                    ) { Text("去激活") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showActivationAlert = false }) { Text("取消") }
+                }
+            )
+        }
+
         if (showSettings) SettingsScreen(isActivated = isActivated, expiryDate = expiryDate,
             onBack = { showSettings = false }, onNavigateToActivation = { showActivation = true },
             onNavigateToDisplay = { showDisplaySettings = true })
@@ -419,7 +447,14 @@ fun distributeItemsToPages(
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick: () -> Unit = {}, homeWallpaperPath: String? = null) {
+fun HomeScreenContent(
+    isDark: Boolean,
+    isActivated: Boolean,
+    onSettingsClick: () -> Unit,
+    onChatClick: () -> Unit = {},
+    onActivationAlert: () -> Unit,
+    homeWallpaperPath: String? = null
+) {
     val context = LocalContext.current
     val layoutDbHelper = remember { LayoutDbHelper(context) }
     val defaultApps = remember(isDark) { getDefaultApps(isDark) }
@@ -676,8 +711,15 @@ fun HomeScreenContent(isDark: Boolean, onSettingsClick: () -> Unit, onChatClick:
 
                     if (tapDetected) {
                         if (!isEditMode && startItem is AppIcon) {
-                            if (startItem!!.id == "settings") onSettingsClick()
-                            else if (startItem!!.id == "chat") onChatClick()
+                            if (startItem!!.id == "settings") {
+                                onSettingsClick()
+                            } else {
+                                if (isActivated) {
+                                    if (startItem!!.id == "chat") onChatClick()
+                                } else {
+                                    onActivationAlert()
+                                }
+                            }
                         } else if (isEditMode) {
                             isEditMode = false; saveCurrentLayout()
                         }

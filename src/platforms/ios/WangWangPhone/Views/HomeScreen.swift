@@ -205,6 +205,9 @@ struct PageGridView: View {
     @Binding var currentPage: Int
     @Binding var pageCount: Int
     
+    var isActivated: Bool
+    var onActivationAlert: () -> Void
+    
     var body: some View {
         GeometryReader { geometry in
             let cellWidth = geometry.size.width / CGFloat(gridColumns)
@@ -281,8 +284,15 @@ struct PageGridView: View {
                 .onEnded {
                     if !isEditMode {
                         if let app = item as? AppIconData {
-                            if app.id == "settings" { onSettingsClick() }
-                            else if app.id == "chat" { onChatClick() }
+                            if app.id == "settings" {
+                                onSettingsClick()
+                            } else {
+                                if isActivated {
+                                    if app.id == "chat" { onChatClick() }
+                                } else {
+                                    onActivationAlert()
+                                }
+                            }
                         }
                     }
                 }
@@ -470,6 +480,8 @@ struct DraggableDockIconView: View {
     @Binding var draggingOffset: CGSize
     let currentPage: Int
     let colorScheme: ColorScheme
+    var isActivated: Bool
+    var onActivationAlert: () -> Void
     var onTap: () -> Void
     var onLayoutChanged: () -> Void
     
@@ -497,7 +509,17 @@ struct DraggableDockIconView: View {
         .onChange(of: isEditMode) { nv in wiggleAmount = nv ? (dockIndex % 2 == 0 ? -1.5 : 1.5) : 0 }
         .simultaneousGesture(
             TapGesture()
-                .onEnded { onTap() }
+                .onEnded {
+                    if app.id == "settings" {
+                        onTap()
+                    } else {
+                        if isActivated {
+                            onTap()
+                        } else {
+                            onActivationAlert()
+                        }
+                    }
+                }
         )
         .gesture(
             LongPressGesture(minimumDuration: 0.5)
@@ -611,6 +633,8 @@ struct HomeScreen: View {
     @State private var isActivated = LicenseManager.shared.isActivated()
     @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
     
+    @State private var showActivationAlert = false
+    
     @State private var draggingItem: AnyGridItem? = nil
     @State private var draggingOffset: CGSize = .zero
     @State private var draggingFromCell: Int = -1
@@ -661,7 +685,9 @@ struct HomeScreen: View {
                             maxDockApps: maxDockApps,
                             onSettingsClick: { showSettings = true },
                             onChatClick: { showChatApp = true },
-                            onLayoutChanged: { saveLayout() }
+                            onLayoutChanged: { saveLayout() },
+                            isActivated: isActivated,
+                            onActivationAlert: { showActivationAlert = true }
                         )
                         .tag(pageIndex)
                     }
@@ -699,6 +725,8 @@ struct HomeScreen: View {
                                 draggingOffset: $draggingOffset,
                                 currentPage: currentPage,
                                 colorScheme: colorScheme,
+                                isActivated: isActivated,
+                                onActivationAlert: { showActivationAlert = true },
                                 onTap: {
                                     if !isEditMode {
                                         if app.id == "settings" { showSettings = true }
@@ -781,6 +809,17 @@ struct HomeScreen: View {
                 ChatAppView(isPresented: $showChatApp)
                     .transition(.move(edge: .trailing)).zIndex(3)
             }
+        }
+        .alert(isPresented: $showActivationAlert) {
+            Alert(
+                title: Text("未激活"),
+                message: Text("请先激活软件"),
+                primaryButton: .default(Text("去激活")) {
+                    showSettings = true
+                    showActivation = true
+                },
+                secondaryButton: .cancel()
+            )
         }
         .onAppear {
             loadLayout()
