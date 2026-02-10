@@ -51,8 +51,10 @@ import com.WangWangPhone.core.LayoutDbHelper
 import com.WangWangPhone.core.LayoutItem
 import com.WangWangPhone.core.LicenseManager
 import com.WangWangPhone.core.LicenseResult
+import com.WangWangPhone.core.UserProfileDbHelper
 import com.WangWangPhone.core.WallpaperDbHelper
 import com.WangWangPhone.core.WallpaperType
+import com.WangWangPhone.core.WeatherCacheDbHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
