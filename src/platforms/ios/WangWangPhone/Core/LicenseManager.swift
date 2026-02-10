@@ -110,6 +110,14 @@ class LicenseManager {
             return false
         }
         
+        // 【新增】安全阈值检查：废除所有旧版本的授权
+        // 2026-02-10 之前的所有授权均视为无效（对应公钥更新时间）
+        // 阈值：1739116800 (2026-02-10 00:00:00 UTC+8)
+        if record.activationTime < 1739116800 {
+            print("LicenseManager: 启动验证失败：授权记录早于安全阈值，强制失效")
+            return false
+        }
+        
         // 4. 验证签名中的载荷与数据库记录是否一致
         if payload.machineId != record.machineId || payload.expirationTime != record.expirationTime {
             print("LicenseManager: 启动验证失败：载荷数据与数据库记录不一致")

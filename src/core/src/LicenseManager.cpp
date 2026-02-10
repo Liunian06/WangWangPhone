@@ -274,6 +274,15 @@ bool LicenseManager::restoreLicenseFromDatabase(const std::string& currentMachin
         return false;
     }
 
+    // 【新增】安全阈值检查：废除所有旧版本的授权
+    // 2026-02-10 之前的所有授权均视为无效（对应公钥更新时间）
+    // 阈值：1739116800 (2026-02-10 00:00:00 UTC+8)
+    if (record.activation_time < 1739116800) {
+        std::cerr << "LicenseManager: 授权记录早于安全阈值，强制失效" << std::endl;
+        clearLicense();
+        return false;
+    }
+
     // 验证签名中的载荷与数据库记录是否一致（防篡改）
     if (verifiedPayload.machine_id != record.machine_id ||
         verifiedPayload.expiration_time != record.expiration_time) {
