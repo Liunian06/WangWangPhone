@@ -153,7 +153,7 @@ func distributeItemsToPages(allApps: [AppIconData], widgets: [WidgetItem]) -> [[
     var pages: [[Int: AnyGridItem]] = []
     
     // 分离核心应用（聊天+设置）和其余应用
-    let coreAppIds: Set<String> = ["chat", "settings"]
+    let coreAppIds: Set<String> = ["chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes"]
     let coreApps = allApps.filter { coreAppIds.contains($0.id) }
     var otherApps = allApps.filter { !coreAppIds.contains($0.id) }
     

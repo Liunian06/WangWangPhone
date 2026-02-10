@@ -487,7 +487,7 @@ fun distributeItemsToPages(
     val pages = mutableListOf<MutableMap<Int, GridItem>>()
 
     // 分离核心应用（聊天+设置）和其余应用
-    val coreAppIds = setOf("chat", "settings")
+    val coreAppIds = setOf("chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes")
     val coreApps = allApps.filter { it.id in coreAppIds }
     val otherApps = allApps.filter { it.id !in coreAppIds }.toMutableList()
 
