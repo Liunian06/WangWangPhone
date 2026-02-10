@@ -94,7 +94,8 @@ data class WidgetItem(
 
 fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
     AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
-    AppIcon("chat", "聊天", "💬", Brush.linearGradient(listOf(Color(0xFF07C160), Color(0xFF06AD56)))),
+    AppIcon("chat", "聊天", if (isDark) "ic_messages_dark" else "ic_messages_light",
+        Brush.linearGradient(listOf(Color(0xFF07C160), Color(0xFF06AD56))), useImage = true),
     AppIcon("safari", "Safari", "🧭", Brush.linearGradient(listOf(Color(0xFF84FAB0), Color(0xFF8FD3F4)))),
     AppIcon("music", "音乐", "🎵", Brush.linearGradient(listOf(Color(0xFFF6D365), Color(0xFFFDA085)))),
     AppIcon("camera", "相机", "📷", Brush.linearGradient(listOf(Color.White, Color.LightGray))),

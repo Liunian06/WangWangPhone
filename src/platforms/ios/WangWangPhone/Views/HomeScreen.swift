@@ -46,7 +46,7 @@ struct AnyGridItem: Equatable {
 func getDefaultApps() -> [AppIconData] {
     return [
         AppIconData(id: "phone", name: "电话", icon: "📞", colors: [.pink, .orange]),
-        AppIconData(id: "chat", name: "聊天", icon: "💬", colors: [Color(red: 0.03, green: 0.76, blue: 0.38), Color(red: 0.02, green: 0.68, blue: 0.34)]),
+        AppIconData(id: "chat", name: "聊天", icon: "MessagesIcon", colors: [Color(red: 0.03, green: 0.76, blue: 0.38), Color(red: 0.02, green: 0.68, blue: 0.34)], useImage: true),
         AppIconData(id: "safari", name: "Safari", icon: "🧭", colors: [.green, .blue]),
         AppIconData(id: "music", name: "音乐", icon: "🎵", colors: [.yellow, .red]),
         AppIconData(id: "camera", name: "相机", icon: "📷", colors: [.white, .gray]),
@@ -272,7 +272,7 @@ struct PageGridView: View {
                 VStack(spacing: 6) {
                     ZStack {
                         if app.useImage {
-                            Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
+                            Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
                                 .resizable().aspectRatio(contentMode: .fit).frame(width: 60, height: 60)
                         } else {
                             Text(app.icon).font(.system(size: 48))
@@ -498,7 +498,7 @@ struct DraggableDockIconView: View {
     var body: some View {
         ZStack {
             if app.useImage {
-                Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
+                Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
                     .resizable().aspectRatio(contentMode: .fit).frame(width: 60, height: 60)
             } else {
                 Text(app.icon).font(.system(size: 48))
@@ -897,7 +897,7 @@ struct HomeScreen: View {
                         VStack(spacing: 6) {
                             ZStack {
                                 if app.useImage {
-                                    Image(colorScheme == .dark ? "SettingsIconDark" : "SettingsIconLight")
+                                    Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
                                         .resizable().aspectRatio(contentMode: .fit).frame(width: 60, height: 60)
                                 } else {
                                     Text(app.icon).font(.system(size: 48))
