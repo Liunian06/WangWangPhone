@@ -131,7 +131,7 @@ fun BrowserAppScreen(onClose: () -> Unit) {
             // 加载进度条
             if (isLoading && loadingProgress > 0f && loadingProgress < 1f) {
                 LinearProgressIndicator(
-                    progress = { loadingProgress },
+                    progress = loadingProgress,
                     modifier = Modifier.fillMaxWidth().height(2.dp),
                     color = Color(0xFF007AFF),
                     trackColor = Color.Transparent,
