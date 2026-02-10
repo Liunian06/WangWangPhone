@@ -534,25 +534,22 @@ struct DraggableDockIconView: View {
         .simultaneousGesture(
             TapGesture()
                 .onEnded {
-                    if app.id == "settings" {
-                        onTap()
-                    } else {
-                        if isActivated {
+                    if !isEditMode {
+                        if app.id == "settings" {
                             onTap()
-                        } else if app.id == "safari" {
-                            onBrowserClick()
-                        } else if app.id == "calculator" {
-                            onCalculatorClick()
-                        } else if app.id == "weather_app" {
-                            onWeatherClick()
-                        } else if app.id == "calendar" {
-                            onCalendarClick()
-                        } else if app.id == "camera" {
-                            onCameraClick()
-                        } else if app.id == "notes" {
-                            onNotesClick()
                         } else {
-                            onActivationAlert()
+                            if isActivated {
+                                if app.id == "chat" { onTap() }
+                                else if app.id == "safari" { onBrowserClick() }
+                                else if app.id == "calculator" { onCalculatorClick() }
+                                else if app.id == "weather_app" { onWeatherClick() }
+                                else if app.id == "calendar" { onCalendarClick() }
+                                else if app.id == "camera" { onCameraClick() }
+                                else if app.id == "notes" { onNotesClick() }
+                                else { onTap() }
+                            } else {
+                                onActivationAlert()
+                            }
                         }
                     }
                 }
@@ -907,6 +904,12 @@ struct HomeScreen: View {
                                         else if app.id == "chat" { showChatApp = true }
                                     }
                                 },
+                                onBrowserClick: { showBrowserApp = true },
+                                onCalculatorClick: { showCalculatorApp = true },
+                                onWeatherClick: { showWeatherApp = true },
+                                onCalendarClick: { showCalendarApp = true },
+                                onCameraClick: { showCameraApp = true },
+                                onNotesClick: { showNotesApp = true },
                                 onLayoutChanged: { saveLayout() }
                             )
                         }

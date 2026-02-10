@@ -715,7 +715,7 @@ fun HomeScreenContent(
 
     // 全局手势处理
     Box(modifier = Modifier.fillMaxSize()
-        .pointerInput(Unit) {
+        .pointerInput(isActivated) {
             awaitEachGesture {
                 val down = awaitFirstDown()
                 down.consume()
