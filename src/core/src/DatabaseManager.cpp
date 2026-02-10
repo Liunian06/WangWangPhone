@@ -579,6 +579,51 @@ bool DatabaseManager::clearAllWeatherCache() {
     return executeSQL("DELETE FROM weather_cache;");
 }
 
+bool DatabaseManager::resetToDefaultSettings() {
+    if (!db) return false;
+
+    // 开启事务确保原子性
+    if (!executeSQL("BEGIN TRANSACTION;")) return false;
+
+    bool success = true;
+
+    // 1. 清除布局信息
+    if (!executeSQL("DELETE FROM app_layout;")) success = false;
+
+    // 2. 清除壁纸记录
+    if (success && !executeSQL("DELETE FROM wallpaper;")) success = false;
+
+    // 3. 清除天气缓存
+    if (success && !executeSQL("DELETE FROM weather_cache;")) success = false;
+
+    // 4. 重置用户资料为默认值
+    if (success) {
+        const char* resetProfileSQL = R"(
+            UPDATE user_profile
+            SET nickname = '我的昵称',
+                signature = '游荡的孤高灵魂不需要栖身之地',
+                avatar_file = '',
+                cover_file = '',
+                updated_at = strftime('%s', 'now')
+            WHERE id = 1;
+        )";
+        if (!executeSQL(resetProfileSQL)) success = false;
+    }
+
+    if (success) {
+        if (!executeSQL("COMMIT;")) {
+            executeSQL("ROLLBACK;");
+            return false;
+        }
+        std::cout << "所有设置已恢复默认值" << std::endl;
+        return true;
+    } else {
+        executeSQL("ROLLBACK;");
+        std::cerr << "恢复默认设置失败" << std::endl;
+        return false;
+    }
+}
+
 // ==================== 用户资料操作 ====================
 
 bool DatabaseManager::saveUserProfile(const UserProfileRecord& record) {

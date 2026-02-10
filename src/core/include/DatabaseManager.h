@@ -86,6 +86,9 @@ public:
     bool clearExpiredWeatherCache(const std::string& todayDate);
     bool clearAllWeatherCache();
 
+    // 恢复默认设置
+    bool resetToDefaultSettings();
+
     // 用户资料相关操作
     bool saveUserProfile(const UserProfileRecord& record);
     bool getUserProfile(UserProfileRecord& outRecord);

@@ -237,7 +237,8 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 @Composable
 fun SettingsScreen(
     isActivated: Boolean, expiryDate: String, onBack: () -> Unit,
-    onNavigateToActivation: () -> Unit, onNavigateToDisplay: () -> Unit
+    onNavigateToActivation: () -> Unit, onNavigateToDisplay: () -> Unit,
+    onResetToDefault: () -> Unit
 ) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
@@ -250,6 +251,7 @@ fun SettingsScreen(
             Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
             Text("设置", modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
         }
+        
         Spacer(modifier = Modifier.height(20.dp))
         Text("激活与授权", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
         Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
@@ -262,12 +264,23 @@ fun SettingsScreen(
                 Text(if (isActivated) "已查看 >" else "未激活 >", color = Color.Gray, fontSize = 16.sp)
             }
         }
+        
         Spacer(modifier = Modifier.height(20.dp))
         Text("外观", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
         Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
             .background(card).clickable(onClick = onNavigateToDisplay).padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("显示设置", fontSize = 16.sp, color = txt)
+                Text(">", color = Color.Gray, fontSize = 16.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("系统", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
+        Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(card).clickable(onClick = onResetToDefault).padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("恢复默认设置", fontSize = 16.sp, color = Color.Red)
                 Text(">", color = Color.Gray, fontSize = 16.sp)
             }
         }
@@ -352,9 +365,13 @@ fun HomeScreen() {
     var showDisplaySettings by remember { mutableStateOf(false) }
     var showChatApp by remember { mutableStateOf(false) }
     var showActivationAlert by remember { mutableStateOf(false) }
+    var showResetConfirm by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val licenseManager = remember { LicenseManager.getInstance(context) }
     val wallpaperDbHelper = remember { WallpaperDbHelper(context) }
+    val layoutDbHelper = remember { LayoutDbHelper(context) }
+    val weatherCacheDbHelper = remember { WeatherCacheDbHelper(context) }
+    val userProfileDbHelper = remember { UserProfileDbHelper(context) }
     var isActivated by remember { mutableStateOf(licenseManager.isActivated()) }
     var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
     var lockWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)) }
@@ -392,7 +409,39 @@ fun HomeScreen() {
 
         if (showSettings) SettingsScreen(isActivated = isActivated, expiryDate = expiryDate,
             onBack = { showSettings = false }, onNavigateToActivation = { showActivation = true },
-            onNavigateToDisplay = { showDisplaySettings = true })
+            onNavigateToDisplay = { showDisplaySettings = true },
+            onResetToDefault = { showResetConfirm = true })
+        
+        if (showResetConfirm) {
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { showResetConfirm = false },
+                title = { Text("恢复默认设置") },
+                text = { Text("此操作将清除所有自定义布局、壁纸、天气缓存和用户资料，且无法撤销。是否继续？") },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(
+                        onClick = {
+                            showResetConfirm = false
+                            if (layoutDbHelper.resetToDefaultSettings(wallpaperDbHelper, weatherCacheDbHelper, userProfileDbHelper)) {
+                                // 强制重新加载以应用默认设置
+                                android.widget.Toast.makeText(context, "设置已恢复", android.widget.Toast.LENGTH_SHORT).show()
+                                // 简单粗暴的做法是重启，或者通过重置状态来更新UI
+                                // 这里我们选择触发壁纸和设置状态的更新
+                                lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)
+                                homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
+                                // 对于多页布局，它在 LaunchedEffect(isDark) 中加载，
+                                // 如果我们想强制触发它，可以增加一个触发器状态，或者直接在 HomeScreen 里做更深层的逻辑
+                                // 但通常最简单的逻辑是恢复后提示重启或手动重置关键 State
+                                showSettings = false
+                            }
+                        }
+                    ) { Text("确定", color = Color.Red) }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { showResetConfirm = false }) { Text("取消") }
+                }
+            )
+        }
+
         if (showDisplaySettings) DisplaySettingsScreen(wallpaperDbHelper = wallpaperDbHelper,
             onBack = { showDisplaySettings = false }, onWallpaperChanged = {
                 lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)

@@ -165,4 +165,11 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
             false
         }
     }
+
+    /**
+     * 清除所有天气缓存
+     */
+    fun clearAllWeatherCache(): Boolean {
+        return clearAllCache()
+    }
 }

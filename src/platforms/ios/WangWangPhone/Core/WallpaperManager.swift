@@ -122,4 +122,26 @@ class WallpaperManager {
         sqlite3_finalize(stmt)
         return false
     }
+    
+    /// 清除所有壁纸（同时删除文件）
+    func clearAllWallpapers() -> Bool {
+        guard let db = db else { return false }
+        
+        let selectSQL = "SELECT file_name FROM wallpaper;"
+        var statement: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, selectSQL, -1, &statement, nil) == SQLITE_OK {
+            while sqlite3_step(statement) == SQLITE_ROW {
+                if let cString = sqlite3_column_text(statement, 0) {
+                    let fileName = String(cString: cString)
+                    if let dir = getWallpaperDirectory() {
+                        try? FileManager.default.removeItem(at: dir.appendingPathComponent(fileName))
+                    }
+                }
+            }
+        }
+        sqlite3_finalize(statement)
+        
+        return executeSQL("DELETE FROM wallpaper;")
+    }
 }

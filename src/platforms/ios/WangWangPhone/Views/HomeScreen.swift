@@ -615,6 +615,130 @@ struct PageIndicator: View {
     }
 }
 
+// MARK: - 设置组件
+struct SettingsRow: View {
+    let title: String
+    var value: String = ""
+    var textColor: Color = .primary
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            HStack {
+                Text(title).foregroundColor(textColor)
+                Spacer()
+                if !value.isEmpty {
+                    Text(value).foregroundColor(.gray)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.gray)
+            }
+            .padding()
+            .background(Color(UIColor.secondarySystemGroupedBackground))
+        }
+    }
+}
+
+struct SettingsView: View {
+    @Binding var showSettings: Bool
+    @Binding var showActivation: Bool
+    @Binding var showDisplaySettings: Bool
+    @Binding var isActivated: Bool
+    let expiryDate: String
+    
+    @State private var showResetConfirm = false
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Section(header: Text("激活与授权").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            VStack(spacing: 0) {
+                                SettingsRow(title: "软件激活", value: isActivated ? "已查看" : "未激活") {
+                                    showActivation = true
+                                }
+                                if isActivated {
+                                    Divider().padding(.leading)
+                                    HStack {
+                                        Text("有效期至").foregroundColor(.primary)
+                                        Spacer()
+                                        Text(expiryDate).foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                                }
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                        
+                        Section(header: Text("外观").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            SettingsRow(title: "显示设置") {
+                                showDisplaySettings = true
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                        
+                        Section(header: Text("系统").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            SettingsRow(title: "恢复默认设置", textColor: .red) {
+                                showResetConfirm = true
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
+                }
+            }
+            .navigationTitle("设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("返回") { showSettings = false }
+                }
+            }
+            .alert(isPresented: $showResetConfirm) {
+                Alert(
+                    title: Text("恢复默认设置"),
+                    message: Text("此操作将清除所有自定义布局、壁纸、天气缓存和用户资料，且无法撤销。是否继续？"),
+                    primaryButton: .destructive(Text("确定")) {
+                        if LayoutManager.shared.resetToDefaultSettings() {
+                            // 由于 iOS 状态在各个组件内部，重置后最简单的办法是提示或重新加载关键数据
+                            // 在这个 Demo 中，我们通过关闭设置页并让 HomeScreen 重新 load 来体现
+                            showSettings = false
+                            // 实际项目中可能需要更细粒度的通知机制
+                        }
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
+        }
+    }
+}
+
+struct DisplaySettingsView: View {
+    @Binding var showDisplaySettings: Bool
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+                Text("显示设置内容在此（壁纸设置等）")
+            }
+            .navigationTitle("显示设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("返回") { showDisplaySettings = false }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - 主屏幕
 struct HomeScreen: View {
     @State private var allPages: [[Int: AnyGridItem]] = []

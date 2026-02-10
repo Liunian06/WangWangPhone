@@ -273,4 +273,37 @@ class UserProfileDbHelper(private val context: Context) : SQLiteOpenHelper(
         val file = File(getProfileImagesDir(), profile.coverFileName)
         return if (file.exists()) file.absolutePath else null
     }
+
+    /**
+     * 重置资料为默认值（并删除已上传的头像和封面文件）
+     */
+    fun resetToDefault(): Boolean {
+        return try {
+            // 删除旧头像和封面文件
+            val profile = getUserProfile()
+            val imagesDir = getProfileImagesDir()
+            if (profile.avatarFileName.isNotEmpty()) {
+                val file = File(imagesDir, profile.avatarFileName)
+                if (file.exists()) file.delete()
+            }
+            if (profile.coverFileName.isNotEmpty()) {
+                val file = File(imagesDir, profile.coverFileName)
+                if (file.exists()) file.delete()
+            }
+
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COLUMN_NICKNAME, "我的昵称")
+                put(COLUMN_SIGNATURE, "游荡的孤高灵魂不需要栖身之地")
+                put(COLUMN_AVATAR_FILE, "")
+                put(COLUMN_COVER_FILE, "")
+                put(COLUMN_UPDATED_AT, System.currentTimeMillis() / 1000)
+            }
+            db.update(TABLE_PROFILE, values, "$COLUMN_ID = 1", null)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }

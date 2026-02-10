@@ -198,4 +198,26 @@ class WallpaperDbHelper(private val context: Context) : SQLiteOpenHelper(
             false
         }
     }
+
+    /**
+     * 清除所有壁纸记录并删除对应的文件
+     */
+    fun clearAllWallpapers(): Boolean {
+        return try {
+            val db = writableDatabase
+            val cursor = db.query(TABLE_WALLPAPER, arrayOf(COLUMN_FILE_NAME), null, null, null, null, null)
+            cursor.use {
+                while (it.moveToNext()) {
+                    val fileName = it.getString(0)
+                    val file = File(getWallpaperDir(), fileName)
+                    if (file.exists()) file.delete()
+                }
+            }
+            db.delete(TABLE_WALLPAPER, null, null)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }

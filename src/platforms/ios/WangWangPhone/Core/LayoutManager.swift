@@ -146,6 +146,23 @@ class LayoutManager {
         return !getLayout().isEmpty
     }
     
+    /// 恢复默认设置
+    func resetToDefaultSettings() -> Bool {
+        // 1. 清除布局
+        _ = clearLayout()
+        
+        // 2. 清除壁纸
+        _ = WallpaperManager.shared.clearAllWallpapers()
+        
+        // 3. 清除天气缓存
+        _ = WeatherCacheManager.shared.clearAllCache()
+        
+        // 4. 重置用户资料
+        _ = UserProfileManager.shared.resetToDefault()
+        
+        return true
+    }
+    
     // MARK: - 私有方法
     
     private func getDatabasePath() -> String? {

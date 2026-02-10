@@ -239,4 +239,29 @@ class UserProfileManager {
         sqlite3_finalize(stmt)
         return false
     }
+    
+    /// 重置资料为默认值
+    func resetToDefault() -> Bool {
+        // 删除旧头像和封面文件
+        let profile = getUserProfile()
+        if let dir = getProfileImagesDirectory() {
+            if !profile.avatarFileName.isEmpty {
+                try? FileManager.default.removeItem(at: dir.appendingPathComponent(profile.avatarFileName))
+            }
+            if !profile.coverFileName.isEmpty {
+                try? FileManager.default.removeItem(at: dir.appendingPathComponent(profile.coverFileName))
+            }
+        }
+        
+        let sql = """
+            UPDATE user_profile
+            SET nickname = '我的昵称',
+                signature = '游荡的孤高灵魂不需要栖身之地',
+                avatar_file = '',
+                cover_file = '',
+                updated_at = strftime('%s', 'now')
+            WHERE id = 1;
+        """
+        return executeSQL(sql)
+    }
 }

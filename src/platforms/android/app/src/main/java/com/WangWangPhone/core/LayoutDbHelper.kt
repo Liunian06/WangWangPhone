@@ -165,4 +165,43 @@ class LayoutDbHelper(context: Context) : SQLiteOpenHelper(
             false
         }
     }
+
+    /**
+     * 恢复默认设置
+     * 1. 清除布局
+     * 2. 清除壁纸
+     * 3. 清除天气缓存
+     * 4. 重置用户资料
+     */
+    fun resetToDefaultSettings(
+        wallpaperDbHelper: WallpaperDbHelper,
+        weatherCacheDbHelper: WeatherCacheDbHelper,
+        userProfileDbHelper: UserProfileDbHelper
+    ): Boolean {
+        return try {
+            val db = writableDatabase
+            db.beginTransaction()
+            try {
+                // 1. 清除布局
+                db.delete(TABLE_LAYOUT, null, null)
+
+                // 2. 清除壁纸
+                wallpaperDbHelper.clearAllWallpapers()
+
+                // 3. 清除天气缓存
+                weatherCacheDbHelper.clearAllWeatherCache()
+
+                // 4. 重置用户资料
+                userProfileDbHelper.resetToDefault()
+
+                db.setTransactionSuccessful()
+                true
+            } finally {
+                db.endTransaction()
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
 }
