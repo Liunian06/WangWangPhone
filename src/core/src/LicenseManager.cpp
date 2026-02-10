@@ -4,11 +4,176 @@
 #include <iostream>
 #include <sstream>
 #include <cstring>
+#include <vector>
+#include <algorithm>
 
-// 注意：实际生产中应使用如 OpenSSL, mbedTLS 或平台原生加密库
-// 这里提供逻辑框架，具体 RSA 实现依赖于集成的库
+// OpenSSL 头文件用于 RSA 签名验证
+#include <openssl/rsa.h>
+#include <openssl/pem.h>
+#include <openssl/bio.h>
+#include <openssl/evp.h>
+#include <openssl/err.h>
 
 namespace wwj_core {
+
+// ============================================================================
+// Base64 解码实现
+// ============================================================================
+static const std::string base64_chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    "abcdefghijklmnopqrstuvwxyz"
+    "0123456789+/";
+
+static inline bool is_base64(unsigned char c) {
+    return (isalnum(c) || (c == '+') || (c == '/'));
+}
+
+static std::vector<unsigned char> base64_decode(const std::string& encoded_string) {
+    size_t in_len = encoded_string.size();
+    int i = 0;
+    int j = 0;
+    int in_ = 0;
+    unsigned char char_array_4[4], char_array_3[3];
+    std::vector<unsigned char> ret;
+
+    while (in_len-- && (encoded_string[in_] != '=') && is_base64(encoded_string[in_])) {
+        char_array_4[i++] = encoded_string[in_]; in_++;
+        if (i == 4) {
+            for (i = 0; i < 4; i++)
+                char_array_4[i] = static_cast<unsigned char>(base64_chars.find(char_array_4[i]));
+
+            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+            for (i = 0; i < 3; i++)
+                ret.push_back(char_array_3[i]);
+            i = 0;
+        }
+    }
+
+    if (i) {
+        for (j = i; j < 4; j++)
+            char_array_4[j] = 0;
+
+        for (j = 0; j < 4; j++)
+            char_array_4[j] = static_cast<unsigned char>(base64_chars.find(char_array_4[j]));
+
+        char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
+        char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
+        char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+        for (j = 0; j < i - 1; j++)
+            ret.push_back(char_array_3[j]);
+    }
+
+    return ret;
+}
+
+// ============================================================================
+// 简单 JSON 解析器（用于解析 License Payload）
+// ============================================================================
+static std::string extractJsonString(const std::string& json, const std::string& key) {
+    std::string searchKey = "\"" + key + "\"";
+    size_t keyPos = json.find(searchKey);
+    if (keyPos == std::string::npos) return "";
+    
+    size_t colonPos = json.find(':', keyPos);
+    if (colonPos == std::string::npos) return "";
+    
+    size_t startQuote = json.find('"', colonPos);
+    if (startQuote == std::string::npos) return "";
+    
+    size_t endQuote = json.find('"', startQuote + 1);
+    if (endQuote == std::string::npos) return "";
+    
+    return json.substr(startQuote + 1, endQuote - startQuote - 1);
+}
+
+static long long extractJsonLong(const std::string& json, const std::string& key) {
+    std::string searchKey = "\"" + key + "\"";
+    size_t keyPos = json.find(searchKey);
+    if (keyPos == std::string::npos) return 0;
+    
+    size_t colonPos = json.find(':', keyPos);
+    if (colonPos == std::string::npos) return 0;
+    
+    // 跳过空白字符
+    size_t numStart = colonPos + 1;
+    while (numStart < json.size() && (json[numStart] == ' ' || json[numStart] == '\t')) {
+        numStart++;
+    }
+    
+    // 找到数字结束位置
+    size_t numEnd = numStart;
+    while (numEnd < json.size() && (isdigit(json[numEnd]) || json[numEnd] == '-')) {
+        numEnd++;
+    }
+    
+    if (numEnd == numStart) return 0;
+    
+    try {
+        return std::stoll(json.substr(numStart, numEnd - numStart));
+    } catch (...) {
+        return 0;
+    }
+}
+
+// ============================================================================
+// RSA 签名验证
+// ============================================================================
+static bool verifyRSASignature(const std::string& publicKeyBase64,
+                                const std::string& message,
+                                const std::vector<unsigned char>& signature) {
+    // 1. Base64 解码公钥
+    std::vector<unsigned char> publicKeyDer = base64_decode(publicKeyBase64);
+    if (publicKeyDer.empty()) {
+        std::cerr << "RSA验证: 公钥Base64解码失败" << std::endl;
+        return false;
+    }
+    
+    // 2. 从 DER 格式创建公钥
+    const unsigned char* keyData = publicKeyDer.data();
+    EVP_PKEY* pkey = d2i_PUBKEY(nullptr, &keyData, static_cast<long>(publicKeyDer.size()));
+    if (!pkey) {
+        std::cerr << "RSA验证: 无法解析公钥 - " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+        return false;
+    }
+    
+    // 3. 创建验证上下文
+    EVP_MD_CTX* mdctx = EVP_MD_CTX_new();
+    if (!mdctx) {
+        EVP_PKEY_free(pkey);
+        std::cerr << "RSA验证: 无法创建MD上下文" << std::endl;
+        return false;
+    }
+    
+    bool result = false;
+    
+    // 4. 初始化验证操作 (SHA256withRSA)
+    if (EVP_DigestVerifyInit(mdctx, nullptr, EVP_sha256(), nullptr, pkey) != 1) {
+        std::cerr << "RSA验证: 初始化失败" << std::endl;
+        goto cleanup;
+    }
+    
+    // 5. 更新消息数据
+    if (EVP_DigestVerifyUpdate(mdctx, message.c_str(), message.size()) != 1) {
+        std::cerr << "RSA验证: 更新数据失败" << std::endl;
+        goto cleanup;
+    }
+    
+    // 6. 验证签名
+    if (EVP_DigestVerifyFinal(mdctx, signature.data(), signature.size()) == 1) {
+        result = true;
+    } else {
+        std::cerr << "RSA验证: 签名验证失败 - " << ERR_error_string(ERR_get_error(), nullptr) << std::endl;
+    }
+    
+cleanup:
+    EVP_MD_CTX_free(mdctx);
+    EVP_PKEY_free(pkey);
+    return result;
+}
 
 LicenseManager& LicenseManager::getInstance() {
     static LicenseManager instance;
@@ -215,10 +380,11 @@ bool LicenseManager::decodeAndVerify(const std::string& licenseKey, LicensePaylo
     // 逻辑步骤：
     // 1. 检查激活码格式 "WANGWANG-[Payload-Base64].[Signature-Base64]"
     // 2. Base64 解码 Payload
-    // 3. 使用 publicKey 验证 Signature
+    // 3. 使用 publicKey 验证 Signature (RSA SHA256)
     // 4. 解析 JSON Payload
     
     if (licenseKey.empty()) {
+        std::cerr << "激活码为空" << std::endl;
         return false;
     }
 
@@ -240,49 +406,64 @@ bool LicenseManager::decodeAndVerify(const std::string& licenseKey, LicensePaylo
     std::string payloadBase64 = rest.substr(0, dotPos);
     std::string signatureBase64 = rest.substr(dotPos + 1);
 
-    // TODO: 实际的 Base64 解码和 RSA 签名验证
-    // 这里需要集成加密库（如 OpenSSL）来实现
-    // 以下是简化的解析逻辑，仅用于演示
-
-    // 简单的 Base64 解码（实际应使用正规库）
-    // 这里假设 payload 是 JSON 格式: {"mid":"xxx","exp":123456789,"type":"pro","salt":"xxx"}
-    
-    // 模拟解析 - 实际生产中需要真正解码和验签
-    // 为了演示，我们直接尝试从 base64 解析
-    
-    // 注意：以下代码是模拟实现
-    // 实际使用时需要：
-    // 1. 使用 OpenSSL/mbedTLS 进行 Base64 解码
-    // 2. 使用公钥验证签名
-    // 3. 解析 JSON payload
-
-    // 临时：使用简单的验证逻辑
     if (payloadBase64.empty() || signatureBase64.empty()) {
+        std::cerr << "激活码格式错误：Payload或签名为空" << std::endl;
         return false;
     }
 
-    // 模拟解析出的 Payload（实际应从解密数据中获取）
-    // 这里暂时使用机器码作为标识
-    outPayload.machine_id = getMachineId();  // 将在实际验证中使用解密的值
+    // 1. Base64 解码 Payload 获得 JSON 字符串
+    std::vector<unsigned char> payloadBytes = base64_decode(payloadBase64);
+    if (payloadBytes.empty()) {
+        std::cerr << "激活码解析失败：Payload Base64解码失败" << std::endl;
+        return false;
+    }
+    std::string payloadJson(payloadBytes.begin(), payloadBytes.end());
     
-    // 从当前时间计算 365 天后的过期时间（仅用于演示）
-    auto now = std::chrono::system_clock::now();
-    auto exp_time = now + std::chrono::hours(24 * 365);
-    outPayload.expiration_time = std::chrono::duration_cast<std::chrono::seconds>(
-        exp_time.time_since_epoch()).count();
+    // 2. Base64 解码签名
+    std::vector<unsigned char> signatureBytes = base64_decode(signatureBase64);
+    if (signatureBytes.empty()) {
+        std::cerr << "激活码解析失败：签名 Base64解码失败" << std::endl;
+        return false;
+    }
     
-    outPayload.type = "pro";
-    outPayload.salt = "generated_salt";
-    outPayload.xhsID = 0; // 模拟解析出的追踪 ID
-    outPayload.qqID = 0;
-
-    // TODO: 当集成真正的加密库后，这里应该：
-    // 1. Base64 解码 payloadBase64 获得 JSON 字符串
-    // 2. 使用公钥和 signatureBase64 验证签名
-    // 3. 从 JSON 解析出 machine_id, expiration_time, type, salt
-    // 4. 返回验证结果
-
-    std::cout << "注意: 当前使用模拟验证逻辑，需要集成加密库完成真正的 RSA 验签" << std::endl;
+    // 3. 使用 RSA 公钥验证签名 (SHA256withRSA)
+    if (!verifyRSASignature(publicKey, payloadJson, signatureBytes)) {
+        std::cerr << "激活码验证失败：RSA签名无效" << std::endl;
+        return false;
+    }
+    
+    std::cout << "LicenseManager: RSA签名验证通过" << std::endl;
+    
+    // 4. 解析 JSON Payload
+    // 格式: {"mid":"xxx","exp":123456789,"type":"pro","salt":"xxx","xhsID":0,"qqID":0}
+    outPayload.machine_id = extractJsonString(payloadJson, "mid");
+    outPayload.expiration_time = extractJsonLong(payloadJson, "exp");
+    outPayload.type = extractJsonString(payloadJson, "type");
+    outPayload.salt = extractJsonString(payloadJson, "salt");
+    outPayload.xhsID = extractJsonLong(payloadJson, "xhsID");
+    outPayload.qqID = extractJsonLong(payloadJson, "qqID");
+    
+    // 验证必要字段
+    if (outPayload.machine_id.empty()) {
+        std::cerr << "激活码解析失败：缺少机器码字段(mid)" << std::endl;
+        return false;
+    }
+    
+    if (outPayload.expiration_time <= 0) {
+        std::cerr << "激活码解析失败：缺少或无效的过期时间字段(exp)" << std::endl;
+        return false;
+    }
+    
+    // 设置默认值
+    if (outPayload.type.empty()) {
+        outPayload.type = "standard";
+    }
+    
+    std::cout << "LicenseManager: 激活码解析成功" << std::endl;
+    std::cout << "  机器码: " << outPayload.machine_id << std::endl;
+    std::cout << "  过期时间: " << outPayload.expiration_time << std::endl;
+    std::cout << "  授权类型: " << outPayload.type << std::endl;
+    
     return true;
 }
 
