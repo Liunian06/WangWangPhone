@@ -182,6 +182,225 @@ bool DatabaseManager::createTables() {
         return false;
     }
 
+    // 初始化聊天相关表
+    if (!createChatTables()) {
+        std::cerr << "创建聊天相关表失败" << std::endl;
+        return false;
+    }
+
+    return true;
+}
+
+bool DatabaseManager::createChatTables() {
+    // 1. ChatSessions
+    const char* createChatSessionsSQL = R"(
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            id TEXT PRIMARY KEY,
+            role_id TEXT NOT NULL,
+            me_id TEXT NOT NULL,
+            last_updated INTEGER NOT NULL,
+            enable_extended_chat INTEGER DEFAULT 1,
+            enable_text_to_image INTEGER DEFAULT 0,
+            enable_emoji INTEGER DEFAULT 1,
+            enable_independent_send_button INTEGER DEFAULT 0,
+            current_state TEXT,
+            is_pinned INTEGER DEFAULT 0,
+            api_preset_id TEXT,
+            image_api_preset_id TEXT,
+            world_info_ids TEXT DEFAULT '[]',
+            text_preset_ids TEXT DEFAULT '[]',
+            background_image TEXT
+        );
+    )";
+
+    // 2. ChatMessages
+    const char* createChatMessagesSQL = R"(
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            is_me INTEGER NOT NULL,
+            sender TEXT NOT NULL,
+            type INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            metadata TEXT,
+            is_read INTEGER DEFAULT 1
+        );
+    )";
+
+    // 3. ContactRoles
+    const char* createContactRolesSQL = R"(
+        CREATE TABLE IF NOT EXISTS contact_roles (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            avatar_path TEXT,
+            description TEXT,
+            appearance TEXT,
+            reference_images TEXT DEFAULT '[]',
+            subscribed_group_ids TEXT DEFAULT '[]',
+            subscribed_emoji_ids TEXT DEFAULT '[]'
+        );
+    )";
+
+    // 4. ContactMes
+    const char* createContactMesSQL = R"(
+        CREATE TABLE IF NOT EXISTS contact_mes (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            avatar_path TEXT,
+            info TEXT,
+            appearance TEXT,
+            reference_images TEXT DEFAULT '[]'
+        );
+    )";
+
+    // 5. ApiPresets
+    const char* createApiPresetsSQL = R"(
+        CREATE TABLE IF NOT EXISTS api_presets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type INTEGER NOT NULL,
+            provider INTEGER NOT NULL,
+            base_url TEXT NOT NULL,
+            api_key TEXT NOT NULL,
+            model TEXT,
+            params TEXT DEFAULT '{}',
+            is_default INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    )";
+
+    // 6. Emojis
+    const char* createEmojisSQL = R"(
+        CREATE TABLE IF NOT EXISTS emojis (
+            id TEXT PRIMARY KEY,
+            meaning TEXT NOT NULL,
+            raw_content TEXT,
+            group_id TEXT,
+            local_path TEXT,
+            backup_path TEXT,
+            type INTEGER NOT NULL,
+            role_id TEXT,
+            created_at INTEGER NOT NULL
+        );
+    )";
+
+    // 7. EmojiGroups
+    const char* createEmojiGroupsSQL = R"(
+        CREATE TABLE IF NOT EXISTS emoji_groups (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            type INTEGER NOT NULL,
+            role_id TEXT,
+            is_visible INTEGER DEFAULT 1,
+            created_at INTEGER NOT NULL
+        );
+    )";
+
+    // 8. WorldInfos
+    const char* createWorldInfosSQL = R"(
+        CREATE TABLE IF NOT EXISTS world_infos (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    )";
+
+    // 9. TextPresets
+    const char* createTextPresetsSQL = R"(
+        CREATE TABLE IF NOT EXISTS text_presets (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            type INTEGER NOT NULL,
+            is_built_in INTEGER DEFAULT 0,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    )";
+
+    // 10. RoleMemories
+    const char* createRoleMemoriesSQL = R"(
+        CREATE TABLE IF NOT EXISTS role_memories (
+            id TEXT PRIMARY KEY,
+            role_id TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at INTEGER NOT NULL,
+            updated_at INTEGER NOT NULL,
+            source_session_id TEXT,
+            category INTEGER DEFAULT 0
+        );
+    )";
+
+    // 11. MomentsPosts
+    const char* createMomentsPostsSQL = R"(
+        CREATE TABLE IF NOT EXISTS moments_posts (
+            id TEXT PRIMARY KEY,
+            user_json TEXT NOT NULL,
+            content TEXT NOT NULL,
+            media_items_json TEXT DEFAULT '[]',
+            likes_json TEXT DEFAULT '[]',
+            comments_json TEXT DEFAULT '[]',
+            location TEXT,
+            created_at INTEGER NOT NULL
+        );
+    )";
+
+    // 12. MomentsUserSettings
+    const char* createMomentsUserSettingsSQL = R"(
+        CREATE TABLE IF NOT EXISTS moments_user_settings (
+            id TEXT PRIMARY KEY,
+            user_json TEXT NOT NULL,
+            updated_at INTEGER NOT NULL
+        );
+    )";
+
+    // 13. WalletTransactions
+    const char* createWalletTransactionsSQL = R"(
+        CREATE TABLE IF NOT EXISTS wallet_transactions (
+            id TEXT PRIMARY KEY,
+            type INTEGER NOT NULL,
+            direction INTEGER NOT NULL,
+            amount REAL NOT NULL,
+            description TEXT,
+            related_contact_id TEXT,
+            related_contact_name TEXT,
+            related_session_id TEXT,
+            related_message_id TEXT,
+            timestamp INTEGER NOT NULL
+        );
+    )";
+
+    // 14. AppSettings (General)
+    const char* createAppSettingsSQL = R"(
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL
+        );
+    )";
+
+    // 执行所有建表语句
+    const char* sqls[] = {
+        createChatSessionsSQL, createChatMessagesSQL, createContactRolesSQL,
+        createContactMesSQL, createApiPresetsSQL, createEmojisSQL,
+        createEmojiGroupsSQL, createWorldInfosSQL, createTextPresetsSQL,
+        createRoleMemoriesSQL, createMomentsPostsSQL, createMomentsUserSettingsSQL,
+        createWalletTransactionsSQL, createAppSettingsSQL
+    };
+
+    for (const char* sql : sqls) {
+        if (!executeSQL(sql)) return false;
+    }
+
+    // 创建索引提高查询性能
+    executeSQL("CREATE INDEX IF NOT EXISTS idx_msg_session ON chat_messages(session_id);");
+    executeSQL("CREATE INDEX IF NOT EXISTS idx_msg_time ON chat_messages(timestamp DESC);");
+    executeSQL("CREATE INDEX IF NOT EXISTS idx_emoji_group ON emojis(group_id);");
+    executeSQL("CREATE INDEX IF NOT EXISTS idx_memory_role ON role_memories(role_id);");
+
     return true;
 }
 

@@ -91,6 +91,9 @@ public:
 
     // 用户资料相关操作
     bool saveUserProfile(const UserProfileRecord& record);
+
+    // 获取内部数据库指针（用于 ChatManager 等扩展）
+    void* getDbPtr() const { return db; }
     bool getUserProfile(UserProfileRecord& outRecord);
     bool updateUserNickname(const std::string& nickname);
     bool updateUserSignature(const std::string& signature);
@@ -110,6 +113,9 @@ private:
 
     // 创建表结构
     bool createTables();
+
+    // 创建聊天相关表（旧系统移植）
+    bool createChatTables();
 
     // 执行 SQL
     bool executeSQL(const std::string& sql);
