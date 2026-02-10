@@ -19,15 +19,23 @@ object ChatManager {
     external fun getAllSessionsJson(): String
     external fun saveSessionJson(sessionJson: String): Boolean
     external fun deleteSession(sessionId: String): Boolean
+    external fun updateSessionLastUpdated(sessionId: String, timestamp: Long): Boolean
 
     // 消息操作
     external fun getMessagesJson(sessionId: String, limit: Int, offset: Int): String
     external fun insertMessageJson(messageJson: String): Boolean
     external fun deleteMessage(messageId: String): Boolean
+    external fun getLastMessageJson(sessionId: String): String
+    external fun getUnreadCount(sessionId: String): Int
 
     // 角色与人设
     external fun getAllRolesJson(): String
+    external fun saveRoleJson(roleJson: String): Boolean
+    external fun getRoleJson(roleId: String): String
+    
     external fun getAllMeJson(): String
+    external fun saveMeJson(meJson: String): Boolean
+    external fun getMeJson(meId: String): String
     
     // 解析引擎接口
     /**

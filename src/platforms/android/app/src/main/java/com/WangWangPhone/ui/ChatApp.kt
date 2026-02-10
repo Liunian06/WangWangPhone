@@ -214,9 +214,15 @@ fun ChatAppScreen(onClose: () -> Unit) {
     var currentView by remember { mutableStateOf("main") }
     var currentChatId by remember { mutableStateOf<String?>(null) }
 
-    // 用户资料状态 - 在顶层管理，传递给子组件
+    // 数据库驱动的状态管理
     val context = LocalContext.current
     val profileDbHelper = remember { UserProfileDbHelper(context) }
+    
+    // 初始化 ChatManager
+    LaunchedEffect(Unit) {
+        com.WangWangPhone.core.ChatManager.initialize()
+    }
+
     var userNickname by remember { mutableStateOf(profileDbHelper.getUserProfile().nickname) }
     var userSignature by remember { mutableStateOf(profileDbHelper.getUserProfile().signature) }
     var avatarPath by remember { mutableStateOf(profileDbHelper.getAvatarFilePath()) }

@@ -33,7 +33,23 @@ Java_com_WangWangPhone_core_ChatManager_getAllSessionsJson(JNIEnv* env, jobject 
 
 JNIEXPORT jstring JNICALL
 Java_com_WangWangPhone_core_ChatManager_getMessagesJson(JNIEnv* env, jobject thiz, jstring session_id, jint limit, jint offset) {
-    return stdToJString(env, "[]");
+    std::string sid = jStringToStd(env, session_id);
+    auto msgs = wwj_core::ChatManager::getInstance().getMessages(sid, (int)limit, (int)offset);
+    
+    // 这里暂时做简单的手动拼接，实际应使用 JSON 库
+    std::string json = "[";
+    for (size_t i = 0; i < msgs.size(); ++i) {
+        json += "{\"id\":\"" + msgs[i].id + "\",\"content\":\"" + msgs[i].content + "\",\"is_me\":" + (msgs[i].is_me ? "true" : "false") + "}";
+        if (i < msgs.size() - 1) json += ",";
+    }
+    json += "]";
+    return stdToJString(env, json);
+}
+
+JNIEXPORT jboolean JNICALL
+Java_com_WangWangPhone_core_ChatManager_updateSessionLastUpdated(JNIEnv* env, jobject thiz, jstring session_id, jlong timestamp) {
+    std::string sid = jStringToStd(env, session_id);
+    return (jboolean)wwj_core::ChatManager::getInstance().updateSessionLastUpdated(sid, (int64_t)timestamp);
 }
 
 JNIEXPORT jstring JNICALL
