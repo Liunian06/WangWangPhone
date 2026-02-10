@@ -16,6 +16,24 @@ if (versionFile.exists()) {
     }
 }
 
+// Load RSA public key from tools/keys/public.pem
+def publicKeyBase64 = ""
+def publicKeyFile = rootProject.file("../../../../tools/keys/public.pem")
+if (!publicKeyFile.exists()) {
+    publicKeyFile = file("../../../../tools/keys/public.pem")
+}
+if (publicKeyFile.exists()) {
+    def pemContent = publicKeyFile.text
+    publicKeyBase64 = pemContent
+        .replaceAll("-----BEGIN PUBLIC KEY-----", "")
+        .replaceAll("-----END PUBLIC KEY-----", "")
+        .replaceAll("\\s+", "")
+        .trim()
+    println "LicenseKey: Loaded public key from ${publicKeyFile.absolutePath} (${publicKeyBase64.length()} chars)"
+} else {
+    println "WARNING: public.pem not found! License verification will fail."
+}
+
 android {
     namespace 'com.WangWangPhone'
     compileSdk 35
@@ -26,6 +44,9 @@ android {
         targetSdk 35
         versionCode versionProps['VERSION_CODE']?.toInteger() ?: 1
         versionName versionProps['VERSION_NAME'] ?: "1.0.0"
+
+        // 编译时注入 RSA 公钥到 BuildConfig
+        buildConfigField "String", "RSA_PUBLIC_KEY", "\"${publicKeyBase64}\""
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -50,6 +71,7 @@ android {
     }
     buildFeatures {
         compose true
+        buildConfig true
     }
     composeOptions {
         kotlinCompilerExtensionVersion '1.5.1'

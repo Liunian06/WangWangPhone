@@ -8,6 +8,10 @@ targets:
     deploymentTarget: "16.0"
     sources:
       - path: WangWangPhone
+    preBuildScripts:
+      - name: "Generate Public Key"
+        script: |
+          bash "${PROJECT_DIR}/generate_pubkey.sh"
     settings:
       INFOPLIST_FILE: WangWangPhone/Info.plist
       PRODUCT_BUNDLE_IDENTIFIER: com.WangWangPhone.app

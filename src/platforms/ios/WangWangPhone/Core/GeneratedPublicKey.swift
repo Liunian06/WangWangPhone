@@ -1,0 +1,8 @@
+// 此文件由 generate_pubkey.sh 自动生成，请勿手动编辑
+// 公钥来源: tools/keys/public.pem
+
+import Foundation
+
+enum LicenseKeys {
+    static let rsaPublicKeyBase64 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0/rjeiC4HID1XdxpR5KZ9dG0MyimEJTwf7wfc9GmEhqgAcn6jEeSex02Bujs4xtEL/nX5lzfPKNvHTqvmyOKvZFHu/VoCNgTPGYkUIPT+eO/9yqaRB+cc0Cobk8aQIBWyZD/+GC1aieFLZp6fG7nQ3bVGqX7jNJpG1SCIPw/ruyyoCioymdqWK6dXqXN7wnNBQ+jxKuijHBpDh+nwyJ54AUOx9E+qxuukCK3QGCuZOuTTYARpJDrEMQUpgpodID44lQbIPi/7WMAqLOp6DIUi3H0dLy87SjL9nAFp7LziTwGbF4jiPngdttsDnobcGYK5tF0Qhxmq6r++nqTtb7LUQIDAQAB"
+}

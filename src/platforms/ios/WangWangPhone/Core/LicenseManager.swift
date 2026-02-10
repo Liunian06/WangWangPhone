@@ -398,8 +398,10 @@ class LicenseManager {
     }
     
     /// RSA 公钥 (SPKI 格式 Base64)
-    /// 2026-02-10: 更新公钥
-    private let publicKeyBase64 = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxQxw4O380suUJS1ibRjKiX59SVqfUh4ao7/t+lXFaHEPDfL19vgmNaZGFY6pBkLuRZdGqkyiFmNFyWLH6VQf9kmhwL6HO3Qie//9jGIJMMohcPcNVz/cFOfnT1ojYrh+6Q2tODzLDm9EQG669ketzCdC3TynjtbzzyXY+JoL85L1MIhtsqAUFbBd4uAEG16z+OmT4BPi1UdPIKgVt7PdxqLtww2v7t60XwB1MiNo0GIDjhZHH9k1Mbu/IWZcW6pXgCaE+5rxG47gADN384n3zhLot/CbR5aYA0vnheQipjRG8oe4YTApGQ2rFvF+yUYXzcGOJFYkl8CvvPXXw8rFLQIDAQAB"
+    /// 编译时从 tools/keys/public.pem 文件自动读取
+    /// 通过 generate_pubkey.sh 脚本生成 GeneratedPublicKey.swift
+    /// 更新公钥只需替换 public.pem 文件并重新编译
+    private let publicKeyBase64 = LicenseKeys.rsaPublicKeyBase64
     
     /// 解析并验证激活码
     /// 使用 RSA 公钥验证签名，确保激活码的真实性
