@@ -107,7 +107,16 @@ struct BrowserAppView: View {
                 .foregroundColor(canGoForward ? .blue : .gray)
                 .disabled(!canGoForward)
                 
-                Button(action: {}) {
+                Button(action: {
+                    // 分享
+                    if let url = URL(string: urlString) {
+                        let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+                        if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                           let rootVC = windowScene.windows.first?.rootViewController {
+                            rootVC.present(activityVC, animated: true)
+                        }
+                    }
+                }) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 20, weight: .semibold))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -115,16 +124,19 @@ struct BrowserAppView: View {
                 }
                 .foregroundColor(.blue)
                 
-                Button(action: {}) {
-                    Image(systemName: "book")
+                Button(action: { webViewStore.reload() }) {
+                    Image(systemName: "arrow.clockwise")
                         .font(.system(size: 20, weight: .semibold))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
                 }
                 .foregroundColor(.blue)
                 
-                Button(action: {}) {
-                    Image(systemName: "square.on.square")
+                Button(action: {
+                    urlString = "https://www.baidu.com"
+                    inputUrl = "https://www.baidu.com"
+                }) {
+                    Image(systemName: "house")
                         .font(.system(size: 20, weight: .semibold))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())

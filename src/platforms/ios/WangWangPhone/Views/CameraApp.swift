@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import Photos
 
 // MARK: - Camera Permission Manager
 class CameraPermissionManager: ObservableObject {
@@ -18,9 +19,52 @@ class CameraPermissionManager: ObservableObject {
     }
 }
 
+// MARK: - Camera Manager for Photo Capture
+class CameraManager: NSObject, ObservableObject {
+    var session: AVCaptureSession?
+    var photoOutput: AVCapturePhotoOutput?
+    var previewLayer: AVCaptureVideoPreviewLayer?
+    
+    @Published var photosTaken: Int = 0
+    @Published var showFlash: Bool = false
+    
+    func capturePhoto() {
+        guard let photoOutput = photoOutput else { return }
+        let settings = AVCapturePhotoSettings()
+        photoOutput.capturePhoto(with: settings, delegate: self)
+    }
+}
+
+extension CameraManager: AVCapturePhotoCaptureDelegate {
+    func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
+        guard error == nil, let data = photo.fileDataRepresentation() else { return }
+        
+        // Save to photo library
+        PHPhotoLibrary.requestAuthorization { status in
+            if status == .authorized {
+                PHPhotoLibrary.shared().performChanges({
+                    let request = PHAssetCreationRequest.forAsset()
+                    request.addResource(with: .photo, data: data, options: nil)
+                }) { success, error in
+                    DispatchQueue.main.async {
+                        if success {
+                            self.photosTaken += 1
+                            self.showFlash = true
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                self.showFlash = false
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Camera Preview UIViewRepresentable
 struct CameraPreviewView: UIViewRepresentable {
     let useFrontCamera: Bool
+    @ObservedObject var cameraManager: CameraManager
     
     func makeUIView(context: Context) -> UIView {
         let view = UIView(frame: .zero)
@@ -39,9 +83,19 @@ struct CameraPreviewView: UIViewRepresentable {
             session.addInput(input)
         }
         
+        // Add photo output
+        let photoOutput = AVCapturePhotoOutput()
+        if session.canAddOutput(photoOutput) {
+            session.addOutput(photoOutput)
+        }
+        
         let previewLayer = AVCaptureVideoPreviewLayer(session: session)
         previewLayer.videoGravity = .resizeAspectFill
         view.layer.addSublayer(previewLayer)
+        
+        cameraManager.session = session
+        cameraManager.photoOutput = photoOutput
+        cameraManager.previewLayer = previewLayer
         
         context.coordinator.previewLayer = previewLayer
         context.coordinator.session = session
@@ -79,6 +133,7 @@ struct CameraPreviewView: UIViewRepresentable {
 struct CameraAppView: View {
     @Binding var isPresented: Bool
     @StateObject private var permissionManager = CameraPermissionManager()
+    @StateObject private var cameraManager = CameraManager()
     
     // Camera mode state
     let cameraModes = ["延时摄影", "慢动作", "视频", "照片", "人像", "全景"]
@@ -87,6 +142,9 @@ struct CameraAppView: View {
     // Front/Back camera state
     @State private var useFrontCamera: Bool = false
     
+    // Shutter animation
+    @State private var isShutterPressed: Bool = false
+    
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
@@ -94,7 +152,7 @@ struct CameraAppView: View {
             // Camera Preview or Permission Placeholder
             switch permissionManager.authorizationStatus {
             case .authorized:
-                CameraPreviewView(useFrontCamera: useFrontCamera)
+                CameraPreviewView(useFrontCamera: useFrontCamera, cameraManager: cameraManager)
                     .ignoresSafeArea()
                     .id(useFrontCamera) // Force re-create when switching camera
                 
@@ -137,11 +195,22 @@ struct CameraAppView: View {
                 EmptyView()
             }
             
+            // Flash overlay
+            if cameraManager.showFlash {
+                Color.white.ignoresSafeArea()
+            }
+            
             // UI Overlay
             VStack {
                 // Top Bar - with safe area padding
                 HStack {
                     Image(systemName: "bolt.fill")
+                    Spacer()
+                    if cameraManager.photosTaken > 0 {
+                        Text("已拍 \(cameraManager.photosTaken) 张")
+                            .foregroundColor(.white.opacity(0.7))
+                            .font(.caption)
+                    }
                     Spacer()
                     Button("完成") { isPresented = false }
                         .foregroundColor(.yellow)
@@ -176,9 +245,16 @@ struct CameraAppView: View {
                     // Controls
                     HStack(spacing: 50) {
                         // Gallery
-                        Circle()
-                            .fill(Color.gray)
-                            .frame(width: 50, height: 50)
+                        ZStack {
+                            Circle()
+                                .fill(Color.gray)
+                                .frame(width: 50, height: 50)
+                            if cameraManager.photosTaken > 0 {
+                                Text("\(cameraManager.photosTaken)")
+                                    .foregroundColor(.white)
+                                    .font(.caption)
+                            }
+                        }
                         
                         // Shutter
                         ZStack {
@@ -188,6 +264,19 @@ struct CameraAppView: View {
                             Circle()
                                 .fill(selectedModeIndex == 2 ? Color.red : Color.white) // Video mode = red
                                 .frame(width: 70, height: 70)
+                        }
+                        .scaleEffect(isShutterPressed ? 0.85 : 1.0)
+                        .animation(.easeInOut(duration: 0.1), value: isShutterPressed)
+                        .onTapGesture {
+                            isShutterPressed = true
+                            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                            
+                            // 拍照
+                            cameraManager.capturePhoto()
+                            
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                                isShutterPressed = false
+                            }
                         }
                         
                         // Flip Camera

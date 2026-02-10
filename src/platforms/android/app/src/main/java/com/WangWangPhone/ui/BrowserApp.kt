@@ -20,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +43,7 @@ fun BrowserAppScreen(onClose: () -> Unit) {
     var canGoForward by remember { mutableStateOf(false) }
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     val focusManager = LocalFocusManager.current
+    val context = LocalContext.current
 
     BackHandler {
         if (webViewRef?.canGoBack() == true) {
@@ -243,30 +245,43 @@ fun BrowserAppScreen(onClose: () -> Unit) {
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clickable { },
+                        .clickable {
+                            // 触发系统分享
+                            val sendIntent = android.content.Intent().apply {
+                                action = android.content.Intent.ACTION_SEND
+                                putExtra(android.content.Intent.EXTRA_TEXT, currentUrl)
+                                type = "text/plain"
+                            }
+                            val shareIntent = android.content.Intent.createChooser(sendIntent, "分享网页")
+                            shareIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                            context.startActivity(shareIntent)
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     Text("📤", fontSize = 18.sp, color = Color(0xFF007AFF))
                 }
-                // 书签
+                // 刷新
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clickable { },
+                        .clickable { webViewRef?.reload() },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("📖", fontSize = 18.sp, color = Color(0xFF007AFF))
+                    Text("🔄", fontSize = 18.sp, color = Color(0xFF007AFF))
                 }
-                // 标签页
+                // 首页
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .clickable { },
+                        .clickable {
+                            currentUrl = "https://www.baidu.com"
+                            addressBarText = TextFieldValue("https://www.baidu.com")
+                        },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("🔲", fontSize = 18.sp, color = Color(0xFF007AFF))
+                    Text("🏠", fontSize = 18.sp, color = Color(0xFF007AFF))
                 }
             }
             Spacer(modifier = Modifier.navigationBarsPadding())

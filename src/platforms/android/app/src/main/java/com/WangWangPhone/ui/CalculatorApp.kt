@@ -130,7 +130,26 @@ fun CalculatorAppScreen(onClose: () -> Unit) {
                                     label == "AC" -> onClearClick()
                                     label == "=" -> onEqualsClick()
                                     label in listOf("÷", "×", "-", "+") -> onOperatorClick(label)
-                                    label == "." -> { if (!displayText.contains(".")) displayText += "." }
+                                    label == "+/-" -> {
+                                        val currentVal = displayText.toDoubleOrNull()
+                                        if (currentVal != null) {
+                                            displayText = formatResult(currentVal * -1)
+                                        }
+                                    }
+                                    label == "%" -> {
+                                        val currentVal = displayText.toDoubleOrNull()
+                                        if (currentVal != null) {
+                                            displayText = formatResult(currentVal / 100.0)
+                                        }
+                                    }
+                                    label == "." -> {
+                                        if (isWaitingForOperand) {
+                                            displayText = "0."
+                                            isWaitingForOperand = false
+                                        } else if (!displayText.contains(".")) {
+                                            displayText += "."
+                                        }
+                                    }
                                     else -> onNumberClick(label)
                                 }
                             }

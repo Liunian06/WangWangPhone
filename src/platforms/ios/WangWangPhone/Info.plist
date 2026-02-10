@@ -37,5 +37,9 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>需要访问相机以拍摄照片和视频</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>需要访问相册以保存拍摄的照片</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>需要访问相册以查看和保存照片</string>
 </dict>
 </plist>
