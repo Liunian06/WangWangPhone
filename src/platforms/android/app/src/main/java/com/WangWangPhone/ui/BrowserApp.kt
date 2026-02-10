@@ -206,35 +206,70 @@ fun BrowserAppScreen(onClose: () -> Unit) {
 
         // 底部工具栏
         Divider(color = Color(0xFFD1D1D6), thickness = 0.5.dp)
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(44.dp)
                 .background(Color(0xFFF9F9F9))
-                .navigationBarsPadding(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            // 后退
-            Text(
-                "◀",
-                fontSize = 18.sp,
-                color = if (canGoBack) Color(0xFF007AFF) else Color(0xFFC7C7CC),
-                modifier = Modifier.clickable(enabled = canGoBack) { webViewRef?.goBack() }
-            )
-            // 前进
-            Text(
-                "▶",
-                fontSize = 18.sp,
-                color = if (canGoForward) Color(0xFF007AFF) else Color(0xFFC7C7CC),
-                modifier = Modifier.clickable(enabled = canGoForward) { webViewRef?.goForward() }
-            )
-            // 分享
-            Text("📤", fontSize = 18.sp, color = Color(0xFF007AFF))
-            // 书签
-            Text("📖", fontSize = 18.sp, color = Color(0xFF007AFF))
-            // 标签页
-            Text("🔲", fontSize = 18.sp, color = Color(0xFF007AFF))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 后退
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(enabled = canGoBack) { webViewRef?.goBack() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("◀", fontSize = 18.sp, color = if (canGoBack) Color(0xFF007AFF) else Color(0xFFC7C7CC))
+                }
+                // 前进
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable(enabled = canGoForward) { webViewRef?.goForward() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("▶", fontSize = 18.sp, color = if (canGoForward) Color(0xFF007AFF) else Color(0xFFC7C7CC))
+                }
+                // 分享
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable { },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📤", fontSize = 18.sp, color = Color(0xFF007AFF))
+                }
+                // 书签
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable { },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("📖", fontSize = 18.sp, color = Color(0xFF007AFF))
+                }
+                // 标签页
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .clickable { },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("🔲", fontSize = 18.sp, color = Color(0xFF007AFF))
+                }
+            }
+            Spacer(modifier = Modifier.navigationBarsPadding())
         }
     }
 }

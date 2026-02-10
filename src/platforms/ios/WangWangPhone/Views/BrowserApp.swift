@@ -1,6 +1,23 @@
 import SwiftUI
 import WebKit
 
+/// Observable class that holds a reference to the WKWebView so toolbar buttons can control it
+class WebViewStore: ObservableObject {
+    @Published var webView: WKWebView? = nil
+    
+    func goBack() {
+        webView?.goBack()
+    }
+    
+    func goForward() {
+        webView?.goForward()
+    }
+    
+    func reload() {
+        webView?.reload()
+    }
+}
+
 struct BrowserAppView: View {
     @Binding var isPresented: Bool
     @State private var urlString: String = "https://www.baidu.com"
@@ -9,6 +26,7 @@ struct BrowserAppView: View {
     @State private var canGoForward: Bool = false
     @State private var isLoading: Bool = false
     @State private var progress: Double = 0
+    @StateObject private var webViewStore = WebViewStore()
     
     var body: some View {
         VStack(spacing: 0) {
@@ -64,55 +82,57 @@ struct BrowserAppView: View {
                 canGoBack: $canGoBack,
                 canGoForward: $canGoForward,
                 isLoading: $isLoading,
-                progress: $progress
+                progress: $progress,
+                webViewStore: webViewStore
             )
-            .edgesIgnoringSafeArea(.bottom)
             
             // Toolbar
             Divider()
             HStack {
-                Button(action: { /* Go back logic handled by coordinator */ }) {
+                Button(action: { webViewStore.goBack() }) {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(canGoBack ? .blue : .gray)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
+                .foregroundColor(canGoBack ? .blue : .gray)
                 .disabled(!canGoBack)
                 
-                Spacer()
-                
-                Button(action: { /* Go forward logic handled by coordinator */ }) {
+                Button(action: { webViewStore.goForward() }) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(canGoForward ? .blue : .gray)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
+                .foregroundColor(canGoForward ? .blue : .gray)
                 .disabled(!canGoForward)
-                
-                Spacer()
                 
                 Button(action: {}) {
                     Image(systemName: "square.and.arrow.up")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
-                
-                Spacer()
+                .foregroundColor(.blue)
                 
                 Button(action: {}) {
                     Image(systemName: "book")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
-                
-                Spacer()
+                .foregroundColor(.blue)
                 
                 Button(action: {}) {
                     Image(systemName: "square.on.square")
                         .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.blue)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .contentShape(Rectangle())
                 }
+                .foregroundColor(.blue)
             }
-            .padding(.horizontal, 25)
-            .padding(.vertical, 10)
+            .frame(height: 44)
+            .padding(.horizontal, 15)
             .background(Color(.systemBackground))
         }
         .background(Color(.systemBackground))
@@ -149,6 +169,7 @@ struct WebViewContainer: UIViewRepresentable {
     @Binding var canGoForward: Bool
     @Binding var isLoading: Bool
     @Binding var progress: Double
+    @ObservedObject var webViewStore: WebViewStore
     
     func makeUIView(context: Context) -> WKWebView {
         let webView = WKWebView()
@@ -156,6 +177,12 @@ struct WebViewContainer: UIViewRepresentable {
         webView.addObserver(context.coordinator, forKeyPath: #keyPath(WKWebView.estimatedProgress), options: .new, context: nil)
         webView.addObserver(context.coordinator, forKeyPath: #keyPath(WKWebView.canGoBack), options: .new, context: nil)
         webView.addObserver(context.coordinator, forKeyPath: #keyPath(WKWebView.canGoForward), options: .new, context: nil)
+        
+        // Store WebView reference so toolbar buttons can access it
+        DispatchQueue.main.async {
+            webViewStore.webView = webView
+        }
+        
         return webView
     }
     
@@ -178,12 +205,15 @@ struct WebViewContainer: UIViewRepresentable {
         }
         
         override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
-            if keyPath == "estimatedProgress" {
-                parent.progress = (object as? WKWebView)?.estimatedProgress ?? 0
-            } else if keyPath == "canGoBack" {
-                parent.canGoBack = (object as? WKWebView)?.canGoBack ?? false
-            } else if keyPath == "canGoForward" {
-                parent.canGoForward = (object as? WKWebView)?.canGoForward ?? false
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                if keyPath == "estimatedProgress" {
+                    self.parent.progress = (object as? WKWebView)?.estimatedProgress ?? 0
+                } else if keyPath == "canGoBack" {
+                    self.parent.canGoBack = (object as? WKWebView)?.canGoBack ?? false
+                } else if keyPath == "canGoForward" {
+                    self.parent.canGoForward = (object as? WKWebView)?.canGoForward ?? false
+                }
             }
         }
         
