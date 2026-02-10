@@ -35,6 +35,7 @@ class LicenseManager private constructor(private val context: Context) {
     
     private val dbHelper = LicenseDbHelper(context)
     private var cachedLicense: LicenseRecord? = null
+    private var lastCheckTime: Long = 0
     
     /**
      * 初始化授权管理器
@@ -42,6 +43,12 @@ class LicenseManager private constructor(private val context: Context) {
     fun initialize(): Boolean {
         // 尝试从数据库恢复授权
         cachedLicense = dbHelper.getLicenseRecord()
+        
+        // 启动时执行一次检查
+        if (cachedLicense != null) {
+            checkLicenseDaily()
+        }
+        
         return true
     }
     
@@ -153,6 +160,44 @@ class LicenseManager private constructor(private val context: Context) {
     fun clearLicense(): Boolean {
         cachedLicense = null
         return dbHelper.clearLicenseRecord()
+    }
+
+    /**
+     * 每日检查授权逻辑
+     * 如果过期或验证失败，将重置授权状态
+     */
+    fun checkLicenseDaily(): Boolean {
+        val license = cachedLicense ?: return false
+        val now = System.currentTimeMillis() / 1000
+
+        // 每天只检查一次 (86400秒)
+        if (lastCheckTime > 0 && (now - lastCheckTime) < 86400) {
+            return true
+        }
+        
+        // 1. 验证机器码
+        val currentMachineId = getMachineId()
+        if (license.machineId != currentMachineId) {
+            clearLicense()
+            return false
+        }
+        
+        // 2. 验证过期时间
+        if (license.expirationTime < now) {
+            clearLicense()
+            return false
+        }
+        
+        // 3. 验证签名 (重新解析)
+        // 在实际生产中，这里应该调用 C++ 层或原生 RSA 验证
+        // 这里仅做简单模拟
+        if (parseLicenseKey(license.licenseKey) == null) {
+             clearLicense()
+             return false
+        }
+        
+        lastCheckTime = now
+        return true
     }
     
     /**

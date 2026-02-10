@@ -38,6 +38,7 @@ class LicenseManager {
     private var db: OpaquePointer?
     private var cachedLicense: LicenseRecord?
     private var isInitialized = false
+    private var lastCheckTime: Int64 = 0
     
     private let dbName = "wangwang_license.db"
     
@@ -66,6 +67,11 @@ class LicenseManager {
         // 尝试从数据库恢复授权
         cachedLicense = getLicenseRecord()
         isInitialized = true
+        
+        // 启动时执行一次检查
+        if cachedLicense != nil {
+            _ = checkLicenseDaily()
+        }
         
         print("LicenseManager: 初始化成功")
         return true
@@ -190,6 +196,42 @@ class LicenseManager {
     func clearLicense() -> Bool {
         cachedLicense = nil
         return clearLicenseRecord()
+    }
+    
+    /// 每日检查授权逻辑
+    /// 如果过期或验证失败，将重置授权状态
+    func checkLicenseDaily() -> Bool {
+        guard let license = cachedLicense else { return false }
+        let now = Int64(Date().timeIntervalSince1970)
+        
+        // 每天只检查一次 (86400秒)
+        if lastCheckTime > 0 && (now - lastCheckTime) < 86400 {
+            return true
+        }
+        
+        // 1. 验证机器码
+        let currentMachineId = getMachineId()
+        if license.machineId != currentMachineId {
+            _ = clearLicense()
+            return false
+        }
+        
+        // 2. 验证过期时间
+        if license.expirationTime < now {
+            _ = clearLicense()
+            return false
+        }
+        
+        // 3. 验证签名 (重新解析)
+        // 在实际生产中，这里应该调用 C++ 层或原生 RSA 验证
+        // 这里仅做简单模拟
+        if parseLicenseKey(license.licenseKey) == nil {
+            _ = clearLicense()
+            return false
+        }
+        
+        lastCheckTime = now
+        return true
     }
     
     // MARK: - 私有方法

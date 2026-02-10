@@ -32,3 +32,4 @@
 
 # Backend SQLite logs
 tools/*.db
+tools/keys/

@@ -31,6 +31,11 @@ public:
     // 从数据库恢复授权状态（应用启动时调用）
     bool restoreLicenseFromDatabase(const std::string& currentMachineId);
 
+    // 每日检查授权逻辑
+    // 如果过期或验证失败，将重置授权状态
+    // 返回 true 表示授权有效，false 表示已失效
+    bool checkLicenseDaily(const std::string& currentMachineId);
+
     // 获取当前授权状态
     bool isActivated() const;
 
@@ -50,13 +55,15 @@ public:
     bool clearLicense();
 
 private:
-    LicenseManager() : activated(false), initialized(false) {
+    LicenseManager() : activated(false), initialized(false), lastCheckTime(0) {
         // 注入生成的 RSA 公钥 (SPKI 格式 Base64)
-        publicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApcy/Am7F1r7KDKQqMpTO0jnKToPlj9KNIRcSCYXZ07mPbgxialV4snWzrFMANEC5wlZ0shUUaL+525eFSn3ZzphyrxC75Kyaw0nFeISvY6uNlZxooEu6DS51KU4w5XX0oGlEfSPrx5SsmWvous1Xf6jC3I+RVX+raNCbLH2rrbmk+phkXCTLxzzWUWxQgonN1/PLPQMeLqaaKBcxnZ4rJCw0frWCFr60NTDCSAAt0w7YxNdsaCvTIaIkh62Mdi6qbpG2Tmr7D3viZmE4heO4f5lxi+vXG5KIIKOMAvPXPs14itV8DI5EzJM2C7KUW7xejeUvx3CvVePo7BVBw/4dLwIDAQAB";
+        // 2026-02-10: 更新公钥
+        publicKey = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxQxw4O380suUJS1ibRjKiX59SVqfUh4ao7/t+lXFaHEPDfL19vgmNaZGFY6pBkLuRZdGqkyiFmNFyWLH6VQf9kmhwL6HO3Qie//9jGIJMMohcPcNVz/cFOfnT1ojYrh+6Q2tODzLDm9EQG669ketzCdC3TynjtbzzyXY+JoL85L1MIhtsqAUFbBd4uAEG16z+OmT4BPi1UdPIKgVt7PdxqLtww2v7t60XwB1MiNo0GIDjhZHH9k1Mbu/IWZcW6pXgCaE+5rxG47gADN384n3zhLot/CbR5aYA0vnheQipjRG8oe4YTApGQ2rFvF+yUYXzcGOJFYkl8CvvPXXw8rFLQIDAQAB";
     }
     std::string publicKey;
     bool activated;
     bool initialized;
+    long long lastCheckTime; // 上次检查时间戳
     LicensePayload currentPayload;
 
     // 内部解密和解析逻辑

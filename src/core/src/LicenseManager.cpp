@@ -114,6 +114,62 @@ bool LicenseManager::restoreLicenseFromDatabase(const std::string& currentMachin
     return true;
 }
 
+bool LicenseManager::checkLicenseDaily(const std::string& currentMachineId) {
+    if (!initialized) {
+        return false;
+    }
+
+    if (!activated) {
+        return false;
+    }
+
+    auto now = std::chrono::system_clock::now();
+    long long now_ts = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+
+    // 每天只检查一次
+    // 86400 秒 = 1 天
+    if (lastCheckTime > 0 && (now_ts - lastCheckTime) < 86400) {
+        return true;
+    }
+
+    std::cout << "LicenseManager: 执行每日授权检查..." << std::endl;
+
+    // 重新从数据库读取并验证
+    LicenseRecord record;
+    if (!DatabaseManager::getInstance().getLicenseRecord(record)) {
+        std::cerr << "LicenseManager: 每日检查失败 - 数据库无记录" << std::endl;
+        clearLicense(); // 视为未授权
+        return false;
+    }
+
+    // 1. 验证机器码
+    if (record.machine_id != currentMachineId) {
+        std::cerr << "LicenseManager: 每日检查失败 - 机器码不匹配" << std::endl;
+        clearLicense();
+        return false;
+    }
+
+    // 2. 验证过期时间
+    if (record.expiration_time < now_ts) {
+        std::cerr << "LicenseManager: 每日检查失败 - 授权已过期" << std::endl;
+        clearLicense();
+        return false;
+    }
+    
+    // 3. 验证签名完整性 (重新解析 licenseKey)
+    LicensePayload payload;
+    if (!decodeAndVerify(record.license_key, payload)) {
+         std::cerr << "LicenseManager: 每日检查失败 - 密钥验证无效" << std::endl;
+         clearLicense();
+         return false;
+    }
+
+    // 更新最后检查时间
+    lastCheckTime = now_ts;
+    std::cout << "LicenseManager: 每日检查通过" << std::endl;
+    return true;
+}
+
 bool LicenseManager::isActivated() const {
     return activated;
 }
