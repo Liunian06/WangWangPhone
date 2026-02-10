@@ -159,9 +159,12 @@ class LicenseManager private constructor(private val context: Context) {
     
     /**
      * 检查是否已激活
+     * 注意：仅依赖缓存状态，不直接读取数据库
+     * 缓存仅在 initialize() 或 verifyLicense() 中通过 RSA 签名验证后设置
+     * 这确保了更换公钥后旧授权无法通过验证，从而正确失效
      */
     fun isActivated(): Boolean {
-        val license = cachedLicense ?: dbHelper.getLicenseRecord() ?: return false
+        val license = cachedLicense ?: return false
         val now = System.currentTimeMillis() / 1000
         return license.expirationTime > now
     }

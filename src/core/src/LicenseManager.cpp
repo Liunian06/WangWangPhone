@@ -264,6 +264,24 @@ bool LicenseManager::restoreLicenseFromDatabase(const std::string& currentMachin
         return false;
     }
 
+    // 【关键安全检查】强制重新验证 RSA 签名
+    // 当公钥更新后，旧私钥签发的 license 将无法通过新公钥验证
+    // 从而确保更换公私钥对后，所有旧授权自动失效
+    LicensePayload verifiedPayload;
+    if (!decodeAndVerify(record.license_key, verifiedPayload)) {
+        std::cerr << "LicenseManager: 数据库中的授权密钥 RSA 签名验证失败（公钥可能已更新）" << std::endl;
+        clearLicense();
+        return false;
+    }
+
+    // 验证签名中的载荷与数据库记录是否一致（防篡改）
+    if (verifiedPayload.machine_id != record.machine_id ||
+        verifiedPayload.expiration_time != record.expiration_time) {
+        std::cerr << "LicenseManager: 载荷数据与数据库记录不一致，授权无效" << std::endl;
+        clearLicense();
+        return false;
+    }
+
     // 恢复授权状态
     currentPayload.machine_id = record.machine_id;
     currentPayload.expiration_time = record.expiration_time;
@@ -273,7 +291,7 @@ bool LicenseManager::restoreLicenseFromDatabase(const std::string& currentMachin
     currentPayload.qqID = record.qqID;
     activated = true;
 
-    std::cout << "LicenseManager: 从数据库恢复授权成功" << std::endl;
+    std::cout << "LicenseManager: 从数据库恢复授权成功（RSA签名验证通过）" << std::endl;
     std::cout << "  授权类型: " << record.license_type << std::endl;
     std::cout << "  剩余天数: " << getRemainingDays() << " 天" << std::endl;
     return true;
