@@ -758,6 +758,7 @@ struct HomeScreen: View {
     @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
     
     @State private var showActivationAlert = false
+    @State private var layoutReloadTrigger = UUID()
     
     @State private var draggingItem: AnyGridItem? = nil
     @State private var draggingOffset: CGSize = .zero
@@ -813,6 +814,7 @@ struct HomeScreen: View {
                             isActivated: isActivated,
                             onActivationAlert: { showActivationAlert = true }
                         )
+                        .id(layoutReloadTrigger)
                         .tag(pageIndex)
                     }
                 }
@@ -920,6 +922,11 @@ struct HomeScreen: View {
             if showSettings {
                 SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, isActivated: $isActivated, expiryDate: expiryDate)
                     .transition(.move(edge: .trailing)).zIndex(1)
+                    .onDisappear {
+                        loadLayout()
+                        layoutReloadTrigger = UUID()
+                        homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
+                    }
             }
             if showDisplaySettings {
                 DisplaySettingsView(showDisplaySettings: $showDisplaySettings)
@@ -1001,6 +1008,12 @@ struct HomeScreen: View {
     func loadLayout() {
         let savedLayout = layoutManager.getLayout()
         var pages: [[Int: AnyGridItem]] = []
+        
+        if savedLayout.isEmpty {
+            allPages = distributeItemsToPages(allApps: defaultApps, widgets: defaultWidgets)
+            dockApps = []
+            return
+        }
         var orderedDock: [AppIconData] = []
 
         if !savedLayout.isEmpty {

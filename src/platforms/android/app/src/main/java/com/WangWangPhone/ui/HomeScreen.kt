@@ -368,6 +368,7 @@ fun HomeScreen() {
     var showChatApp by remember { mutableStateOf(false) }
     var showActivationAlert by remember { mutableStateOf(false) }
     var showResetConfirm by remember { mutableStateOf(false) }
+    var layoutReloadTrigger by remember { mutableIntStateOf(0) }
     val context = LocalContext.current
     val licenseManager = remember { LicenseManager.getInstance(context) }
     val wallpaperDbHelper = remember { WallpaperDbHelper(context) }
@@ -386,7 +387,8 @@ fun HomeScreen() {
             onSettingsClick = { showSettings = true },
             onChatClick = { showChatApp = true },
             onActivationAlert = { showActivationAlert = true },
-            homeWallpaperPath = homeWallpaperPath
+            homeWallpaperPath = homeWallpaperPath,
+            layoutReloadTrigger = layoutReloadTrigger
         )
         
         if (showActivationAlert) {
@@ -430,9 +432,7 @@ fun HomeScreen() {
                                 // 这里我们选择触发壁纸和设置状态的更新
                                 lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)
                                 homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
-                                // 对于多页布局，它在 LaunchedEffect(isDark) 中加载，
-                                // 如果我们想强制触发它，可以增加一个触发器状态，或者直接在 HomeScreen 里做更深层的逻辑
-                                // 但通常最简单的逻辑是恢复后提示重启或手动重置关键 State
+                                layoutReloadTrigger++
                                 showSettings = false
                             }
                         }
@@ -504,7 +504,8 @@ fun HomeScreenContent(
     onSettingsClick: () -> Unit,
     onChatClick: () -> Unit = {},
     onActivationAlert: () -> Unit,
-    homeWallpaperPath: String? = null
+    homeWallpaperPath: String? = null,
+    layoutReloadTrigger: Int = 0
 ) {
     val context = LocalContext.current
     val layoutDbHelper = remember { LayoutDbHelper(context) }
@@ -533,7 +534,7 @@ fun HomeScreenContent(
     var dockAreaSize by remember { mutableStateOf(IntSize.Zero) }
 
     // 从数据库加载布局
-    LaunchedEffect(isDark) {
+    LaunchedEffect(isDark, layoutReloadTrigger) {
         val savedLayout = layoutDbHelper.getLayout()
         allPages.clear(); dockApps.clear()
 
