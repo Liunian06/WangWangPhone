@@ -46,6 +46,7 @@ class LicenseManager {
     private init() {}
     
     /// 初始化数据库
+    /// 每次启动都会从数据库恢复授权并强制验证 RSA 签名
     func initialize() -> Bool {
         if isInitialized { return true }
         
@@ -64,16 +65,60 @@ class LicenseManager {
             return false
         }
         
-        // 尝试从数据库恢复授权
-        cachedLicense = getLicenseRecord()
         isInitialized = true
         
-        // 启动时执行一次检查
-        if cachedLicense != nil {
-            _ = checkLicenseDaily()
+        // 尝试从数据库恢复授权记录
+        if let record = getLicenseRecord() {
+            // 强制验证：每次启动都重新验证 RSA 签名
+            let isValid = validateLicenseOnStartup(record)
+            if !isValid {
+                // RSA 签名验证失败，清除无效的授权记录
+                print("LicenseManager: 启动验证失败：RSA签名无效或授权已过期，清除授权")
+                _ = clearLicense()
+            }
+        } else {
+            cachedLicense = nil
         }
         
         print("LicenseManager: 初始化成功")
+        return true
+    }
+    
+    /// 启动时验证授权记录的完整性
+    /// 包括：RSA 签名验证 + 机器码匹配 + 过期时间检查
+    ///
+    /// - Parameter record: 数据库中的授权记录
+    /// - Returns: true 验证通过，false 验证失败
+    private func validateLicenseOnStartup(_ record: LicenseRecord) -> Bool {
+        // 1. 验证机器码
+        let currentMachineId = getMachineId()
+        if record.machineId != currentMachineId {
+            print("LicenseManager: 启动验证失败：机器码不匹配")
+            return false
+        }
+        
+        // 2. 验证过期时间
+        let now = Int64(Date().timeIntervalSince1970)
+        if record.expirationTime < now {
+            print("LicenseManager: 启动验证失败：授权已过期")
+            return false
+        }
+        
+        // 3. 强制验证 RSA 签名（核心安全检查）
+        guard let payload = parseLicenseKey(record.licenseKey) else {
+            print("LicenseManager: 启动验证失败：RSA签名验证无效")
+            return false
+        }
+        
+        // 4. 验证签名中的载荷与数据库记录是否一致
+        if payload.machineId != record.machineId || payload.expirationTime != record.expirationTime {
+            print("LicenseManager: 启动验证失败：载荷数据与数据库记录不一致")
+            return false
+        }
+        
+        // 验证通过，更新缓存
+        cachedLicense = record
+        print("LicenseManager: 启动验证通过，授权有效，剩余 \(getRemainingDays()) 天")
         return true
     }
     

@@ -39,16 +39,64 @@ class LicenseManager private constructor(private val context: Context) {
     
     /**
      * 初始化授权管理器
+     * 每次启动都会从数据库恢复授权并强制验证 RSA 签名
      */
     fun initialize(): Boolean {
-        // 尝试从数据库恢复授权
-        cachedLicense = dbHelper.getLicenseRecord()
+        // 尝试从数据库恢复授权记录
+        val record = dbHelper.getLicenseRecord()
         
-        // 启动时执行一次检查
-        if (cachedLicense != null) {
-            checkLicenseDaily()
+        if (record != null) {
+            // 强制验证：每次启动都重新验证 RSA 签名
+            val isValid = validateLicenseOnStartup(record)
+            if (!isValid) {
+                // RSA 签名验证失败，清除无效的授权记录
+                android.util.Log.w("LicenseManager", "启动验证失败：RSA签名无效或授权已过期，清除授权")
+                clearLicense()
+            }
+        } else {
+            cachedLicense = null
         }
         
+        return true
+    }
+    
+    /**
+     * 启动时验证授权记录的完整性
+     * 包括：RSA 签名验证 + 机器码匹配 + 过期时间检查
+     * 
+     * @return true 验证通过，false 验证失败
+     */
+    private fun validateLicenseOnStartup(record: LicenseRecord): Boolean {
+        // 1. 验证机器码
+        val currentMachineId = getMachineId()
+        if (record.machineId != currentMachineId) {
+            android.util.Log.w("LicenseManager", "启动验证失败：机器码不匹配")
+            return false
+        }
+        
+        // 2. 验证过期时间
+        val now = System.currentTimeMillis() / 1000
+        if (record.expirationTime < now) {
+            android.util.Log.w("LicenseManager", "启动验证失败：授权已过期")
+            return false
+        }
+        
+        // 3. 强制验证 RSA 签名（核心安全检查）
+        val payload = parseLicenseKey(record.licenseKey)
+        if (payload == null) {
+            android.util.Log.w("LicenseManager", "启动验证失败：RSA签名验证无效")
+            return false
+        }
+        
+        // 4. 验证签名中的载荷与数据库记录是否一致
+        if (payload.machineId != record.machineId || payload.expirationTime != record.expirationTime) {
+            android.util.Log.w("LicenseManager", "启动验证失败：载荷数据与数据库记录不一致")
+            return false
+        }
+        
+        // 验证通过，更新缓存
+        cachedLicense = record
+        android.util.Log.i("LicenseManager", "启动验证通过，授权有效，剩余 ${getRemainingDays()} 天")
         return true
     }
     
