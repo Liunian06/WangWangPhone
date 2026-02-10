@@ -151,27 +151,33 @@ struct WeatherWidget: View {
 // MARK: - 将应用分配到多个页面
 func distributeItemsToPages(allApps: [AppIconData], widgets: [WidgetItem]) -> [[Int: AnyGridItem]] {
     var pages: [[Int: AnyGridItem]] = []
-    var remainingApps = allApps
     
-    // 第一页：Widget + 部分应用
+    // 分离核心应用（聊天+设置）和其余应用
+    let coreAppIds: Set<String> = ["chat", "settings"]
+    let coreApps = allApps.filter { coreAppIds.contains($0.id) }
+    var otherApps = allApps.filter { !coreAppIds.contains($0.id) }
+    
+    // 第一页：Widget + 核心应用
     var page0: [Int: AnyGridItem] = [:]
     if !widgets.isEmpty { page0[0] = AnyGridItem(item: widgets[0]) }
     if widgets.count > 1 { page0[2] = AnyGridItem(item: widgets[1]) }
     
-    // 从第3行开始放应用（前2行被Widget占据）
+    // 从第3行开始放核心应用（前2行被Widget占据）
     var pos = 8
-    while pos < totalCells && !remainingApps.isEmpty {
-        page0[pos] = AnyGridItem(item: remainingApps.removeFirst())
-        pos += 1
+    for app in coreApps {
+        if pos < totalCells {
+            page0[pos] = AnyGridItem(item: app)
+            pos += 1
+        }
     }
     pages.append(page0)
     
-    // 后续页
-    while !remainingApps.isEmpty {
+    // 第二页起：其余所有应用
+    while !otherApps.isEmpty {
         var page: [Int: AnyGridItem] = [:]
         var pagePos = 0
-        while pagePos < totalCells && !remainingApps.isEmpty {
-            page[pagePos] = AnyGridItem(item: remainingApps.removeFirst())
+        while pagePos < totalCells && !otherApps.isEmpty {
+            page[pagePos] = AnyGridItem(item: otherApps.removeFirst())
             pagePos += 1
         }
         pages.append(page)

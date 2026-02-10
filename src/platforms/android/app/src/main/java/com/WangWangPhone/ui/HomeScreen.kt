@@ -458,36 +458,42 @@ fun HomeScreen() {
 
 /**
  * 将所有应用和Widget分配到多个页面
- * 第一页：Widget + 部分应用
- * 后续页：纯应用
+ * 第一页：Widget + 聊天 + 设置（仅保留核心应用）
+ * 第二页起：其余所有应用
  */
 fun distributeItemsToPages(
     allApps: List<AppIcon>,
     widgets: List<WidgetItem>
 ): List<Map<Int, GridItem>> {
     val pages = mutableListOf<MutableMap<Int, GridItem>>()
-    val remainingApps = allApps.toMutableList()
 
-    // 第一页：放置Widget和部分应用
+    // 分离核心应用（聊天+设置）和其余应用
+    val coreAppIds = setOf("chat", "settings")
+    val coreApps = allApps.filter { it.id in coreAppIds }
+    val otherApps = allApps.filter { it.id !in coreAppIds }.toMutableList()
+
+    // 第一页：Widget + 核心应用
     val page0 = mutableMapOf<Int, GridItem>()
     // 放置Widget（每个占2x2）
     if (widgets.isNotEmpty()) page0[0] = widgets[0]  // 左上角 clock
     if (widgets.size > 1) page0[2] = widgets[1]      // 右上角 weather
 
-    // 第一页从第3行开始放应用（前2行被Widget占据）
+    // 第一页从第3行开始放核心应用（前2行被Widget占据）
     var pos = 8 // row 2, col 0
-    while (pos < TOTAL_CELLS && remainingApps.isNotEmpty()) {
-        page0[pos] = remainingApps.removeAt(0)
-        pos++
+    for (app in coreApps) {
+        if (pos < TOTAL_CELLS) {
+            page0[pos] = app
+            pos++
+        }
     }
     pages.add(page0)
 
-    // 后续页：每页最多 TOTAL_CELLS 个应用
-    while (remainingApps.isNotEmpty()) {
+    // 第二页起：其余所有应用
+    while (otherApps.isNotEmpty()) {
         val page = mutableMapOf<Int, GridItem>()
         var pagePos = 0
-        while (pagePos < TOTAL_CELLS && remainingApps.isNotEmpty()) {
-            page[pagePos] = remainingApps.removeAt(0)
+        while (pagePos < TOTAL_CELLS && otherApps.isNotEmpty()) {
+            page[pagePos] = otherApps.removeAt(0)
             pagePos++
         }
         pages.add(page)
