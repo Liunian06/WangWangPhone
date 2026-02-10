@@ -367,6 +367,12 @@ fun HomeScreen() {
     var showActivation by remember { mutableStateOf(false) }
     var showDisplaySettings by remember { mutableStateOf(false) }
     var showChatApp by remember { mutableStateOf(false) }
+    var showBrowserApp by remember { mutableStateOf(false) }
+    var showCalculatorApp by remember { mutableStateOf(false) }
+    var showWeatherApp by remember { mutableStateOf(false) }
+    var showCalendarApp by remember { mutableStateOf(false) }
+    var showCameraApp by remember { mutableStateOf(false) }
+    var showNotesApp by remember { mutableStateOf(false) }
     var showActivationAlert by remember { mutableStateOf(false) }
     var showResetConfirm by remember { mutableStateOf(false) }
     var layoutReloadTrigger by remember { mutableIntStateOf(0) }
@@ -387,6 +393,12 @@ fun HomeScreen() {
             isActivated = isActivated,
             onSettingsClick = { showSettings = true },
             onChatClick = { showChatApp = true },
+            onBrowserClick = { showBrowserApp = true },
+            onCalculatorClick = { showCalculatorApp = true },
+            onWeatherClick = { showWeatherApp = true },
+            onCalendarClick = { showCalendarApp = true },
+            onCameraClick = { showCameraApp = true },
+            onNotesClick = { showNotesApp = true },
             onActivationAlert = { showActivationAlert = true },
             homeWallpaperPath = homeWallpaperPath,
             layoutReloadTrigger = layoutReloadTrigger
@@ -451,6 +463,12 @@ fun HomeScreen() {
                 homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
             })
         if (showChatApp) ChatAppScreen(onClose = { showChatApp = false })
+        if (showBrowserApp) BrowserAppScreen(onClose = { showBrowserApp = false })
+        if (showCalculatorApp) CalculatorAppScreen(onClose = { showCalculatorApp = false })
+        if (showWeatherApp) WeatherAppScreen(onClose = { showWeatherApp = false })
+        if (showCalendarApp) CalendarAppScreen(onClose = { showCalendarApp = false })
+        if (showCameraApp) CameraAppScreen(onClose = { showCameraApp = false })
+        if (showNotesApp) NotesAppScreen(onClose = { showNotesApp = false })
         if (showActivation) ActivationScreen(onBack = { showActivation = false }, onActivated = {
             isActivated = licenseManager.isActivated(); expiryDate = licenseManager.getExpirationDateString()
         })
@@ -510,6 +528,12 @@ fun HomeScreenContent(
     isActivated: Boolean,
     onSettingsClick: () -> Unit,
     onChatClick: () -> Unit = {},
+    onBrowserClick: () -> Unit = {},
+    onCalculatorClick: () -> Unit = {},
+    onWeatherClick: () -> Unit = {},
+    onCalendarClick: () -> Unit = {},
+    onCameraClick: () -> Unit = {},
+    onNotesClick: () -> Unit = {},
     onActivationAlert: () -> Unit,
     homeWallpaperPath: String? = null,
     layoutReloadTrigger: Int = 0
@@ -775,6 +799,12 @@ fun HomeScreenContent(
                             } else {
                                 if (isActivated) {
                                     if (startItem!!.id == "chat") onChatClick()
+                                    else if (startItem!!.id == "safari") onBrowserClick()
+                                    else if (startItem!!.id == "calculator") onCalculatorClick()
+                                    else if (startItem!!.id == "weather_app") onWeatherClick()
+                                    else if (startItem!!.id == "calendar") onCalendarClick()
+                                    else if (startItem!!.id == "camera") onCameraClick()
+                                    else if (startItem!!.id == "notes") onNotesClick()
                                 } else {
                                     onActivationAlert()
                                 }

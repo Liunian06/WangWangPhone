@@ -203,6 +203,12 @@ struct PageGridView: View {
     var maxDockApps: Int
     var onSettingsClick: () -> Void
     var onChatClick: () -> Void
+    var onBrowserClick: () -> Void
+    var onCalculatorClick: () -> Void
+    var onWeatherClick: () -> Void
+    var onCalendarClick: () -> Void
+    var onCameraClick: () -> Void
+    var onNotesClick: () -> Void
     var onLayoutChanged: () -> Void
     @Environment(\.colorScheme) var colorScheme
     
@@ -295,6 +301,12 @@ struct PageGridView: View {
                             } else {
                                 if isActivated {
                                     if app.id == "chat" { onChatClick() }
+                                    else if app.id == "safari" { onBrowserClick() }
+                                    else if app.id == "calculator" { onCalculatorClick() }
+                                    else if app.id == "weather_app" { onWeatherClick() }
+                                    else if app.id == "calendar" { onCalendarClick() }
+                                    else if app.id == "camera" { onCameraClick() }
+                                    else if app.id == "notes" { onNotesClick() }
                                 } else {
                                     onActivationAlert()
                                 }
@@ -489,6 +501,12 @@ struct DraggableDockIconView: View {
     var isActivated: Bool
     var onActivationAlert: () -> Void
     var onTap: () -> Void
+    var onBrowserClick: () -> Void
+    var onCalculatorClick: () -> Void
+    var onWeatherClick: () -> Void
+    var onCalendarClick: () -> Void
+    var onCameraClick: () -> Void
+    var onNotesClick: () -> Void
     var onLayoutChanged: () -> Void
     
     @State private var dragOffset: CGSize = .zero
@@ -521,6 +539,18 @@ struct DraggableDockIconView: View {
                     } else {
                         if isActivated {
                             onTap()
+                        } else if app.id == "safari" {
+                            onBrowserClick()
+                        } else if app.id == "calculator" {
+                            onCalculatorClick()
+                        } else if app.id == "weather_app" {
+                            onWeatherClick()
+                        } else if app.id == "calendar" {
+                            onCalendarClick()
+                        } else if app.id == "camera" {
+                            onCameraClick()
+                        } else if app.id == "notes" {
+                            onNotesClick()
                         } else {
                             onActivationAlert()
                         }
@@ -758,6 +788,12 @@ struct HomeScreen: View {
     @State private var weather: WeatherInfo? = nil
     @State private var showSettings = false
     @State private var showChatApp = false
+    @State private var showBrowserApp = false
+    @State private var showCalculatorApp = false
+    @State private var showWeatherApp = false
+    @State private var showCalendarApp = false
+    @State private var showCameraApp = false
+    @State private var showNotesApp = false
     @State private var showActivation = false
     @State private var showDisplaySettings = false
     @State private var isActivated = LicenseManager.shared.isActivated()
@@ -816,6 +852,12 @@ struct HomeScreen: View {
                             maxDockApps: maxDockApps,
                             onSettingsClick: { showSettings = true },
                             onChatClick: { showChatApp = true },
+                            onBrowserClick: { showBrowserApp = true },
+                            onCalculatorClick: { showCalculatorApp = true },
+                            onWeatherClick: { showWeatherApp = true },
+                            onCalendarClick: { showCalendarApp = true },
+                            onCameraClick: { showCameraApp = true },
+                            onNotesClick: { showNotesApp = true },
                             onLayoutChanged: { saveLayout() },
                             isActivated: isActivated,
                             onActivationAlert: { showActivationAlert = true }
@@ -945,6 +987,30 @@ struct HomeScreen: View {
             if showChatApp {
                 ChatAppView(isPresented: $showChatApp)
                     .transition(.move(edge: .trailing)).zIndex(3)
+            }
+            if showBrowserApp {
+                BrowserAppView(isPresented: $showBrowserApp)
+                    .transition(.move(edge: .trailing)).zIndex(4)
+            }
+            if showCalculatorApp {
+                CalculatorAppView(isPresented: $showCalculatorApp)
+                    .transition(.move(edge: .trailing)).zIndex(5)
+            }
+            if showWeatherApp {
+                WeatherAppView(isPresented: $showWeatherApp)
+                    .transition(.move(edge: .trailing)).zIndex(6)
+            }
+            if showCalendarApp {
+                CalendarAppView(isPresented: $showCalendarApp)
+                    .transition(.move(edge: .trailing)).zIndex(7)
+            }
+            if showCameraApp {
+                CameraAppView(isPresented: $showCameraApp)
+                    .transition(.move(edge: .trailing)).zIndex(8)
+            }
+            if showNotesApp {
+                NotesAppView(isPresented: $showNotesApp)
+                    .transition(.move(edge: .trailing)).zIndex(9)
             }
         }
         .alert(isPresented: $showActivationAlert) {
