@@ -418,8 +418,15 @@ class LicenseManager {
         let signatureBase64 = String(parts[1])
         
         // 1. Base64 解码 Payload
-        guard let payloadData = Data(base64Encoded: payloadBase64),
+        // 修复 Base64 解码兼容性问题，添加 Padding
+        var paddedPayloadBase64 = payloadBase64
+        while paddedPayloadBase64.count % 4 != 0 {
+            paddedPayloadBase64.append("=")
+        }
+        
+        guard let payloadData = Data(base64Encoded: paddedPayloadBase64),
               let payloadJson = String(data: payloadData, encoding: .utf8) else {
+            print("LicenseManager: Payload Base64 解码失败")
             return nil
         }
         
@@ -442,8 +449,14 @@ class LicenseManager {
         }
         
         // 验证签名
-        guard let signatureData = Data(base64Encoded: signatureBase64),
+        var paddedSignatureBase64 = signatureBase64
+        while paddedSignatureBase64.count % 4 != 0 {
+            paddedSignatureBase64.append("=")
+        }
+        
+        guard let signatureData = Data(base64Encoded: paddedSignatureBase64),
               let payloadBytes = payloadJson.data(using: .utf8) else {
+            print("LicenseManager: Signature Base64 解码失败")
             return nil
         }
         

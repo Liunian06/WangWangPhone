@@ -280,7 +280,12 @@ class LicenseManager private constructor(private val context: Context) {
             val signatureBase64 = parts[1]
             
             // 1. Base64 解码 Payload
-            val payloadJson = String(android.util.Base64.decode(payloadBase64, android.util.Base64.DEFAULT), Charsets.UTF_8)
+            // 确保 Padding 正确
+            var paddedPayloadBase64 = payloadBase64
+            while (paddedPayloadBase64.length % 4 != 0) {
+                paddedPayloadBase64 += "="
+            }
+            val payloadJson = String(android.util.Base64.decode(paddedPayloadBase64, android.util.Base64.DEFAULT), Charsets.UTF_8)
             
             // 2. 验证 RSA 签名
             val publicKeyBytes = android.util.Base64.decode(publicKeyBase64, android.util.Base64.DEFAULT)
@@ -292,7 +297,11 @@ class LicenseManager private constructor(private val context: Context) {
             signature.initVerify(publicKey)
             signature.update(payloadJson.toByteArray(Charsets.UTF_8))
             
-            val signatureBytes = android.util.Base64.decode(signatureBase64, android.util.Base64.DEFAULT)
+            var paddedSignatureBase64 = signatureBase64
+            while (paddedSignatureBase64.length % 4 != 0) {
+                paddedSignatureBase64 += "="
+            }
+            val signatureBytes = android.util.Base64.decode(paddedSignatureBase64, android.util.Base64.DEFAULT)
             if (!signature.verify(signatureBytes)) {
                 // 签名验证失败
                 return null

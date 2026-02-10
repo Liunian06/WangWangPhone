@@ -439,7 +439,12 @@ bool LicenseManager::decodeAndVerify(const std::string& licenseKey, LicensePaylo
     }
 
     // 1. Base64 解码 Payload 获得 JSON 字符串
-    std::vector<unsigned char> payloadBytes = base64_decode(payloadBase64);
+    // 确保 Payload 长度是 4 的倍数
+    std::string paddedPayloadBase64 = payloadBase64;
+    while (paddedPayloadBase64.length() % 4 != 0) {
+        paddedPayloadBase64 += '=';
+    }
+    std::vector<unsigned char> payloadBytes = base64_decode(paddedPayloadBase64);
     if (payloadBytes.empty()) {
         std::cerr << "激活码解析失败：Payload Base64解码失败" << std::endl;
         return false;
@@ -447,7 +452,12 @@ bool LicenseManager::decodeAndVerify(const std::string& licenseKey, LicensePaylo
     std::string payloadJson(payloadBytes.begin(), payloadBytes.end());
     
     // 2. Base64 解码签名
-    std::vector<unsigned char> signatureBytes = base64_decode(signatureBase64);
+    // 确保签名长度是 4 的倍数
+    std::string paddedSignatureBase64 = signatureBase64;
+    while (paddedSignatureBase64.length() % 4 != 0) {
+        paddedSignatureBase64 += '=';
+    }
+    std::vector<unsigned char> signatureBytes = base64_decode(paddedSignatureBase64);
     if (signatureBytes.empty()) {
         std::cerr << "激活码解析失败：签名 Base64解码失败" << std::endl;
         return false;
