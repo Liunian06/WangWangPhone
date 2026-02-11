@@ -981,8 +981,8 @@ fun HomeScreenContent(
             val bitmap = remember(homeWallpaperPath) { android.graphics.BitmapFactory.decodeFile(homeWallpaperPath) }
             if (bitmap != null) Image(bitmap = bitmap.asImageBitmap(), contentDescription = "壁纸",
                 modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-            else Box(modifier = Modifier.fillMaxSize().background(Color.Black))
-        } else Box(modifier = Modifier.fillMaxSize().background(Color.Black))
+            else Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2C2C2C)))
+        } else Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2C2C2C)))
 
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             // 注意：拖拽浮层已移至顶层 Box，不在 Column 内

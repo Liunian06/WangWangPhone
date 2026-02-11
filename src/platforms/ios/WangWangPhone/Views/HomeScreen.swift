@@ -816,7 +816,7 @@ struct HomeScreen: View {
             if let wallpaper = homeWallpaper {
                 Image(uiImage: wallpaper).resizable().aspectRatio(contentMode: .fill).ignoresSafeArea()
             } else {
-                Color.black.ignoresSafeArea()
+                Color(red: 0.17, green: 0.17, blue: 0.17).ignoresSafeArea()
             }
             
             VStack(spacing: 0) {
