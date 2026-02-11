@@ -675,6 +675,7 @@ struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var showActivation: Bool
     @Binding var showDisplaySettings: Bool
+    @Binding var showApiSettings: Bool
     @Binding var isActivated: Bool
     let expiryDate: String
     
@@ -710,6 +711,14 @@ struct SettingsView: View {
                         Section(header: Text("外观").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
                             SettingsRow(title: "显示设置") {
                                 showDisplaySettings = true
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                        
+                        Section(header: Text("API 设置").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            SettingsRow(title: "模型配置") {
+                                showApiSettings = true
                             }
                             .cornerRadius(10)
                             .padding(.horizontal)
@@ -793,6 +802,9 @@ struct HomeScreen: View {
     @State private var showNotesApp = false
     @State private var showActivation = false
     @State private var showDisplaySettings = false
+    @State private var showApiSettings = false
+    @State private var showApiPresetEdit = false
+    @State private var editingApiType: Int = 0 // 0=Text, 1=ImageGen, 2=Voice
     @State private var isActivated = LicenseManager.shared.isActivated()
     @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
     
@@ -971,7 +983,7 @@ struct HomeScreen: View {
             }
 
             if showSettings {
-                SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, isActivated: $isActivated, expiryDate: expiryDate)
+                SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, showApiSettings: $showApiSettings, isActivated: $isActivated, expiryDate: expiryDate)
                     .transition(.move(edge: .trailing)).zIndex(1)
                     .onDisappear {
                         loadLayout()
@@ -982,6 +994,14 @@ struct HomeScreen: View {
             if showDisplaySettings {
                 DisplaySettingsView(showDisplaySettings: $showDisplaySettings)
                     .transition(.move(edge: .trailing)).zIndex(1.5)
+            }
+            if showApiSettings {
+                ApiSettingsView(showApiSettings: $showApiSettings, showApiPresetEdit: $showApiPresetEdit, editingApiType: $editingApiType)
+                    .transition(.move(edge: .trailing)).zIndex(1.6)
+            }
+            if showApiPresetEdit {
+                ApiPresetEditView(showApiPresetEdit: $showApiPresetEdit, apiType: editingApiType)
+                    .transition(.move(edge: .trailing)).zIndex(1.7)
             }
             if showActivation {
                 ActivationView(showActivation: $showActivation, isActivated: $isActivated, expiryDate: $expiryDate)
@@ -1173,5 +1193,269 @@ struct HomeScreen: View {
         }
         items += dockApps.enumerated().map { LayoutItem(appId: $1.id, position: $0, area: "dock") }
         _ = layoutManager.saveLayout(items)
+    }
+}
+
+// MARK: - API 设置主菜单
+/// 包含三个子菜单项：聊天主模型、生图模型、语音模型
+struct ApiSettingsView: View {
+    @Binding var showApiSettings: Bool
+    @Binding var showApiPresetEdit: Bool
+    @Binding var editingApiType: Int
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Section(header: Text("模型配置").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            VStack(spacing: 0) {
+                                // 聊天主模型
+                                Button(action: {
+                                    editingApiType = 0
+                                    showApiPresetEdit = true
+                                }) {
+                                    HStack {
+                                        Text("💬").font(.title2)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("聊天主模型").foregroundColor(.primary)
+                                            Text("用于角色扮演和日常对话").font(.caption).foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                                }
+                                
+                                Divider().padding(.leading, 50)
+                                
+                                // 生图模型
+                                Button(action: {
+                                    editingApiType = 1
+                                    showApiPresetEdit = true
+                                }) {
+                                    HStack {
+                                        Text("🎨").font(.title2)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("生图模型").foregroundColor(.primary)
+                                            Text("用于生成图片和表情包").font(.caption).foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                                }
+                                
+                                Divider().padding(.leading, 50)
+                                
+                                // 语音模型
+                                Button(action: {
+                                    editingApiType = 2
+                                    showApiPresetEdit = true
+                                }) {
+                                    HStack {
+                                        Text("🎤").font(.title2)
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("语音模型").foregroundColor(.primary)
+                                            Text("用于语音合成和语音识别").font(.caption).foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                                }
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                        
+                        // 提示信息
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("提示").font(.caption).foregroundColor(.gray)
+                            Text("配置各类模型的 API 密钥和端点，以启用对应功能。").font(.caption).foregroundColor(.gray)
+                        }
+                        .padding(.horizontal, 26)
+                    }
+                    .padding(.vertical)
+                }
+            }
+            .navigationTitle("API 设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("返回") { showApiSettings = false }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - API 预设编辑页面
+/// 设置具体的 API 配置
+/// apiType: 0=聊天主模型, 1=生图模型, 2=语音模型
+struct ApiPresetEditView: View {
+    @Binding var showApiPresetEdit: Bool
+    let apiType: Int
+    
+    @State private var presetName: String = ""
+    @State private var baseUrl: String = ""
+    @State private var apiKey: String = ""
+    @State private var modelName: String = ""
+    @State private var selectedProvider: Int = 0
+    
+    private let providerOptions = ["OpenAI", "Gemini", "火山引擎", "OpenAI 兼容", "Minimax", "Grok"]
+    
+    private var title: String {
+        switch apiType {
+        case 0: return "聊天主模型"
+        case 1: return "生图模型"
+        case 2: return "语音模型"
+        default: return "模型设置"
+        }
+    }
+    
+    private var subtitle: String {
+        switch apiType {
+        case 0: return "配置用于角色扮演和对话的大语言模型"
+        case 1: return "配置用于图片生成的模型接口"
+        case 2: return "配置用于语音合成和识别的模型接口"
+        default: return ""
+        }
+    }
+    
+    private var placeholderModel: String {
+        switch apiType {
+        case 0: return "gpt-4o / claude-3.5-sonnet"
+        case 1: return "dall-e-3 / stable-diffusion-xl"
+        case 2: return "tts-1 / whisper-1"
+        default: return "model-name"
+        }
+    }
+    
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(subtitle).font(.caption).foregroundColor(.gray).padding(.horizontal, 26)
+                        
+                        // 预设名称
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("预设名称").font(.caption).foregroundColor(.gray)
+                            TextField("例如: 我的\(title)配置", text: $presetName)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        .padding()
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        
+                        // API 供应商选择
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("API 供应商").font(.caption).foregroundColor(.gray)
+                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
+                                ForEach(0..<providerOptions.count, id: \.self) { index in
+                                    Button(action: { selectedProvider = index }) {
+                                        Text(providerOptions[index])
+                                            .font(.caption)
+                                            .frame(maxWidth: .infinity)
+                                            .padding(.vertical, 10)
+                                            .background(selectedProvider == index ? Color.blue : Color(UIColor.systemGray5))
+                                            .foregroundColor(selectedProvider == index ? .white : .primary)
+                                            .cornerRadius(8)
+                                    }
+                                }
+                            }
+                        }
+                        .padding()
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        
+                        // Base URL
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Base URL").font(.caption).foregroundColor(.gray)
+                            TextField("https://api.openai.com/v1", text: $baseUrl)
+                                .textFieldStyle(.roundedBorder)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                        }
+                        .padding()
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        
+                        // API Key
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("API Key").font(.caption).foregroundColor(.gray)
+                            SecureField("sk-...", text: $apiKey)
+                                .textFieldStyle(.roundedBorder)
+                        }
+                        .padding()
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        
+                        // 模型名称
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("模型名称").font(.caption).foregroundColor(.gray)
+                            TextField(placeholderModel, text: $modelName)
+                                .textFieldStyle(.roundedBorder)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                        }
+                        .padding()
+                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                        .cornerRadius(10)
+                        .padding(.horizontal)
+                        
+                        // 保存按钮
+                        Button(action: {
+                            // TODO: 通过 ChatManager 保存 ApiPreset 到数据库
+                        }) {
+                            Text("保存配置")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .background(Color.blue)
+                                .foregroundColor(.white)
+                                .cornerRadius(10)
+                        }
+                        .padding(.horizontal)
+                        
+                        // 测试连接按钮
+                        Button(action: {
+                            // TODO: 实现 API 连接测试
+                        }) {
+                            Text("测试连接")
+                                .frame(maxWidth: .infinity)
+                                .padding()
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.blue, lineWidth: 1)
+                                )
+                                .foregroundColor(.blue)
+                        }
+                        .padding(.horizontal)
+                        
+                        Spacer().frame(height: 30)
+                    }
+                    .padding(.vertical)
+                }
+            }
+            .navigationTitle(title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("返回") { showApiPresetEdit = false }
+                }
+            }
+        }
     }
 }

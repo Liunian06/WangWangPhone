@@ -55,6 +55,7 @@ enum class ApiProvider : int {
 enum class ApiType : int {
     Text = 0,
     ImageGen = 1,
+    Voice = 2,
 };
 
 // 表情类型
