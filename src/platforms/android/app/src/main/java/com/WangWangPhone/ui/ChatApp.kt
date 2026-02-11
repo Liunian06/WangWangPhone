@@ -219,8 +219,9 @@ fun ChatAppScreen(onClose: () -> Unit) {
     val profileDbHelper = remember { UserProfileDbHelper(context) }
     
     // 初始化 ChatManager
+    // 注意：当前 MVP 阶段 C++ 原生库未构建，safeInitialize() 会安全降级
     LaunchedEffect(Unit) {
-        com.WangWangPhone.core.ChatManager.initialize()
+        com.WangWangPhone.core.ChatManager.safeInitialize()
     }
 
     var userNickname by remember { mutableStateOf(profileDbHelper.getUserProfile().nickname) }

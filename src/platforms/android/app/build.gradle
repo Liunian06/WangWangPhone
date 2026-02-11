@@ -52,6 +52,19 @@ android {
         vectorDrawables {
             useSupportLibrary true
         }
+
+        // NDK ABI 过滤器 - 仅构建常用架构以加快编译速度
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86_64'
+        }
+
+        // TODO: 待 NDK 构建环境配置完成后（SQLite3 + OpenSSL），取消注释以下配置
+        // externalNativeBuild {
+        //     cmake {
+        //         cppFlags "-std=c++17"
+        //         arguments "-DANDROID_STL=c++_shared"
+        //     }
+        // }
     }
 
     buildTypes {
@@ -85,6 +98,14 @@ android {
             useLegacyPackaging = false
         }
     }
+
+    // TODO: 待 NDK 构建环境配置完成后（需要 SQLite3 + OpenSSL 预编译库），取消注释以下配置
+    // externalNativeBuild {
+    //     cmake {
+    //         path file("../../../../src/core/CMakeLists.txt")
+    //         version "3.22.1"
+    //     }
+    // }
 }
 
 dependencies {
