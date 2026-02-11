@@ -19,10 +19,8 @@ import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -243,7 +241,6 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 fun SettingsScreen(
     isActivated: Boolean, expiryDate: String, onBack: () -> Unit,
     onNavigateToActivation: () -> Unit, onNavigateToDisplay: () -> Unit,
-    onNavigateToApiSettings: () -> Unit,
     onResetToDefault: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -277,16 +274,6 @@ fun SettingsScreen(
             .background(card).clickable(onClick = onNavigateToDisplay).padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("显示设置", fontSize = 16.sp, color = txt)
-                Text(">", color = Color.Gray, fontSize = 16.sp)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("API 设置", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
-        Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
-            .background(card).clickable(onClick = onNavigateToApiSettings).padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("模型配置", fontSize = 16.sp, color = txt)
                 Text(">", color = Color.Gray, fontSize = 16.sp)
             }
         }
@@ -379,9 +366,6 @@ fun HomeScreen() {
     var showSettings by remember { mutableStateOf(false) }
     var showActivation by remember { mutableStateOf(false) }
     var showDisplaySettings by remember { mutableStateOf(false) }
-    var showApiSettings by remember { mutableStateOf(false) }
-    var showApiPresetEdit by remember { mutableStateOf(false) }
-    var editingApiType by remember { mutableIntStateOf(0) } // 0=Text, 1=ImageGen, 2=Voice
     var showChatApp by remember { mutableStateOf(false) }
     var showBrowserApp by remember { mutableStateOf(false) }
     var showCalculatorApp by remember { mutableStateOf(false) }
@@ -443,7 +427,6 @@ fun HomeScreen() {
         if (showSettings) SettingsScreen(isActivated = isActivated, expiryDate = expiryDate,
             onBack = { showSettings = false }, onNavigateToActivation = { showActivation = true },
             onNavigateToDisplay = { showDisplaySettings = true },
-            onNavigateToApiSettings = { showApiSettings = true },
             onResetToDefault = { showResetConfirm = true })
         
         if (showResetConfirm) {
@@ -479,17 +462,6 @@ fun HomeScreen() {
                 lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)
                 homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
             })
-        if (showApiSettings) ApiSettingsScreen(
-            onBack = { showApiSettings = false },
-            onNavigateToPresetEdit = { apiType ->
-                editingApiType = apiType
-                showApiPresetEdit = true
-            }
-        )
-        if (showApiPresetEdit) ApiPresetEditScreen(
-            apiType = editingApiType,
-            onBack = { showApiPresetEdit = false }
-        )
         if (showChatApp) ChatAppScreen(onClose = { showChatApp = false })
         if (showBrowserApp) BrowserAppScreen(onClose = { showBrowserApp = false })
         if (showCalculatorApp) CalculatorAppScreen(onClose = { showCalculatorApp = false })
@@ -1307,297 +1279,6 @@ fun WallpaperSettingCard(title: String, previewPath: String?, cardColor: Color, 
                     Text("🖼️", fontSize = 24.sp)
                 }
             }
-        }
-    }
-}
-
-// ==================== API 设置相关页面 ====================
-
-/**
- * API 设置主菜单 - 包含三个子菜单项
- * - 聊天主模型 (type=0)
- * - 生图模型 (type=1)
- * - 语音模型 (type=2)
- */
-@Composable
-fun ApiSettingsScreen(
-    onBack: () -> Unit,
-    onNavigateToPresetEdit: (Int) -> Unit
-) {
-    BackHandler { onBack() }
-    val isDark = isSystemInDarkTheme()
-    val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
-    val card = if (isDark) Color(0xFF2C2C2E) else Color.White
-    val txt = if (isDark) Color.White else Color.Black
-
-    Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
-        // 导航栏
-        Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
-            contentAlignment = Alignment.CenterStart) {
-            Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
-            Text("API 设置", modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("模型配置", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
-
-        // 聊天主模型
-        Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card)) {
-            Box(modifier = Modifier.fillMaxWidth().clickable { onNavigateToPresetEdit(0) }.padding(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("💬", fontSize = 22.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("聊天主模型", fontSize = 16.sp, color = txt)
-                            Text("用于角色扮演和日常对话", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                    Text(">", color = Color.Gray, fontSize = 16.sp)
-                }
-            }
-
-            // 分隔线
-            Box(modifier = Modifier.padding(start = 50.dp).fillMaxWidth().height(0.5.dp).background(Color.Gray.copy(alpha = 0.3f)))
-
-            // 生图模型
-            Box(modifier = Modifier.fillMaxWidth().clickable { onNavigateToPresetEdit(1) }.padding(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🎨", fontSize = 22.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("生图模型", fontSize = 16.sp, color = txt)
-                            Text("用于生成图片和表情包", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                    Text(">", color = Color.Gray, fontSize = 16.sp)
-                }
-            }
-
-            // 分隔线
-            Box(modifier = Modifier.padding(start = 50.dp).fillMaxWidth().height(0.5.dp).background(Color.Gray.copy(alpha = 0.3f)))
-
-            // 语音模型
-            Box(modifier = Modifier.fillMaxWidth().clickable { onNavigateToPresetEdit(2) }.padding(16.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("🎤", fontSize = 22.sp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("语音模型", fontSize = 16.sp, color = txt)
-                            Text("用于语音合成和语音识别", fontSize = 12.sp, color = Color.Gray)
-                        }
-                    }
-                    Text(">", color = Color.Gray, fontSize = 16.sp)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-        Text("提示", modifier = Modifier.padding(horizontal = 26.dp, vertical = 4.dp), fontSize = 12.sp, color = Color.Gray)
-        Text("配置各类模型的 API 密钥和端点，以启用对应功能。", 
-            modifier = Modifier.padding(horizontal = 26.dp), fontSize = 12.sp, color = Color.Gray)
-    }
-}
-
-/**
- * API 预设编辑页面 - 设置具体的 API 配置
- * @param apiType 0=聊天主模型, 1=生图模型, 2=语音模型
- */
-@Composable
-fun ApiPresetEditScreen(
-    apiType: Int,
-    onBack: () -> Unit
-) {
-    BackHandler { onBack() }
-    val isDark = isSystemInDarkTheme()
-    val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
-    val card = if (isDark) Color(0xFF2C2C2E) else Color.White
-    val txt = if (isDark) Color.White else Color.Black
-    val context = LocalContext.current
-
-    val title = when (apiType) {
-        0 -> "聊天主模型"
-        1 -> "生图模型"
-        2 -> "语音模型"
-        else -> "模型设置"
-    }
-
-    val subtitle = when (apiType) {
-        0 -> "配置用于角色扮演和对话的大语言模型"
-        1 -> "配置用于图片生成的模型接口"
-        2 -> "配置用于语音合成和识别的模型接口"
-        else -> ""
-    }
-
-    // 表单状态
-    var presetName by remember { mutableStateOf("") }
-    var baseUrl by remember { mutableStateOf("") }
-    var apiKey by remember { mutableStateOf("") }
-    var modelName by remember { mutableStateOf("") }
-    var selectedProvider by remember { mutableIntStateOf(0) }
-    var showSaveSuccess by remember { mutableStateOf(false) }
-
-    val providerOptions = listOf("OpenAI", "Gemini", "火山引擎", "OpenAI 兼容", "Minimax", "Grok")
-
-    Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
-        // 导航栏
-        Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
-            contentAlignment = Alignment.CenterStart) {
-            Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
-            Text(title, modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
-        }
-
-        // 使用 verticalScroll 支持滚动
-        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(subtitle, modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
-
-            // 预设名称
-            Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                Text("预设名称", fontSize = 14.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(8.dp))
-                androidx.compose.material3.TextField(
-                    value = presetName, onValueChange = { presetName = it },
-                    placeholder = { Text("例如: 我的${title}配置") },
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)),
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        focusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        unfocusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = txt, unfocusedTextColor = txt
-                    ), singleLine = true
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // API 供应商选择
-            Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                Text("API 供应商", fontSize = 14.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(8.dp))
-                // 简单的选择按钮行
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    providerOptions.take(3).forEachIndexed { index, name ->
-                        val isSelected = selectedProvider == index
-                        Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) Color(0xFF007AFF) else if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5))
-                            .clickable { selectedProvider = index }.padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center) {
-                            Text(name, fontSize = 12.sp, color = if (isSelected) Color.White else txt)
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    providerOptions.drop(3).forEachIndexed { index, name ->
-                        val actualIndex = index + 3
-                        val isSelected = selectedProvider == actualIndex
-                        Box(modifier = Modifier.weight(1f).clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) Color(0xFF007AFF) else if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5))
-                            .clickable { selectedProvider = actualIndex }.padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center) {
-                            Text(name, fontSize = 12.sp, color = if (isSelected) Color.White else txt)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Base URL
-            Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                Text("Base URL", fontSize = 14.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(8.dp))
-                androidx.compose.material3.TextField(
-                    value = baseUrl, onValueChange = { baseUrl = it },
-                    placeholder = { Text("https://api.openai.com/v1") },
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)),
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        focusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        unfocusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = txt, unfocusedTextColor = txt
-                    ), singleLine = true
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // API Key
-            Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                Text("API Key", fontSize = 14.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(8.dp))
-                androidx.compose.material3.TextField(
-                    value = apiKey, onValueChange = { apiKey = it },
-                    placeholder = { Text("sk-...") },
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)),
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        focusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        unfocusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = txt, unfocusedTextColor = txt
-                    ), singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 模型名称
-            Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                Text("模型名称", fontSize = 14.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(8.dp))
-                val placeholderModel = when (apiType) {
-                    0 -> "gpt-4o / claude-3.5-sonnet"
-                    1 -> "dall-e-3 / stable-diffusion-xl"
-                    2 -> "tts-1 / whisper-1"
-                    else -> "model-name"
-                }
-                androidx.compose.material3.TextField(
-                    value = modelName, onValueChange = { modelName = it },
-                    placeholder = { Text(placeholderModel) },
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)),
-                    colors = androidx.compose.material3.TextFieldDefaults.colors(
-                        focusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        unfocusedContainerColor = if (isDark) Color(0xFF3A3A3C) else Color(0xFFF5F5F5),
-                        focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                        focusedTextColor = txt, unfocusedTextColor = txt
-                    ), singleLine = true
-                )
-            }
-
-            Spacer(modifier = Modifier.height(30.dp))
-
-            // 保存按钮
-            androidx.compose.material3.Button(
-                onClick = {
-                    // TODO: 通过 ChatManager 保存 ApiPreset 到数据库
-                    android.widget.Toast.makeText(context, "${title}配置已保存", android.widget.Toast.LENGTH_SHORT).show()
-                    showSaveSuccess = true
-                },
-                modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(10.dp),
-                colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF))
-            ) { Text("保存配置", color = Color.White, fontSize = 16.sp) }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 测试连接按钮
-            androidx.compose.material3.OutlinedButton(
-                onClick = {
-                    android.widget.Toast.makeText(context, "正在测试连接...", android.widget.Toast.LENGTH_SHORT).show()
-                    // TODO: 实现 API 连接测试
-                },
-                modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(50.dp),
-                shape = RoundedCornerShape(10.dp)
-            ) { Text("测试连接", color = Color(0xFF007AFF), fontSize = 16.sp) }
-
-            Spacer(modifier = Modifier.height(30.dp))
         }
     }
 }

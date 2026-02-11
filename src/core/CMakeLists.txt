@@ -32,11 +32,6 @@ endif()
 
 add_library(wwj_core SHARED ${SOURCES})
 
-# 添加 nlohmann/json 依赖（为了处理 C++ 中的 JSON）
-# 注意：在实际项目中可能需要先下载该库，这里假设系统或 NDK 已提供，或作为第三方库加入。
-# 如果不使用第三方库，我们也可以使用简单的字符串处理或封装好的 sqlite3 json 函数。
-# 为了 MVP 快速实现，目前先使用 CMake 引入或手动解析。
-
 # 注入公钥为编译时宏
 target_compile_definitions(wwj_core PRIVATE RSA_PUBLIC_KEY_BASE64="${PUBLIC_KEY_B64}")
 
