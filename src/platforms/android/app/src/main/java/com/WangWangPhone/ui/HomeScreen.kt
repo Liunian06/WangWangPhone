@@ -244,6 +244,7 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 fun SettingsScreen(
     isActivated: Boolean, expiryDate: String, onBack: () -> Unit,
     onNavigateToActivation: () -> Unit, onNavigateToDisplay: () -> Unit,
+    onNavigateToApiPresets: () -> Unit,
     onResetToDefault: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -277,6 +278,16 @@ fun SettingsScreen(
             .background(card).clickable(onClick = onNavigateToDisplay).padding(16.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("显示设置", fontSize = 16.sp, color = txt)
+                Text(">", color = Color.Gray, fontSize = 16.sp)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("API预设", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
+        Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
+            .background(card).clickable(onClick = onNavigateToApiPresets).padding(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("API配置管理", fontSize = 16.sp, color = txt)
                 Text(">", color = Color.Gray, fontSize = 16.sp)
             }
         }
@@ -370,6 +381,10 @@ fun HomeScreen() {
     var showActivation by remember { mutableStateOf(false) }
     var showDisplaySettings by remember { mutableStateOf(false) }
     var showIconCustomization by remember { mutableStateOf(false) }
+    var showApiPresets by remember { mutableStateOf(false) }
+    var showChatApiPresets by remember { mutableStateOf(false) }
+    var showImageApiPresets by remember { mutableStateOf(false) }
+    var showVoiceApiPresets by remember { mutableStateOf(false) }
     var showChatApp by remember { mutableStateOf(false) }
     var showBrowserApp by remember { mutableStateOf(false) }
     var showCalculatorApp by remember { mutableStateOf(false) }
@@ -432,18 +447,19 @@ fun HomeScreen() {
         if (showSettings) SettingsScreen(isActivated = isActivated, expiryDate = expiryDate,
             onBack = { showSettings = false }, onNavigateToActivation = { showActivation = true },
             onNavigateToDisplay = { showDisplaySettings = true },
+            onNavigateToApiPresets = { showApiPresets = true },
             onResetToDefault = { showResetConfirm = true })
         
         if (showResetConfirm) {
             androidx.compose.material3.AlertDialog(
                 onDismissRequest = { showResetConfirm = false },
                 title = { Text("恢复默认设置") },
-                text = { Text("此操作将清除所有自定义布局、壁纸、天气缓存和用户资料，且无法撤销。是否继续？") },
+                text = { Text("此操作将清除所有自定义布局、壁纸、天气缓存、用户资料和自定义图标，且无法撤销。是否继续？") },
                 confirmButton = {
                     androidx.compose.material3.TextButton(
                         onClick = {
                             showResetConfirm = false
-                            if (layoutDbHelper.resetToDefaultSettings(wallpaperDbHelper, weatherCacheDbHelper, userProfileDbHelper)) {
+                            if (layoutDbHelper.resetToDefaultSettings(wallpaperDbHelper, weatherCacheDbHelper, userProfileDbHelper, iconDbHelper)) {
                                 // 强制重新加载以应用默认设置
                                 android.widget.Toast.makeText(context, "设置已恢复", android.widget.Toast.LENGTH_SHORT).show()
                                 // 简单粗暴的做法是重启，或者通过重置状态来更新UI
@@ -469,6 +485,13 @@ fun HomeScreen() {
             }, onNavigateToIconCustomization = { showIconCustomization = true })
         if (showIconCustomization) IconCustomizationScreen(onBack = { showIconCustomization = false },
             onIconChanged = { layoutReloadTrigger++ })
+        if (showApiPresets) ApiPresetsScreen(onBack = { showApiPresets = false },
+            onNavigateToChatApi = { showChatApiPresets = true },
+            onNavigateToImageApi = { showImageApiPresets = true },
+            onNavigateToVoiceApi = { showVoiceApiPresets = true })
+        if (showChatApiPresets) ChatApiPresetsScreen(onBack = { showChatApiPresets = false })
+        if (showImageApiPresets) ImageApiPresetsScreen(onBack = { showImageApiPresets = false })
+        if (showVoiceApiPresets) VoiceApiPresetsScreen(onBack = { showVoiceApiPresets = false })
         if (showChatApp) ChatAppScreen(onClose = { showChatApp = false })
         if (showBrowserApp) BrowserAppScreen(onClose = { showBrowserApp = false })
         if (showCalculatorApp) CalculatorAppScreen(onClose = { showCalculatorApp = false })
@@ -1255,6 +1278,103 @@ fun checkOccupancy(positions: Map<Int, GridItem>, startCell: Int, spanX: Int, sp
 }
 
 @Composable
+fun IconCustomizationScreen(onBack: () -> Unit, onIconChanged: () -> Unit) {
+    BackHandler { onBack() }
+    val isDark = isSystemInDarkTheme()
+    val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val card = if (isDark) Color(0xFF2C2C2E) else Color.White
+    val txt = if (isDark) Color.White else Color.Black
+    val context = LocalContext.current
+    val iconDbHelper = remember { IconCustomizationDbHelper(context) }
+    val defaultApps = remember(isDark) { getDefaultApps(isDark) }
+    var customIcons by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var selectedAppId by remember { mutableStateOf<String?>(null) }
+    
+    LaunchedEffect(Unit) {
+        val records = iconDbHelper.getAllCustomIcons()
+        customIcons = records.associate { it.appId to (iconDbHelper.getCustomIconFilePath(it.appId) ?: "") }
+    }
+    
+    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            selectedAppId?.let { appId ->
+                iconDbHelper.copyImageToStorage(it)?.let { fn ->
+                    if (iconDbHelper.saveCustomIcon(appId, fn)) {
+                        val path = iconDbHelper.getCustomIconFilePath(appId)
+                        if (path != null) {
+                            customIcons = customIcons + (appId to path)
+                            onIconChanged()
+                        }
+                    }
+                }
+            }
+        }
+        selectedAppId = null
+    }
+    
+    Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart) {
+            Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
+            Text("桌面图标设置", modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
+        }
+        
+        LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 20.dp)) {
+            items(defaultApps) { app ->
+                val customIconPath = customIcons[app.id]
+                Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp)).background(card)
+                    .clickable {
+                        selectedAppId = app.id
+                        imageLauncher.launch("image/*")
+                    }.padding(16.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            Box(modifier = Modifier.size(50.dp), contentAlignment = Alignment.Center) {
+                                if (customIconPath != null) {
+                                    val bitmap = remember(customIconPath) { android.graphics.BitmapFactory.decodeFile(customIconPath) }
+                                    if (bitmap != null) {
+                                        Image(bitmap = bitmap.asImageBitmap(), contentDescription = app.name,
+                                            modifier = Modifier.size(50.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
+                                    }
+                                } else {
+                                    if (app.useImage) {
+                                        val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+                                        if (resId != 0) {
+                                            Image(painter = androidx.compose.ui.res.painterResource(id = resId),
+                                                contentDescription = app.name, modifier = Modifier.size(50.dp))
+                                        }
+                                    } else {
+                                        Text(app.icon, fontSize = 40.sp)
+                                    }
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(app.name, fontSize = 16.sp, color = txt)
+                                Text(if (customIconPath != null) "已自定义" else "使用默认图标", fontSize = 12.sp, color = Color.Gray)
+                            }
+                        }
+                        if (customIconPath != null) {
+                            androidx.compose.material3.TextButton(onClick = {
+                                iconDbHelper.clearCustomIcon(app.id)
+                                customIcons = customIcons - app.id
+                                onIconChanged()
+                            }) {
+                                Text("恢复默认", color = Color(0xFF007AFF), fontSize = 14.sp)
+                            }
+                        } else {
+                            Text(">", color = Color.Gray, fontSize = 16.sp)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun DisplaySettingsScreen(wallpaperDbHelper: WallpaperDbHelper, onBack: () -> Unit, onWallpaperChanged: () -> Unit, onNavigateToIconCustomization: () -> Unit) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
@@ -1298,103 +1418,6 @@ fun DisplaySettingsScreen(wallpaperDbHelper: WallpaperDbHelper, onBack: () -> Un
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("桌面图标设置", fontSize = 16.sp, color = txt)
                 Text(">", color = Color.Gray, fontSize = 16.sp)
-            }
-        }
-        
-        @Composable
-        fun IconCustomizationScreen(onBack: () -> Unit, onIconChanged: () -> Unit) {
-            BackHandler { onBack() }
-            val isDark = isSystemInDarkTheme()
-            val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
-            val card = if (isDark) Color(0xFF2C2C2E) else Color.White
-            val txt = if (isDark) Color.White else Color.Black
-            val context = LocalContext.current
-            val iconDbHelper = remember { IconCustomizationDbHelper(context) }
-            val defaultApps = remember(isDark) { getDefaultApps(isDark) }
-            var customIcons by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
-            var selectedAppId by remember { mutableStateOf<String?>(null) }
-            
-            LaunchedEffect(Unit) {
-                val records = iconDbHelper.getAllCustomIcons()
-                customIcons = records.associate { it.appId to (iconDbHelper.getCustomIconFilePath(it.appId) ?: "") }
-            }
-            
-            val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-                uri?.let {
-                    selectedAppId?.let { appId ->
-                        iconDbHelper.copyImageToStorage(it)?.let { fn ->
-                            if (iconDbHelper.saveCustomIcon(appId, fn)) {
-                                val path = iconDbHelper.getCustomIconFilePath(appId)
-                                if (path != null) {
-                                    customIcons = customIcons + (appId to path)
-                                    onIconChanged()
-                                }
-                            }
-                        }
-                    }
-                }
-                selectedAppId = null
-            }
-            
-            Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
-                Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
-                    contentAlignment = Alignment.CenterStart) {
-                    Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
-                    Text("桌面图标设置", modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
-                }
-                
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 20.dp)) {
-                    items(defaultApps) { app ->
-                        val customIconPath = customIcons[app.id]
-                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp)).background(card)
-                            .clickable {
-                                selectedAppId = app.id
-                                imageLauncher.launch("image/*")
-                            }.padding(16.dp)) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically) {
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                                    Box(modifier = Modifier.size(50.dp), contentAlignment = Alignment.Center) {
-                                        if (customIconPath != null) {
-                                            val bitmap = remember(customIconPath) { android.graphics.BitmapFactory.decodeFile(customIconPath) }
-                                            if (bitmap != null) {
-                                                Image(bitmap = bitmap.asImageBitmap(), contentDescription = app.name,
-                                                    modifier = Modifier.size(50.dp).clip(RoundedCornerShape(10.dp)), contentScale = ContentScale.Crop)
-                                            }
-                                        } else {
-                                            if (app.useImage) {
-                                                val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
-                                                if (resId != 0) {
-                                                    Image(painter = androidx.compose.ui.res.painterResource(id = resId),
-                                                        contentDescription = app.name, modifier = Modifier.size(50.dp))
-                                                }
-                                            } else {
-                                                Text(app.icon, fontSize = 40.sp)
-                                            }
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(app.name, fontSize = 16.sp, color = txt)
-                                        Text(if (customIconPath != null) "已自定义" else "使用默认图标", fontSize = 12.sp, color = Color.Gray)
-                                    }
-                                }
-                                if (customIconPath != null) {
-                                    androidx.compose.material3.TextButton(onClick = {
-                                        iconDbHelper.clearCustomIcon(app.id)
-                                        customIcons = customIcons - app.id
-                                        onIconChanged()
-                                    }) {
-                                        Text("恢复默认", color = Color(0xFF007AFF), fontSize = 14.sp)
-                                    }
-                                } else {
-                                    Text(">", color = Color.Gray, fontSize = 16.sp)
-                                }
-                            }
-                        }
-                    }
-                }
             }
         }
     }

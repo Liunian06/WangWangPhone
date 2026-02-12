@@ -689,6 +689,7 @@ struct SettingsView: View {
     @Binding var showSettings: Bool
     @Binding var showActivation: Bool
     @Binding var showDisplaySettings: Bool
+    @Binding var showApiPresets: Bool
     @Binding var isActivated: Bool
     let expiryDate: String
     
@@ -724,6 +725,14 @@ struct SettingsView: View {
                         Section(header: Text("外观").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
                             SettingsRow(title: "显示设置") {
                                 showDisplaySettings = true
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                        
+                        Section(header: Text("API预设").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            SettingsRow(title: "API配置管理") {
+                                showApiPresets = true
                             }
                             .cornerRadius(10)
                             .padding(.horizontal)
@@ -832,6 +841,10 @@ struct HomeScreen: View {
     @State private var showActivation = false
     @State private var showDisplaySettings = false
     @State private var showIconCustomization = false
+    @State private var showApiPresets = false
+    @State private var showChatApiPresets = false
+    @State private var showImageApiPresets = false
+    @State private var showVoiceApiPresets = false
     @State private var isActivated = LicenseManager.shared.isActivated()
     @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
     
@@ -1021,13 +1034,29 @@ struct HomeScreen: View {
             }
 
             if showSettings {
-                SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, isActivated: $isActivated, expiryDate: expiryDate)
+                SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, showApiPresets: $showApiPresets, isActivated: $isActivated, expiryDate: expiryDate)
                     .transition(.move(edge: .trailing)).zIndex(1)
                     .onDisappear {
                         loadLayout()
                         layoutReloadTrigger = UUID()
                         homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
                     }
+            }
+            if showApiPresets {
+                ApiPresetsView(showApiPresets: $showApiPresets, showChatApiPresets: $showChatApiPresets, showImageApiPresets: $showImageApiPresets, showVoiceApiPresets: $showVoiceApiPresets)
+                    .transition(.move(edge: .trailing)).zIndex(1.4)
+            }
+            if showChatApiPresets {
+                ApiPresetListView(type: "chat", title: "聊天API预设", showView: $showChatApiPresets)
+                    .transition(.move(edge: .trailing)).zIndex(1.5)
+            }
+            if showImageApiPresets {
+                ApiPresetListView(type: "image", title: "生图API预设", showView: $showImageApiPresets)
+                    .transition(.move(edge: .trailing)).zIndex(1.5)
+            }
+            if showVoiceApiPresets {
+                ApiPresetListView(type: "voice", title: "语音API预设", showView: $showVoiceApiPresets)
+                    .transition(.move(edge: .trailing)).zIndex(1.5)
             }
             if showDisplaySettings {
                 DisplaySettingsView(showDisplaySettings: $showDisplaySettings, showIconCustomization: $showIconCustomization, onIconChanged: {

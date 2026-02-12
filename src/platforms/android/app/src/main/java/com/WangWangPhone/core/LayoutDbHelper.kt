@@ -172,11 +172,13 @@ class LayoutDbHelper(context: Context) : SQLiteOpenHelper(
      * 2. 清除壁纸
      * 3. 清除天气缓存
      * 4. 重置用户资料
+     * 5. 清除自定义图标
      */
     fun resetToDefaultSettings(
         wallpaperDbHelper: WallpaperDbHelper,
         weatherCacheDbHelper: WeatherCacheDbHelper,
-        userProfileDbHelper: UserProfileDbHelper
+        userProfileDbHelper: UserProfileDbHelper,
+        iconCustomizationDbHelper: IconCustomizationDbHelper
     ): Boolean {
         return try {
             val db = writableDatabase
@@ -193,6 +195,9 @@ class LayoutDbHelper(context: Context) : SQLiteOpenHelper(
 
                 // 4. 重置用户资料
                 userProfileDbHelper.resetToDefault()
+
+                // 5. 清除自定义图标
+                iconCustomizationDbHelper.clearAllCustomIcons()
 
                 db.setTransactionSuccessful()
                 true
