@@ -244,7 +244,9 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
 fun SettingsScreen(
     isActivated: Boolean, expiryDate: String, onBack: () -> Unit,
     onNavigateToActivation: () -> Unit, onNavigateToDisplay: () -> Unit,
-    onNavigateToApiPresets: () -> Unit,
+    onNavigateToChatApi: () -> Unit,
+    onNavigateToImageApi: () -> Unit,
+    onNavigateToVoiceApi: () -> Unit,
     onResetToDefault: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -284,11 +286,26 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(20.dp))
         Text("API预设", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
-        Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp))
-            .background(card).clickable(onClick = onNavigateToApiPresets).padding(16.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("API配置管理", fontSize = 16.sp, color = txt)
-                Text(">", color = Color.Gray, fontSize = 16.sp)
+        Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(card)) {
+            Box(modifier = Modifier.fillMaxWidth().clickable(onClick = onNavigateToChatApi).padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("聊天API预设", fontSize = 16.sp, color = txt)
+                    Text(">", color = Color.Gray, fontSize = 16.sp)
+                }
+            }
+            androidx.compose.material3.Divider(modifier = Modifier.padding(horizontal = 16.dp), color = Color.Gray.copy(alpha = 0.2f))
+            Box(modifier = Modifier.fillMaxWidth().clickable(onClick = onNavigateToImageApi).padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("生图API预设", fontSize = 16.sp, color = txt)
+                    Text(">", color = Color.Gray, fontSize = 16.sp)
+                }
+            }
+            androidx.compose.material3.Divider(modifier = Modifier.padding(horizontal = 16.dp), color = Color.Gray.copy(alpha = 0.2f))
+            Box(modifier = Modifier.fillMaxWidth().clickable(onClick = onNavigateToVoiceApi).padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("语音API预设", fontSize = 16.sp, color = txt)
+                    Text(">", color = Color.Gray, fontSize = 16.sp)
+                }
             }
         }
 
@@ -381,7 +398,6 @@ fun HomeScreen() {
     var showActivation by remember { mutableStateOf(false) }
     var showDisplaySettings by remember { mutableStateOf(false) }
     var showIconCustomization by remember { mutableStateOf(false) }
-    var showApiPresets by remember { mutableStateOf(false) }
     var showChatApiPresets by remember { mutableStateOf(false) }
     var showImageApiPresets by remember { mutableStateOf(false) }
     var showVoiceApiPresets by remember { mutableStateOf(false) }
@@ -447,7 +463,9 @@ fun HomeScreen() {
         if (showSettings) SettingsScreen(isActivated = isActivated, expiryDate = expiryDate,
             onBack = { showSettings = false }, onNavigateToActivation = { showActivation = true },
             onNavigateToDisplay = { showDisplaySettings = true },
-            onNavigateToApiPresets = { showApiPresets = true },
+            onNavigateToChatApi = { showChatApiPresets = true },
+            onNavigateToImageApi = { showImageApiPresets = true },
+            onNavigateToVoiceApi = { showVoiceApiPresets = true },
             onResetToDefault = { showResetConfirm = true })
         
         if (showResetConfirm) {
@@ -485,10 +503,6 @@ fun HomeScreen() {
             }, onNavigateToIconCustomization = { showIconCustomization = true })
         if (showIconCustomization) IconCustomizationScreen(onBack = { showIconCustomization = false },
             onIconChanged = { layoutReloadTrigger++ })
-        if (showApiPresets) ApiPresetsScreen(onBack = { showApiPresets = false },
-            onNavigateToChatApi = { showChatApiPresets = true },
-            onNavigateToImageApi = { showImageApiPresets = true },
-            onNavigateToVoiceApi = { showVoiceApiPresets = true })
         if (showChatApiPresets) ChatApiPresetsScreen(onBack = { showChatApiPresets = false })
         if (showImageApiPresets) ImageApiPresetsScreen(onBack = { showImageApiPresets = false })
         if (showVoiceApiPresets) VoiceApiPresetsScreen(onBack = { showVoiceApiPresets = false })
