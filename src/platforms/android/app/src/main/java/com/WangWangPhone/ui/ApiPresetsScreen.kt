@@ -226,18 +226,24 @@ fun ApiPresetEditDialog(
                 
                 if (type != "voice") {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = provider == "openai",
+                        Button(
                             onClick = { provider = "openai" },
-                            label = { Text("OpenAI") },
-                            modifier = Modifier.weight(1f)
-                        )
-                        FilterChip(
-                            selected = provider == "gemini",
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (provider == "openai") Color(0xFF007AFF) else Color.Gray.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Text("OpenAI", color = Color.White)
+                        }
+                        Button(
                             onClick = { provider = "gemini" },
-                            label = { Text("Gemini") },
-                            modifier = Modifier.weight(1f)
-                        )
+                            modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (provider == "gemini") Color(0xFF007AFF) else Color.Gray.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Text("Gemini", color = Color.White)
+                        }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 } else {
