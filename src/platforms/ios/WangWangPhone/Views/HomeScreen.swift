@@ -201,6 +201,7 @@ struct PageGridView: View {
     @Binding var weather: WeatherInfo?
     
     var maxDockApps: Int
+    var customIcons: [String: UIImage]
     var onSettingsClick: () -> Void
     var onChatClick: () -> Void
     var onBrowserClick: () -> Void
@@ -277,7 +278,13 @@ struct PageGridView: View {
             } else if let app = item as? AppIconData {
                 VStack(spacing: 6) {
                     ZStack {
-                        if app.useImage {
+                        if let customIcon = customIcons[app.id] {
+                            Image(uiImage: customIcon)
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 60, height: 60)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                        } else if app.useImage {
                             Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
                                 .resizable().aspectRatio(contentMode: .fit).frame(width: 60, height: 60)
                         } else {
@@ -498,6 +505,7 @@ struct DraggableDockIconView: View {
     @Binding var draggingOffset: CGSize
     let currentPage: Int
     let colorScheme: ColorScheme
+    let customIcons: [String: UIImage]
     var isActivated: Bool
     var onActivationAlert: () -> Void
     var onTap: () -> Void
@@ -515,7 +523,13 @@ struct DraggableDockIconView: View {
     
     var body: some View {
         ZStack {
-            if app.useImage {
+            if let customIcon = customIcons[app.id] {
+                Image(uiImage: customIcon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 60, height: 60)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            } else if app.useImage {
                 Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
                     .resizable().aspectRatio(contentMode: .fit).frame(width: 60, height: 60)
             } else {
@@ -754,12 +768,36 @@ struct SettingsView: View {
 
 struct DisplaySettingsView: View {
     @Binding var showDisplaySettings: Bool
+    @Binding var showIconCustomization: Bool
+    var onIconChanged: () -> Void
     
     var body: some View {
         NavigationView {
             ZStack {
                 Color(UIColor.systemGroupedBackground).ignoresSafeArea()
-                Text("显示设置内容在此（壁纸设置等）")
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Section(header: Text("壁纸").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            Text("壁纸设置功能待实现").padding().background(Color(UIColor.secondarySystemGroupedBackground)).cornerRadius(10).padding(.horizontal)
+                        }
+                        
+                        Section(header: Text("桌面图标").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            Button(action: { showIconCustomization = true }) {
+                                HStack {
+                                    Text("桌面图标设置").foregroundColor(.primary)
+                                    Spacer()
+                                    Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.gray)
+                                }
+                                .padding()
+                                .background(Color(UIColor.secondarySystemGroupedBackground))
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                        }
+                    }
+                    .padding(.vertical)
+                }
             }
             .navigationTitle("显示设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -793,6 +831,7 @@ struct HomeScreen: View {
     @State private var showNotesApp = false
     @State private var showActivation = false
     @State private var showDisplaySettings = false
+    @State private var showIconCustomization = false
     @State private var isActivated = LicenseManager.shared.isActivated()
     @State private var expiryDate = LicenseManager.shared.getExpirationDateString()
     
@@ -804,9 +843,12 @@ struct HomeScreen: View {
     @State private var draggingFromCell: Int = -1
     @State private var draggingFromPage: Int = -1
     
+    @State private var customIcons: [String: UIImage] = [:]
+    
     @Environment(\.colorScheme) var colorScheme
     
     private let layoutManager = LayoutManager.shared
+    private let iconManager = IconCustomizationManager.shared
     private let defaultApps = getDefaultApps()
     private let defaultWidgets = getDefaultWidgets()
     private let maxDockApps = 4
@@ -847,6 +889,7 @@ struct HomeScreen: View {
                             city: $city,
                             weather: $weather,
                             maxDockApps: maxDockApps,
+                            customIcons: customIcons,
                             onSettingsClick: { showSettings = true },
                             onChatClick: { showChatApp = true },
                             onBrowserClick: { showBrowserApp = true },
@@ -896,6 +939,7 @@ struct HomeScreen: View {
                                 draggingOffset: $draggingOffset,
                                 currentPage: currentPage,
                                 colorScheme: colorScheme,
+                                customIcons: customIcons,
                                 isActivated: isActivated,
                                 onActivationAlert: { showActivationAlert = true },
                                 onTap: {
@@ -941,7 +985,13 @@ struct HomeScreen: View {
                     } else if let app = item as? AppIconData {
                         VStack(spacing: 6) {
                             ZStack {
-                                if app.useImage {
+                                if let customIcon = customIcons[app.id] {
+                                    Image(uiImage: customIcon)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 60, height: 60)
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                } else if app.useImage {
                                     Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
                                         .resizable().aspectRatio(contentMode: .fit).frame(width: 60, height: 60)
                                 } else {
@@ -980,8 +1030,18 @@ struct HomeScreen: View {
                     }
             }
             if showDisplaySettings {
-                DisplaySettingsView(showDisplaySettings: $showDisplaySettings)
+                DisplaySettingsView(showDisplaySettings: $showDisplaySettings, showIconCustomization: $showIconCustomization, onIconChanged: {
+                    layoutReloadTrigger = UUID()
+                    loadCustomIcons()
+                })
                     .transition(.move(edge: .trailing)).zIndex(1.5)
+            }
+            if showIconCustomization {
+                IconCustomizationView(showIconCustomization: $showIconCustomization, onIconChanged: {
+                    layoutReloadTrigger = UUID()
+                    loadCustomIcons()
+                })
+                    .transition(.move(edge: .trailing)).zIndex(1.6)
             }
             if showActivation {
                 ActivationView(showActivation: $showActivation, isActivated: $isActivated, expiryDate: $expiryDate)
@@ -1030,7 +1090,19 @@ struct HomeScreen: View {
         .onAppear {
             loadLayout()
             loadWeatherData()
+            loadCustomIcons()
         }
+    }
+    
+    func loadCustomIcons() {
+        let records = iconManager.getAllCustomIcons()
+        var icons: [String: UIImage] = [:]
+        for record in records {
+            if let image = iconManager.getCustomIconImage(appId: record.appId) {
+                icons[record.appId] = image
+            }
+        }
+        customIcons = icons
     }
     
     /// 带缓存的天气加载逻辑
