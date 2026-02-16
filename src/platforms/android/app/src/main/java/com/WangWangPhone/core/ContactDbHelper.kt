@@ -26,7 +26,7 @@ data class ContactInfo(
         val firstChar = nickname.firstOrNull() ?: return "#"
         return when {
             firstChar.isLetter() -> firstChar.uppercaseChar().toString()
-            firstChar in '\u4e00'..'\u9fa5' -> getPinyinFirstLetter(firstChar).toString()
+            firstChar in '\u4e00'..'\u9fff' -> getPinyinFirstLetter(firstChar).toString()
             else -> "#"
         }
     }
@@ -35,29 +35,29 @@ data class ContactInfo(
         private fun getPinyinFirstLetter(c: Char): Char {
             val code = c.code
             return when (code) {
-                in 0x963f..0x9fff -> 'A'
-                in 0x5df4..0x5e7f -> 'B'
-                in 0x5f69..0x64cd -> 'C'
-                in 0x5927..0x5df3 -> 'D'
+                in 0x963F..0x9FFF -> 'A'
+                in 0x5DF4..0x5EF6 -> 'B'
+                in 0x5F00..0x62FF -> 'C'
+                in 0x6300..0x6536 -> 'D'
                 in 0x5384..0x5592 -> 'E'
-                in 0x53d1..0x5926 -> 'F'
-                in 0x7518..0x8fc7 -> 'G'
-                in 0x54c8..0x7517 -> 'H'
-                in 0x673a..0x6838 -> 'J'
-                in 0x5361..0x5fbd -> 'K'
-                in 0x5783..0x62c9 -> 'L'
-                in 0x5988..0x9ebb -> 'M'
-                in 0x54ea..0x8bb7 -> 'N'
-                in 0x5594..0x8bb4 -> 'O'
-                in 0x556a..0x5e15 -> 'P'
-                in 0x4e03..0x5566 -> 'Q'
-                in 0x7136..0x8ba9 -> 'R'
-                in 0x4e09..0x584b -> 'S'
-                in 0x584c..0x9f4a -> 'T'
-                in 0x6316..0x6316 -> 'W'
-                in 0x5915..0x7a74 -> 'X'
-                in 0x538b..0x5914 -> 'Y'
-                in 0x531d..0x5383 -> 'Z'
+                in 0x53D1..0x5926 -> 'F'
+                in 0x7518..0x7A00 -> 'G'
+                in 0x54C8..0x5DF3 -> 'H'
+                in 0x673A..0x6770 -> 'J'
+                in 0x5361..0x5494 -> 'K'
+                in 0x5783..0x5D03 -> 'L'
+                in 0x5988..0x5BFF -> 'M'
+                in 0x54EA..0x5360 -> 'N'
+                in 0x5594..0x5783 -> 'O'
+                in 0x556A..0x5939 -> 'P'
+                in 0x4E03..0x5360 -> 'Q'
+                in 0x7136..0x7518 -> 'R'
+                in 0x4E09..0x53D0 -> 'S'
+                in 0x584C..0x6316 -> 'T'
+                in 0x6316..0x6770 -> 'W'
+                in 0x5915..0x5BFF -> 'X'
+                in 0x538B..0x5939 -> 'Y'
+                in 0x531D..0x5594 -> 'Z'
                 else -> '#'
             }
         }

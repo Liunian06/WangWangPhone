@@ -123,6 +123,47 @@ struct WXContact: Identifiable {
     let name: String
     let avatar: String
     var letter: String = ""
+    
+    func getPinyinInitial() -> String {
+        guard let firstChar = name.first else { return "#" }
+        if firstChar.isLetter {
+            return String(firstChar).uppercased()
+        }
+        if firstChar >= "\u{4e00}" && firstChar <= "\u{9fff}" {
+            return String(getPinyinFirstLetter(firstChar))
+        }
+        return "#"
+    }
+    
+    private func getPinyinFirstLetter(_ c: Character) -> Character {
+        let code = c.unicodeScalars.first?.value ?? 0
+        switch code {
+        case 0x963F...0x9FFF: return "A"
+        case 0x5DF4...0x5EF6: return "B"
+        case 0x5F00...0x62FF: return "C"
+        case 0x6300...0x6536: return "D"
+        case 0x5384...0x5592: return "E"
+        case 0x53D1...0x5926: return "F"
+        case 0x7518...0x7A00: return "G"
+        case 0x54C8...0x5DF3: return "H"
+        case 0x673A...0x6770: return "J"
+        case 0x5361...0x5494: return "K"
+        case 0x5783...0x5D03: return "L"
+        case 0x5988...0x5BFF: return "M"
+        case 0x54EA...0x5360: return "N"
+        case 0x5594...0x5783: return "O"
+        case 0x556A...0x5939: return "P"
+        case 0x4E03...0x5360: return "Q"
+        case 0x7136...0x7518: return "R"
+        case 0x4E09...0x53D0: return "S"
+        case 0x584C...0x6316: return "T"
+        case 0x6316...0x6770: return "W"
+        case 0x5915...0x5BFF: return "X"
+        case 0x538B...0x5939: return "Y"
+        case 0x531D...0x5594: return "Z"
+        default: return "#"
+        }
+    }
 }
 
 struct WXMoment: Identifiable {
