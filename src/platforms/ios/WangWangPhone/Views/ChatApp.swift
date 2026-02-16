@@ -296,6 +296,7 @@ struct ChatAppView: View {
     @State private var currentView = "main"
     @State private var currentChatId: String? = nil
     @State private var currentContactId: String? = nil
+    @State private var showContactSelection = false
 
     // 用户资料状态
     @State private var userNickname: String = UserProfileManager.shared.getUserProfile().nickname
@@ -312,6 +313,17 @@ struct ChatAppView: View {
                 ContactDetailView(contactId: currentContactId ?? "", onBack: { currentView = "main"; currentContactId = nil }, onSendMessage: { id in currentChatId = id; currentView = "chat-detail" })
             case "service":
                 ServicePageView(onBack: { currentView = "main"; currentTab = "me" })
+            case "select-contacts":
+                ContactSelectionView(
+                    onBack: { currentView = "main"; showContactSelection = false },
+                    onContactsSelected: { contact1Id, contact2Id in
+                        // 创建新的聊天会话
+                        let chatId = ChatDbHelper.shared.createChat(contact1Id: contact1Id, contact2Id: contact2Id)
+                        currentChatId = chatId
+                        currentView = "chat-detail"
+                        showContactSelection = false
+                    }
+                )
             default:
                 ChatMainView(
                     currentTab: $currentTab,
@@ -319,6 +331,7 @@ struct ChatAppView: View {
                     onOpenChat: { id in currentChatId = id; currentView = "chat-detail" },
                     onOpenContact: { id in currentContactId = id; currentView = "contact-detail" },
                     onOpenService: { currentView = "service" },
+                    onStartChat: { currentView = "select-contacts"; showContactSelection = true },
                     userNickname: $userNickname,
                     userSignature: $userSignature,
                     avatarImage: $avatarImage,
@@ -336,11 +349,13 @@ struct ChatMainView: View {
     var onOpenChat: (String) -> Void
     var onOpenContact: (String) -> Void
     var onOpenService: () -> Void
+    var onStartChat: () -> Void
     @Binding var userNickname: String
     @Binding var userSignature: String
     @Binding var avatarImage: UIImage?
     @Binding var coverImage: UIImage?
     private let titles = ["messages": "微信", "contacts": "通讯录", "moments": "朋友圈", "me": "我"]
+    @State private var showMenu = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -351,7 +366,22 @@ struct ChatMainView: View {
                         Spacer()
                         WeIcon(name: "ic_search", fallback: "🔍", size: 24, color: WeTheme.codeTextPrimary)
                         if currentTab != "moments" {
-                            WeIcon(name: "ic_chat_add", fallback: "⊕", size: 24, color: WeTheme.codeTextPrimary)
+                            Menu {
+                                Button(action: onStartChat) {
+                                    Label("发起聊天", systemImage: "message")
+                                }
+                                Button(action: {}) {
+                                    Label("添加朋友", systemImage: "person.badge.plus")
+                                }
+                                Button(action: {}) {
+                                    Label("扫一扫", systemImage: "camera")
+                                }
+                                Button(action: {}) {
+                                    Label("收付款", systemImage: "creditcard")
+                                }
+                            } label: {
+                                WeIcon(name: "ic_chat_add", fallback: "⊕", size: 24, color: WeTheme.codeTextPrimary)
+                            }
                         }
                     }.padding(.horizontal, 12)
                 }.frame(height: 50).background(WeTheme.codeBackground)
@@ -859,15 +889,30 @@ struct ChatDetailView: View {
     }
 
     private func loadMessages() {
-        messages = wxChatMessages[chatId] ?? [
-            WXChatMessage(type: "time", text: "今天 12:00"),
-            WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: "你好！"),
-        ]
+        let dbMessages = ChatDbHelper.shared.getMessages(contactId: chatId)
+        
+        if dbMessages.isEmpty {
+            messages = wxChatMessages[chatId] ?? [
+                WXChatMessage(type: "time", text: "今天 12:00"),
+                WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: "你好！"),
+            ]
+        } else {
+            messages = [WXChatMessage(type: "time", text: "历史消息")]
+            for msg in dbMessages {
+                if msg.isSent {
+                    messages.append(WXChatMessage(type: "sent", text: msg.message))
+                } else {
+                    messages.append(WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: msg.message))
+                }
+            }
+        }
     }
 
     private func sendMessage() {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        
+        ChatDbHelper.shared.addMessage(contactId: chatId, isSent: true, message: trimmed)
         messages.append(WXChatMessage(type: "sent", text: trimmed))
         inputText = ""
     }
@@ -986,6 +1031,155 @@ struct ContactDetailView: View {
                         
                         Text("音视频通话").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
                             .frame(maxWidth: .infinity).padding(16).background(WeTheme.codeBackgroundCell)
+                    }
+                }
+                
+                // MARK: - Contact Selection View
+                struct ContactSelectionView: View {
+                    var onBack: () -> Void
+                    var onContactsSelected: (String, String) -> Void
+                    
+                    @State private var selectedContact1: String? = nil
+                    @State private var selectedContact2: String? = nil
+                    @State private var allContacts: [ContactInfo] = []
+                    
+                    var body: some View {
+                        VStack(spacing: 0) {
+                            // 导航栏
+                            ZStack {
+                                Text("选择联系人").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                                HStack {
+                                    WeIcon(name: "ic_nav_back", fallback: "‹", size: 24, color: WeTheme.codeTextPrimary)
+                                        .onTapGesture(perform: onBack)
+                                    Spacer()
+                                }.padding(.horizontal, 12)
+                            }.frame(height: 50).background(WeTheme.codeBackground)
+                            Divider().overlay(WeTheme.codeSeparator)
+                            
+                            // 提示信息
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("请选择两个联系人：").font(.system(size: 14, weight: .medium)).foregroundColor(WeTheme.codeTextPrimary)
+                                Text("1. 第一个联系人：AI角色人设").font(.system(size: 13)).foregroundColor(WeTheme.codeTextSecondary)
+                                Text("2. 第二个联系人：用户人设").font(.system(size: 13)).foregroundColor(WeTheme.codeTextSecondary)
+                            }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(WeTheme.codeBackgroundCell)
+                            
+                            Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
+                            
+                            // 已选择的联系人显示
+                            if selectedContact1 != nil || selectedContact2 != nil {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    if let contact1Id = selectedContact1,
+                                       let contact1 = allContacts.first(where: { $0.id == contact1Id }) {
+                                        HStack {
+                                            Text("角色人设：").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                                            Text(contact1.nickname).font(.system(size: 14, weight: .medium)).foregroundColor(WeTheme.codeBrandGreen)
+                                        }
+                                    }
+                                    if let contact2Id = selectedContact2,
+                                       let contact2 = allContacts.first(where: { $0.id == contact2Id }) {
+                                        HStack {
+                                            Text("用户人设：").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                                            Text(contact2.nickname).font(.system(size: 14, weight: .medium)).foregroundColor(WeTheme.codeBrandGreen)
+                                        }
+                                    }
+                                }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(WeTheme.codeBackgroundCell)
+                                
+                                Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
+                            }
+                            
+                            // 联系人列表
+                            ScrollView {
+                                LazyVStack(spacing: 0) {
+                                    var lastLetter = ""
+                                    ForEach(allContacts) { contact in
+                                        let letter = contact.getPinyinInitial()
+                                        if letter != lastLetter {
+                                            let _ = { lastLetter = letter }()
+                                            Text(letter).font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                                .padding(.horizontal, 16).padding(.vertical, 6)
+                                                .background(WeTheme.codeBackground)
+                                        }
+                                        ContactSelectionRow(
+                                            contact: contact,
+                                            isSelected: contact.id == selectedContact1 || contact.id == selectedContact2,
+                                            selectionLabel: contact.id == selectedContact1 ? "角色" : (contact.id == selectedContact2 ? "用户" : nil),
+                                            onClick: {
+                                                if selectedContact1 == nil {
+                                                    selectedContact1 = contact.id
+                                                } else if selectedContact2 == nil && contact.id != selectedContact1 {
+                                                    selectedContact2 = contact.id
+                                                } else if contact.id == selectedContact1 {
+                                                    selectedContact1 = nil
+                                                } else if contact.id == selectedContact2 {
+                                                    selectedContact2 = nil
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            // 确认按钮
+                            VStack(spacing: 0) {
+                                Divider().overlay(WeTheme.codeSeparator)
+                                Button(action: {
+                                    if let c1 = selectedContact1, let c2 = selectedContact2 {
+                                        onContactsSelected(c1, c2)
+                                    }
+                                }) {
+                                    Text("确定").font(.system(size: 16, weight: .medium)).foregroundColor(.white)
+                                        .frame(maxWidth: .infinity).frame(height: 48)
+                                        .background(selectedContact1 != nil && selectedContact2 != nil ? WeTheme.codeBrandGreen : Color(hex: 0xCCCCCC))
+                                        .cornerRadius(8)
+                                }.disabled(selectedContact1 == nil || selectedContact2 == nil)
+                                .padding(16).background(WeTheme.codeBackgroundCell)
+                            }
+                        }.background(WeTheme.codeBackground)
+                        .onAppear {
+                            allContacts = ContactDbHelper.shared.getAllContacts()
+                        }
+                    }
+                }
+                
+                struct ContactSelectionRow: View {
+                    let contact: ContactInfo
+                    let isSelected: Bool
+                    let selectionLabel: String?
+                    let onClick: () -> Void
+                    
+                    var body: some View {
+                        Button(action: onClick) {
+                            HStack(spacing: 16) {
+                                // 头像
+                                if let avatarFileName = contact.avatarFileName,
+                                   let avatarPath = ContactDbHelper.shared.getAvatarFilePath(avatarFileName),
+                                   let uiImage = UIImage(contentsOfFile: avatarPath) {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fill)
+                                        .frame(width: 36, height: 36)
+                                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                                } else {
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color(red: 0.96, green: 0.96, blue: 0.86))
+                                        .frame(width: 36, height: 36)
+                                        .overlay(Text(contact.persona.first.map(String.init) ?? "👤").font(.system(size: 22)))
+                                }
+                                
+                                Text(contact.nickname).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                                
+                                Spacer()
+                                
+                                // 选择标签
+                                if isSelected, let label = selectionLabel {
+                                    Text(label).font(.system(size: 12, weight: .medium)).foregroundColor(.white)
+                                        .padding(.horizontal, 8).padding(.vertical, 4)
+                                        .background(WeTheme.codeBrandGreen).cornerRadius(4)
+                                }
+                            }.padding(.horizontal, 16).padding(.vertical, 10).background(WeTheme.codeBackgroundCell)
+                        }.buttonStyle(PlainButtonStyle())
+                        Divider().overlay(WeTheme.codeSeparator).padding(.leading, 68)
                     }
                 }
             }
