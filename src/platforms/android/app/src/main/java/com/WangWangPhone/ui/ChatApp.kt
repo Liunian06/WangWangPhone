@@ -127,9 +127,30 @@ data class ChatMessage(val type: String, val name: String = "", val avatar: Stri
 // ============================================
 // 模拟数据（仅保留会话列表）
 // ============================================
-val mockConversations = listOf(
-    Conversation("c1", "文件传输助手", "📁", "你好，这是一条测试消息", "12:51", iconBg = Color(0xFFFF9800)),
-)
+fun getConversations(contactDbHelper: ContactDbHelper): List<Conversation> {
+    val conversations = mutableListOf(
+        Conversation("c1", "文件传输助手", "📁", "你好，这是一条测试消息", "12:51", iconBg = Color(0xFFFF9800))
+    )
+    
+    // 添加所有联系人到会话列表
+    contactDbHelper.getAllContacts().forEach { contact ->
+        conversations.add(
+            Conversation(
+                id = "contact_${contact.id}",
+                name = contact.nickname,
+                avatar = contact.persona.firstOrNull()?.toString() ?: "👤",
+                lastMsg = "开始聊天吧",
+                time = "刚刚",
+                unread = 0,
+                muted = false,
+                iconBg = Color(0xFF4CAF50),
+                type = ConvType.CHAT
+            )
+        )
+    }
+    
+    return conversations
+}
 
 val mockMoments = listOf(
     Moment("m1", "小明", "😊", "今天天气真好，出去走走 🌞", "1分钟前", listOf("小红", "李华"), listOf("小红" to "确实不错！")),
@@ -177,7 +198,8 @@ fun ChatAppScreen(onClose: () -> Unit) {
         "chat-detail" -> ChatDetailScreen(
             chatId = currentChatId ?: "",
             onBack = { currentView = "main"; currentChatId = null },
-            avatarPath = avatarPath
+            avatarPath = avatarPath,
+            contactDbHelper = contactDbHelper
         )
         "contact-detail" -> ContactDetailScreen(
             contactId = currentContactId ?: "",
@@ -256,6 +278,7 @@ fun ChatMainScreen(
 ) {
     val titles = mapOf("messages" to "微信", "contacts" to "通讯录", "moments" to "朋友圈", "me" to "我")
     val bgColor = WeTheme.Background
+    val conversations = remember(contactsRefreshTrigger) { getConversations(contactDbHelper) }
 
     Column(modifier = Modifier.fillMaxSize().background(bgColor).statusBarsPadding()) {
         // Content (权重为1，撑开中间部分)
@@ -268,7 +291,7 @@ fun ChatMainScreen(
                             onClose = onClose,
                             showBack = false
                         )
-                        MessagesTab(onOpenChat)
+                        MessagesTab(onOpenChat, conversations, contactDbHelper)
                     }
                 }
                 "contacts" -> {
@@ -319,7 +342,7 @@ fun ChatMainScreen(
 
         // Tab bar
         Divider(color = WeTheme.Separator, thickness = 0.5.dp)
-        ChatTabBar(currentTab, onTabChange)
+        ChatTabBar(currentTab, onTabChange, conversations)
     }
 }
 
@@ -415,8 +438,8 @@ fun WeChatHeader(
 }
 
 @Composable
-fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit) {
-    val totalUnread = mockConversations.sumOf { it.unread }
+fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit, conversations: List<Conversation> = emptyList()) {
+    val totalUnread = conversations.sumOf { it.unread }
     data class TabItem(val id: String, val iconSelected: String, val iconNormal: String, val label: String, val fallback: String)
     
     val tabs = listOf(
@@ -530,9 +553,9 @@ fun TabUnreadBadge(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun MessagesTab(onOpenChat: (String) -> Unit) {
+fun MessagesTab(onOpenChat: (String) -> Unit, conversations: List<Conversation>, contactDbHelper: ContactDbHelper) {
     LazyColumn(modifier = Modifier.fillMaxSize()) {
-        items(mockConversations) { conv ->
+        items(conversations) { conv ->
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { onOpenChat(conv.id) }.background(WeTheme.BackgroundCell).padding(16.dp, 12.dp),
                 verticalAlignment = Alignment.CenterVertically
@@ -541,12 +564,42 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
                     modifier = Modifier.size(52.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(conv.avatar, fontSize = 24.sp)
+                    // 如果是联系人会话，显示真实头像
+                    if (conv.id.startsWith("contact_")) {
+                        val contactId = conv.id.removePrefix("contact_")
+                        val contactInfo = remember(contactId) { contactDbHelper.getContactById(contactId) }
+                        val avatarPath = remember(contactInfo?.avatarFileName) {
+                            contactInfo?.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
+                        }
+                        
+                        if (avatarPath != null) {
+                            val bitmap = remember(avatarPath) { BitmapFactory.decodeFile(avatarPath) }
+                            if (bitmap != null) {
+                                Image(
+                                    bitmap = bitmap.asImageBitmap(),
+                                    contentDescription = "头像",
+                                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
+                                    contentAlignment = Alignment.Center
+                                ) { Text(conv.avatar, fontSize = 24.sp) }
+                            }
+                        } else {
+                            Box(
+                                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
+                                contentAlignment = Alignment.Center
+                            ) { Text(conv.avatar, fontSize = 24.sp) }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
+                            contentAlignment = Alignment.Center
+                        ) { Text(conv.avatar, fontSize = 24.sp) }
                     }
+                    
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
@@ -593,7 +646,7 @@ fun ContactsTab(
         Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
             var curLetter = ""
             allContacts.forEach { c ->
-                val letter = c.nickname.firstOrNull()?.uppercaseChar()?.toString() ?: "#"
+                val letter = c.getPinyinInitial()
                 if (letter != curLetter) {
                     curLetter = letter
                     Text(curLetter, modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
@@ -607,7 +660,7 @@ fun ContactsTab(
         }
 
         val letters = if (allContacts.isNotEmpty()) {
-            allContacts.map { it.nickname.firstOrNull()?.uppercaseChar()?.toString() ?: "#" }.distinct()
+            allContacts.map { it.getPinyinInitial() }.distinct()
         } else {
             listOf("#")
         }
@@ -1044,22 +1097,36 @@ fun MeTab(
 // 聊天详情页
 // ============================================
 @Composable
-fun ChatDetailScreen(chatId: String, onBack: () -> Unit, avatarPath: String? = null) {
-    val conv = mockConversations.find { it.id == chatId }
-    val chatName = conv?.name ?: "聊天"
+fun ChatDetailScreen(chatId: String, onBack: () -> Unit, avatarPath: String? = null, contactDbHelper: ContactDbHelper? = null) {
+    val context = LocalContext.current
+    
+    // 如果是联系人会话，获取联系人信息
+    val contactInfo = remember(chatId) {
+        if (chatId.startsWith("contact_")) {
+            val contactId = chatId.removePrefix("contact_")
+            contactDbHelper?.getContactById(contactId)
+        } else null
+    }
+    
+    val chatName = contactInfo?.nickname ?: "聊天"
+    val chatAvatar = contactInfo?.persona?.firstOrNull()?.toString() ?: "👤"
+    val contactAvatarPath = remember(contactInfo?.avatarFileName) {
+        contactInfo?.avatarFileName?.let { contactDbHelper?.getAvatarFilePath(it) }
+    }
+    
     val messages = remember {
         mutableStateListOf<ChatMessage>().also {
             it.addAll(mockChatMessages[chatId] ?: listOf(
                 ChatMessage("time", text = "今天 10:00"),
-                ChatMessage("received", chatName, conv?.avatar ?: "👤", "你好！"),
+                ChatMessage("received", chatName, chatAvatar, "你好！"),
                 ChatMessage("sent", text = "你好，有什么事吗？"),
             ))
         }
     }
 
-    val isGroup = conv != null && (conv.name.contains("群") || messages.filter { it.type == "received" }.map { it.name }.distinct().size > 1)
-    val memberCount = if (isGroup) (10..50).random() else 0
-    val displayTitle = if (isGroup) "$chatName($memberCount)" else chatName
+    val isGroup = false
+    val memberCount = 0
+    val displayTitle = chatName
 
     var inputText by remember { mutableStateOf(TextFieldValue("")) }
     val listState = rememberLazyListState()
@@ -1114,8 +1181,25 @@ fun ChatDetailScreen(chatId: String, onBack: () -> Unit, avatarPath: String? = n
                     }
                     "received" -> {
                         Row(modifier = Modifier.fillMaxWidth()) {
-                            Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
-                                Text(msg.avatar.ifEmpty { "👤" }, fontSize = 20.sp)
+                            // 显示联系人真实头像
+                            if (contactAvatarPath != null) {
+                                val bitmap = remember(contactAvatarPath) { BitmapFactory.decodeFile(contactAvatarPath) }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "头像",
+                                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                } else {
+                                    Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
+                                        Text(msg.avatar.ifEmpty { "👤" }, fontSize = 20.sp)
+                                    }
+                                }
+                            } else {
+                                Box(modifier = Modifier.size(40.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5F5)), contentAlignment = Alignment.Center) {
+                                    Text(msg.avatar.ifEmpty { "👤" }, fontSize = 20.sp)
+                                }
                             }
                             Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f, fill = false).widthIn(max = 260.dp)) {
@@ -1324,7 +1408,7 @@ fun ContactDetailScreen(
             // 操作按钮
             Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)) {
                 Box(modifier = Modifier.fillMaxWidth().clickable {
-                    onSendMessage("u_${contactInfo?.id ?: contactId}")
+                    onSendMessage("contact_${contactInfo?.id ?: contactId}")
                 }.padding(16.dp), contentAlignment = Alignment.Center) {
                     Text("发消息", fontSize = 16.sp, color = WeTheme.TextPrimary)
                 }
@@ -1429,7 +1513,7 @@ fun AddContactScreen(
             )
             
             Spacer(Modifier.height(16.dp))
-            Text("微信号 *", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Text("微信号", fontSize = 14.sp, color = WeTheme.TextSecondary)
             Spacer(Modifier.height(8.dp))
             BasicTextField(
                 value = wechatId,
@@ -1439,7 +1523,7 @@ fun AddContactScreen(
                 decorationBox = { innerTextField ->
                     Box {
                         if (wechatId.isEmpty()) {
-                            Text("请输入微信号", fontSize = 16.sp, color = WeTheme.TextHint)
+                            Text("请输入微信号（选填）", fontSize = 16.sp, color = WeTheme.TextHint)
                         }
                         innerTextField()
                     }
@@ -1465,7 +1549,7 @@ fun AddContactScreen(
             )
             
             Spacer(Modifier.height(16.dp))
-            Text("人设信息", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Text("人设信息 *", fontSize = 14.sp, color = WeTheme.TextSecondary)
             Spacer(Modifier.height(8.dp))
             BasicTextField(
                 value = persona,
@@ -1485,10 +1569,10 @@ fun AddContactScreen(
             Spacer(Modifier.height(32.dp))
             Box(
                 modifier = Modifier.fillMaxWidth().height(48.dp).background(
-                    if (nickname.isNotBlank() && wechatId.isNotBlank()) WeTheme.BrandGreen else Color(0xFFCCCCCC),
+                    if (nickname.isNotBlank() && persona.isNotBlank()) WeTheme.BrandGreen else Color(0xFFCCCCCC),
                     RoundedCornerShape(8.dp)
-                ).clickable(enabled = nickname.isNotBlank() && wechatId.isNotBlank()) {
-                    if (nickname.isNotBlank() && wechatId.isNotBlank()) {
+                ).clickable(enabled = nickname.isNotBlank() && persona.isNotBlank()) {
+                    if (nickname.isNotBlank() && persona.isNotBlank()) {
                         contactDbHelper.addContact(nickname, wechatId, region, persona, avatarUri)
                         onContactAdded()
                     }

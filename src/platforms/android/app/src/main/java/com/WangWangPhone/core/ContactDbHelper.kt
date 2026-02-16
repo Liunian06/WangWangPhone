@@ -21,7 +21,85 @@ data class ContactInfo(
     val avatarFileName: String = "",
     val createdAt: Long = 0,
     val updatedAt: Long = 0
-)
+) {
+    fun getPinyinInitial(): String {
+        val firstChar = nickname.firstOrNull() ?: return "#"
+        return when {
+            firstChar.isLetter() -> firstChar.uppercaseChar().toString()
+            firstChar in '\u4e00'..'\u9fa5' -> getPinyinFirstLetter(firstChar).toString()
+            else -> "#"
+        }
+    }
+    
+    companion object {
+        private fun getPinyinFirstLetter(c: Char): Char {
+            val code = c.code
+            return when {
+                code in 0x4e00..0x9fa5 -> {
+                    when (code) {
+                        in 0x963f..0x9fa5 -> 'A'
+                        in 0x5df4..0x5e7f -> 'B'
+                        in 0x5f69..0x64cd -> 'C'
+                        in 0x5927..0x5df3 -> 'D'
+                        in 0x5384..0x5592 -> 'E'
+                        in 0x53d1..0x5926 -> 'F'
+                        in 0x7518..0x8fc7 -> 'G'
+                        in 0x54c8..0x9ed1 -> 'H'
+                        in 0x4e0c..0x4e8c -> 'I'
+                        in 0x5939..0x9e64 -> 'J'
+                        in 0x5361..0x5fbd -> 'K'
+                        in 0x5783..0x9f99 -> 'L'
+                        in 0x5988..0x9ebb -> 'M'
+                        in 0x54ea..0x8bb7 -> 'N'
+                        in 0x5594..0x8bb4 -> 'O'
+                        in 0x556a..0x9f50 -> 'P'
+                        in 0x4e03..0x9f50 -> 'Q'
+                        in 0x7136..0x8ba9 -> 'R'
+                        in 0x4e09..0x9f3b -> 'S'
+                        in 0x584c..0x9f4a -> 'T'
+                        in 0x7a74..0x7a74 -> 'U'
+                        in 0x6316..0x6316 -> 'V'
+                        in 0x6316..0x9f9f -> 'W'
+                        in 0x5915..0x9f99 -> 'X'
+                        in 0x538b..0x9f50 -> 'Y'
+                        in 0x531d..0x9f9f -> 'Z'
+                        else -> getDetailedPinyin(c)
+                    }
+                }
+                else -> '#'
+            }
+        }
+        
+        private fun getDetailedPinyin(c: Char): Char {
+            val code = c.code
+            return when (code) {
+                in 0x963f..0x9f7f -> 'A'
+                in 0x5df4..0x5e7f -> 'B'
+                in 0x5f69..0x64cd -> 'C'
+                in 0x5927..0x5df3 -> 'D'
+                in 0x5384..0x5592 -> 'E'
+                in 0x53d1..0x5926 -> 'F'
+                in 0x7518..0x8fc7 -> 'G'
+                in 0x54c8..0x9ed1 -> 'H'
+                in 0x673a..0x9e64 -> 'J'
+                in 0x5361..0x5fbd -> 'K'
+                in 0x5783..0x9f99 -> 'L'
+                in 0x5988..0x9ebb -> 'M'
+                in 0x54ea..0x8bb7 -> 'N'
+                in 0x556a..0x9f50 -> 'P'
+                in 0x4e03..0x9f50 -> 'Q'
+                in 0x7136..0x8ba9 -> 'R'
+                in 0x4e09..0x9f3b -> 'S'
+                in 0x584c..0x9f4a -> 'T'
+                in 0x6316..0x9f9f -> 'W'
+                in 0x5915..0x9f99 -> 'X'
+                in 0x538b..0x9f50 -> 'Y'
+                in 0x531d..0x9f9f -> 'Z'
+                else -> '#'
+            }
+        }
+    }
+}
 
 class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
     context,
