@@ -254,6 +254,7 @@ struct ChatAppView: View {
     @State private var currentTab = "messages"
     @State private var currentView = "main"
     @State private var currentChatId: String? = nil
+    @State private var currentContactId: String? = nil
 
     // 用户资料状态
     @State private var userNickname: String = UserProfileManager.shared.getUserProfile().nickname
@@ -266,6 +267,8 @@ struct ChatAppView: View {
             switch currentView {
             case "chat-detail":
                 ChatDetailView(chatId: currentChatId ?? "", onBack: { currentView = "main"; currentChatId = nil }, avatarImage: avatarImage)
+            case "contact-detail":
+                ContactDetailView(contactId: currentContactId ?? "", onBack: { currentView = "main"; currentContactId = nil }, onSendMessage: { id in currentChatId = id; currentView = "chat-detail" })
             case "service":
                 ServicePageView(onBack: { currentView = "main"; currentTab = "me" })
             default:
@@ -273,6 +276,7 @@ struct ChatAppView: View {
                     currentTab: $currentTab,
                     onClose: { isPresented = false },
                     onOpenChat: { id in currentChatId = id; currentView = "chat-detail" },
+                    onOpenContact: { id in currentContactId = id; currentView = "contact-detail" },
                     onOpenService: { currentView = "service" },
                     userNickname: $userNickname,
                     userSignature: $userSignature,
@@ -289,6 +293,7 @@ struct ChatMainView: View {
     @Binding var currentTab: String
     var onClose: () -> Void
     var onOpenChat: (String) -> Void
+    var onOpenContact: (String) -> Void
     var onOpenService: () -> Void
     @Binding var userNickname: String
     @Binding var userSignature: String
@@ -315,7 +320,7 @@ struct ChatMainView: View {
             Group {
                 switch currentTab {
                 case "messages": MessagesTabView(onOpenChat: onOpenChat)
-                case "contacts": ContactsTabView(onOpenChat: onOpenChat)
+                case "contacts": ContactsTabView(onOpenContact: onOpenContact)
                 case "moments": MomentsTabView(
                     userNickname: $userNickname,
                     userSignature: $userSignature,
@@ -452,7 +457,7 @@ struct MessagesTabView: View {
 
 // MARK: - Contacts Tab
 struct ContactsTabView: View {
-    var onOpenChat: (String) -> Void
+    var onOpenContact: (String) -> Void
     var body: some View {
         ScrollView {
             VStack(spacing: 0) {
@@ -468,7 +473,7 @@ struct ContactsTabView: View {
                 if !wxStarred.isEmpty {
                     Text("星标朋友").font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary).frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 16).padding(.vertical, 8).background(WeTheme.codeBackground)
-                    ForEach(wxStarred) { c in ContactRow(contact: c, onOpenChat: onOpenChat) }
+                    ForEach(wxStarred) { c in ContactRow(contact: c, onOpenContact: onOpenContact) }
                 }
                 var lastLetter = ""
                 ForEach(wxContactList) { c in
@@ -477,7 +482,7 @@ struct ContactsTabView: View {
                         Text(c.letter).font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary).frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16).padding(.vertical, 8).background(WeTheme.codeBackground)
                     }
-                    ContactRow(contact: c, onOpenChat: onOpenChat)
+                    ContactRow(contact: c, onOpenContact: onOpenContact)
                 }
             }
         }
@@ -486,11 +491,10 @@ struct ContactsTabView: View {
 
 struct ContactRow: View {
     let contact: WXContact
-    var onOpenChat: (String) -> Void
+    var onOpenContact: (String) -> Void
     var body: some View {
         Button(action: {
-            let conv = wxConversations.first { $0.name == contact.name }
-            onOpenChat(conv?.id ?? "u_\(contact.id)")
+            onOpenContact(contact.id)
         }) {
             HStack(spacing: 16) {
                 RoundedRectangle(cornerRadius: 4).fill(WeTheme.codeBackground).frame(width: 36, height: 36)
@@ -867,5 +871,83 @@ struct ServicePageView: View {
 
             Text("所有服务已关闭，前往设置 ›").font(.system(size: 14)).foregroundColor(.gray).padding(.bottom, 40)
         }.background(Color(red: 0.93, green: 0.93, blue: 0.93))
+    }
+}
+
+// MARK: - Contact Detail
+struct ContactDetailView: View {
+    let contactId: String
+    var onBack: () -> Void
+    var onSendMessage: (String) -> Void
+    
+    private var contact: WXContact {
+        (wxStarred + wxContactList).first { $0.id == contactId } ?? WXContact(id: contactId, name: "未知联系人", avatar: "👤")
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                Text("通讯录").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                HStack {
+                    WeIcon(name: "ic_nav_back", fallback: "‹", size: 24, color: WeTheme.codeTextPrimary)
+                        .onTapGesture(perform: onBack)
+                    Spacer()
+                    Text("···").font(.system(size: 20, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                }.padding(.horizontal, 12)
+            }.frame(height: 50).background(WeTheme.codeBackground)
+            Divider().overlay(WeTheme.codeSeparator)
+            
+            ScrollView {
+                VStack(spacing: 0) {
+                    // 头像 + 昵称 + 微信号 + 地区
+                    HStack(alignment: .top, spacing: 16) {
+                        RoundedRectangle(cornerRadius: 8).fill(WeTheme.codeBackground).frame(width: 64, height: 64)
+                            .overlay(Text(contact.avatar).font(.system(size: 36)))
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(contact.name).font(.system(size: 22, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                            Text("微信号：\(contact.id)").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                            Text("地区：北京 朝阳").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                        }
+                        Spacer()
+                    }.padding(16).background(WeTheme.codeBackgroundCell)
+                    
+                    Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
+                    
+                    // 详细资料
+                    HStack {
+                        Text("详细资料").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        Spacer()
+                        Text("›").foregroundColor(Color(white: 0.75)).font(.system(size: 16))
+                    }.padding(16).background(WeTheme.codeBackgroundCell)
+                    
+                    Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
+                    
+                    // 朋友圈
+                    HStack {
+                        Text("朋友圈").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        Spacer()
+                        Text("›").foregroundColor(Color(white: 0.75)).font(.system(size: 16))
+                    }.padding(16).background(WeTheme.codeBackgroundCell)
+                    
+                    Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
+                    
+                    // 发消息 + 音视频通话
+                    VStack(spacing: 0) {
+                        Button(action: {
+                            let conv = wxConversations.first { $0.name == contact.name }
+                            onSendMessage(conv?.id ?? "u_\(contact.id)")
+                        }) {
+                            Text("发消息").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                                .frame(maxWidth: .infinity).padding(16).background(WeTheme.codeBackgroundCell)
+                        }.buttonStyle(PlainButtonStyle())
+                        
+                        Divider().overlay(WeTheme.codeSeparator).padding(.leading, 16)
+                        
+                        Text("音视频通话").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                            .frame(maxWidth: .infinity).padding(16).background(WeTheme.codeBackgroundCell)
+                    }
+                }
+            }
+        }.background(WeTheme.codeBackground)
     }
 }

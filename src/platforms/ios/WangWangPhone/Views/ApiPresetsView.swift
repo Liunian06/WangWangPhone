@@ -206,6 +206,25 @@ struct ApiPresetEditView: View {
     @State private var apiKey: String
     @State private var baseUrl: String
     @State private var model: String
+    @State private var showDeleteConfirm = false
+    
+    // 参数开关状态
+    @State private var streamEnabled = true
+    @State private var streamValue = true
+    @State private var temperatureEnabled = true
+    @State private var temperature = "1.00"
+    @State private var maxTokensEnabled = true
+    @State private var maxTokens = "64000"
+    @State private var topPEnabled = false
+    @State private var topP = "1.00"
+    @State private var topKEnabled = false
+    @State private var topK = "40"
+    @State private var thinkingLevelEnabled = false
+    @State private var thinkingLevel = "1"
+    @State private var thinkingBudgetEnabled = false
+    @State private var thinkingBudget = "1000"
+    @State private var thinkingEffortEnabled = false
+    @State private var thinkingEffort = "medium"
     
     init(type: String, preset: ApiPreset?, onSave: @escaping (ApiPreset) -> Void, onDelete: ((Int64) -> Void)? = nil, onCancel: @escaping () -> Void) {
         self.type = type
@@ -226,13 +245,19 @@ struct ApiPresetEditView: View {
             Form {
                 Section(header: Text("基本信息")) {
                     TextField("预设名称", text: $name)
-                    
+                }
+                
+                Section(header: Text("提供商")) {
                     if type != "voice" {
                         Picker("提供商", selection: $provider) {
                             Text("OpenAI").tag("openai")
                             Text("Gemini").tag("gemini")
                         }
                         .pickerStyle(SegmentedPickerStyle())
+                        .onChange(of: provider) { _ in
+                            baseUrl = ""
+                            model = ""
+                        }
                     } else {
                         HStack {
                             Text("提供商")
@@ -243,30 +268,124 @@ struct ApiPresetEditView: View {
                 }
                 
                 Section(header: Text("API配置")) {
-                    TextField("API Key", text: $apiKey)
-                    TextField("Base URL", text: $baseUrl)
-                        .autocapitalization(.none)
-                        .keyboardType(.URL)
-                    if baseUrl.isEmpty {
-                        Text(getDefaultBaseUrl(provider: provider, type: type))
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                    ZStack(alignment: .leading) {
+                        if apiKey.isEmpty {
+                            Text("sk-...")
+                                .foregroundColor(.gray.opacity(0.5))
+                                .padding(.leading, 4)
+                        }
+                        TextField("API Key", text: $apiKey)
+                            .autocapitalization(.none)
                     }
                     
-                    TextField("模型名称", text: $model)
-                    if model.isEmpty {
-                        Text(getDefaultModel(provider: provider, type: type))
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                    ZStack(alignment: .leading) {
+                        if baseUrl.isEmpty {
+                            Text(getDefaultBaseUrl(provider: provider, type: type))
+                                .foregroundColor(.gray.opacity(0.5))
+                                .padding(.leading, 4)
+                        }
+                        TextField("Base URL", text: $baseUrl)
+                            .autocapitalization(.none)
+                            .keyboardType(.URL)
+                    }
+                    
+                    HStack {
+                        ZStack(alignment: .leading) {
+                            if model.isEmpty {
+                                Text(getDefaultModel(provider: provider, type: type))
+                                    .foregroundColor(.gray.opacity(0.5))
+                                    .padding(.leading, 4)
+                            }
+                            TextField("模型名称", text: $model)
+                        }
+                        Button("拉取模型") {
+                            // TODO: 拉取模型列表
+                        }
+                        .font(.caption)
+                    }
+                }
+                
+                Section(header: Text("模型参数")) {
+                    HStack {
+                        Text("流式输出")
+                        Spacer()
+                        if streamEnabled {
+                            Picker("", selection: $streamValue) {
+                                Text("True").tag(true)
+                                Text("False").tag(false)
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            .frame(width: 100)
+                        }
+                        Toggle("", isOn: $streamEnabled)
+                            .labelsHidden()
+                    }
+                    
+                    ParameterToggleRow(
+                        label: "温度 (0-2)",
+                        isEnabled: $temperatureEnabled,
+                        value: $temperature,
+                        keyboardType: .decimalPad
+                    )
+                    
+                    ParameterToggleRow(
+                        label: "最大令牌数",
+                        isEnabled: $maxTokensEnabled,
+                        value: $maxTokens,
+                        keyboardType: .numberPad
+                    )
+                    
+                    ParameterToggleRow(
+                        label: "Top P (0-1)",
+                        isEnabled: $topPEnabled,
+                        value: $topP,
+                        keyboardType: .decimalPad
+                    )
+                    
+                    ParameterToggleRow(
+                        label: "Top K",
+                        isEnabled: $topKEnabled,
+                        value: $topK,
+                        keyboardType: .numberPad
+                    )
+                    
+                    ParameterToggleRow(
+                        label: "思考级别",
+                        isEnabled: $thinkingLevelEnabled,
+                        value: $thinkingLevel,
+                        keyboardType: .numberPad
+                    )
+                    
+                    ParameterToggleRow(
+                        label: "思考预算",
+                        isEnabled: $thinkingBudgetEnabled,
+                        value: $thinkingBudget,
+                        keyboardType: .numberPad
+                    )
+                    
+                    HStack {
+                        Text("思考努力度")
+                        Spacer()
+                        if thinkingEffortEnabled {
+                            Picker("", selection: $thinkingEffort) {
+                                Text("minimal").tag("minimal")
+                                Text("low").tag("low")
+                                Text("medium").tag("medium")
+                                Text("high").tag("high")
+                                Text("max").tag("max")
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            .frame(width: 120)
+                        }
+                        Toggle("", isOn: $thinkingEffortEnabled)
+                            .labelsHidden()
                     }
                 }
                 
                 if preset != nil && onDelete != nil {
                     Section {
                         Button(action: {
-                            if let id = preset?.id {
-                                onDelete?(id)
-                            }
+                            showDeleteConfirm = true
                         }) {
                             Text("删除预设")
                                 .foregroundColor(.red)
@@ -285,6 +404,7 @@ struct ApiPresetEditView: View {
                     Button("保存") {
                         let finalBaseUrl = baseUrl.isEmpty ? getDefaultBaseUrl(provider: provider, type: type) : baseUrl
                         let finalModel = model.isEmpty ? getDefaultModel(provider: provider, type: type) : model
+                        let extraParams = buildExtraParams()
                         
                         let newPreset = ApiPreset(
                             id: preset?.id ?? 0,
@@ -293,14 +413,52 @@ struct ApiPresetEditView: View {
                             provider: provider,
                             apiKey: apiKey,
                             baseUrl: finalBaseUrl,
-                            model: finalModel
+                            model: finalModel,
+                            extraParams: extraParams
                         )
                         onSave(newPreset)
                     }
                     .disabled(name.isEmpty || apiKey.isEmpty)
                 }
             }
+            .alert(isPresented: $showDeleteConfirm) {
+                Alert(
+                    title: Text("删除预设"),
+                    message: Text("确定要删除这个API预设吗？"),
+                    primaryButton: .destructive(Text("删除")) {
+                        if let id = preset?.id {
+                            onDelete?(id)
+                        }
+                    },
+                    secondaryButton: .cancel()
+                )
+            }
         }
+    }
+    
+    private func buildExtraParams() -> String {
+        var params: [String: Any] = [:]
+        
+        if streamEnabled { params["stream"] = streamValue }
+        if temperatureEnabled { params["temperature"] = Double(temperature) ?? 1.0 }
+        if maxTokensEnabled { params["max_tokens"] = Int(maxTokens) ?? 64000 }
+        if topPEnabled { params["top_p"] = Double(topP) ?? 1.0 }
+        if topKEnabled { params["top_k"] = Int(topK) ?? 40 }
+        if thinkingLevelEnabled { params["thinking_level"] = Int(thinkingLevel) ?? 1 }
+        if thinkingBudgetEnabled { params["thinking_budget"] = Int(thinkingBudget) ?? 1000 }
+        if thinkingEffortEnabled { params["thinking_effort"] = thinkingEffort }
+        
+        let jsonString = params.map { key, value in
+            if let stringValue = value as? String {
+                return "\"\(key)\":\"\(stringValue)\""
+            } else if let boolValue = value as? Bool {
+                return "\"\(key)\":\(boolValue)"
+            } else {
+                return "\"\(key)\":\(value)"
+            }
+        }.joined(separator: ",")
+        
+        return "{\(jsonString)}"
     }
     
     private func getDefaultBaseUrl(provider: String, type: String) -> String {
@@ -320,6 +478,32 @@ struct ApiPresetEditView: View {
         case ("gemini", "image"): return "imagen-3.0-generate-001"
         case ("minimax", "voice"): return "speech-01"
         default: return ""
+        }
+    }
+}
+
+struct ParameterToggleRow: View {
+    let label: String
+    @Binding var isEnabled: Bool
+    @Binding var value: String
+    var keyboardType: UIKeyboardType = .default
+    var isReadOnly: Bool = false
+    
+    var body: some View {
+        HStack {
+            Text(label)
+            Spacer()
+            if !isReadOnly && isEnabled {
+                TextField("", text: $value)
+                    .keyboardType(keyboardType)
+                    .multilineTextAlignment(.trailing)
+                    .frame(width: 100)
+            } else if isReadOnly && isEnabled {
+                Text(value)
+                    .foregroundColor(.gray)
+            }
+            Toggle("", isOn: $isEnabled)
+                .labelsHidden()
         }
     }
 }
