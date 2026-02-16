@@ -231,7 +231,8 @@ class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        return contacts
+        // 按拼音首字母分组排序
+        return contacts.sortedWith(compareBy({ it.getPinyinInitial() }, { it.nickname }))
     }
 
     fun getContactById(id: String): ContactInfo? {
@@ -271,6 +272,35 @@ class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
         if (avatarFileName.isEmpty()) return null
         val file = File(getContactImagesDir(), avatarFileName)
         return if (file.exists()) file.absolutePath else null
+    }
+
+    fun updateContact(id: String, nickname: String, wechatId: String, region: String, persona: String, avatarUri: Uri?): Boolean {
+        return try {
+            val contact = getContactById(id) ?: return false
+            var avatarFileName = contact.avatarFileName
+            
+            if (avatarUri != null) {
+                if (avatarFileName.isNotEmpty()) {
+                    val oldFile = File(getContactImagesDir(), avatarFileName)
+                    if (oldFile.exists()) oldFile.delete()
+                }
+                avatarFileName = copyImageToStorage(avatarUri, "contact_") ?: avatarFileName
+            }
+            
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COLUMN_NICKNAME, nickname)
+                put(COLUMN_WECHAT_ID, wechatId)
+                put(COLUMN_REGION, region)
+                put(COLUMN_PERSONA, persona)
+                put(COLUMN_AVATAR_FILE, avatarFileName)
+                put(COLUMN_UPDATED_AT, System.currentTimeMillis() / 1000)
+            }
+            db.update(TABLE_CONTACTS, values, "$COLUMN_ID = ?", arrayOf(id)) > 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     fun deleteContact(id: String): Boolean {

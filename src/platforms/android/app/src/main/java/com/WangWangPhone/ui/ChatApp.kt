@@ -173,6 +173,7 @@ fun ChatAppScreen(onClose: () -> Unit) {
     var currentView by remember { mutableStateOf("main") }
     var currentChatId by remember { mutableStateOf<String?>(null) }
     var currentContactId by remember { mutableStateOf<String?>(null) }
+    var editingContactId by remember { mutableStateOf<String?>(null) }
 
     // 用户资料状态 - 在顶层管理，传递给子组件
     val context = LocalContext.current
@@ -189,6 +190,7 @@ fun ChatAppScreen(onClose: () -> Unit) {
             "chat-detail" -> { currentView = "main"; currentChatId = null }
             "contact-detail" -> { currentView = "main"; currentContactId = null }
             "add-contact" -> { currentView = "main"; currentTab = "contacts" }
+            "edit-contact" -> { currentView = "contact-detail"; editingContactId = null }
             "service" -> { currentView = "main"; currentTab = "me" }
             else -> onClose()
         }
@@ -205,6 +207,22 @@ fun ChatAppScreen(onClose: () -> Unit) {
             contactId = currentContactId ?: "",
             onBack = { currentView = "main"; currentContactId = null },
             onSendMessage = { id -> currentChatId = id; currentView = "chat-detail" },
+            onEdit = { id -> editingContactId = id; currentView = "edit-contact" },
+            onDelete = {
+                contactsRefreshTrigger++
+                currentView = "main"
+                currentContactId = null
+                currentTab = "contacts"
+            },
+            contactDbHelper = contactDbHelper
+        )
+        "edit-contact" -> EditContactScreen(
+            contactId = editingContactId ?: "",
+            onBack = { currentView = "contact-detail" },
+            onContactUpdated = {
+                contactsRefreshTrigger++
+                currentView = "contact-detail"
+            },
             contactDbHelper = contactDbHelper
         )
         "add-contact" -> AddContactScreen(
@@ -1317,6 +1335,8 @@ fun ContactDetailScreen(
     contactId: String,
     onBack: () -> Unit,
     onSendMessage: (String) -> Unit,
+    onEdit: (String) -> Unit,
+    onDelete: () -> Unit,
     contactDbHelper: ContactDbHelper
 ) {
     val context = LocalContext.current
@@ -1324,14 +1344,63 @@ fun ContactDetailScreen(
     val avatarPath = remember(contactInfo?.avatarFileName) {
         contactInfo?.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
     }
+    var showMenu by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
     
     BackHandler { onBack() }
+    
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("删除联系人") },
+            text = { Text("确定要删除 ${contactInfo?.nickname ?: "此联系人"} 吗？") },
+            confirmButton = {
+                TextButton(onClick = {
+                    contactDbHelper.deleteContact(contactId)
+                    showDeleteDialog = false
+                    onDelete()
+                }) {
+                    Text("删除", color = Color.Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
     
     Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
         Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
             WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
             Text("通讯录", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
-            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
+            Box(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp)) {
+                Text("···", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary, modifier = Modifier.clickable { showMenu = true })
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false },
+                    modifier = Modifier.background(Color(0xFF414041)).width(120.dp)
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("编辑", color = Color.White, fontSize = 16.sp) },
+                        onClick = {
+                            showMenu = false
+                            onEdit(contactId)
+                        },
+                        modifier = Modifier.height(48.dp)
+                    )
+                    Divider(color = Color(0xFF5A5A5A), thickness = 0.5.dp)
+                    DropdownMenuItem(
+                        text = { Text("删除", color = Color.Red, fontSize = 16.sp) },
+                        onClick = {
+                            showMenu = false
+                            showDeleteDialog = true
+                        },
+                        modifier = Modifier.height(48.dp)
+                    )
+                }
+            }
         }
         Divider(color = WeTheme.Separator, thickness = 0.5.dp)
         
@@ -1580,6 +1649,172 @@ fun AddContactScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Text("添加", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+// ============================================
+// 编辑联系人页面
+// ============================================
+@Composable
+fun EditContactScreen(
+    contactId: String,
+    onBack: () -> Unit,
+    onContactUpdated: () -> Unit,
+    contactDbHelper: ContactDbHelper
+) {
+    val context = LocalContext.current
+    val contactInfo = remember(contactId) { contactDbHelper.getContactById(contactId) }
+    
+    var nickname by remember { mutableStateOf(contactInfo?.nickname ?: "") }
+    var wechatId by remember { mutableStateOf(contactInfo?.wechatId ?: "") }
+    var region by remember { mutableStateOf(contactInfo?.region ?: "") }
+    var persona by remember { mutableStateOf(contactInfo?.persona ?: "") }
+    var avatarUri by remember { mutableStateOf<Uri?>(null) }
+    
+    val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        avatarUri = uri
+    }
+    
+    val currentAvatarPath = remember(contactInfo?.avatarFileName) {
+        contactInfo?.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
+    }
+    
+    BackHandler { onBack() }
+    
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text("编辑联系人", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
+        }
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+        
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+            Text("头像", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFF5F5F5))
+                            .clickable { avatarLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when {
+                            avatarUri != null -> {
+                                val bitmap = remember(avatarUri) {
+                                    try {
+                                        context.contentResolver.openInputStream(avatarUri!!)?.use {
+                                            BitmapFactory.decodeStream(it)
+                                        }
+                                    } catch (e: Exception) { null }
+                                }
+                                if (bitmap != null) {
+                                    Image(bitmap = bitmap.asImageBitmap(), contentDescription = "头像",
+                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                } else {
+                                    Text("📷", fontSize = 32.sp)
+                                }
+                            }
+                            currentAvatarPath != null -> {
+                                val bitmap = remember(currentAvatarPath) { BitmapFactory.decodeFile(currentAvatarPath) }
+                                if (bitmap != null) {
+                                    Image(bitmap = bitmap.asImageBitmap(), contentDescription = "头像",
+                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                } else {
+                                    Text("📷", fontSize = 32.sp)
+                                }
+                            }
+                            else -> Text("📷", fontSize = 32.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text("点击更换头像", fontSize = 12.sp, color = WeTheme.TextHint)
+                }
+            }
+            
+            Spacer(Modifier.height(16.dp))
+            Text("昵称 *", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = nickname,
+                onValueChange = { nickname = it },
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (nickname.isEmpty()) Text("请输入昵称", fontSize = 16.sp, color = WeTheme.TextHint)
+                        innerTextField()
+                    }
+                }
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            Text("微信号", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = wechatId,
+                onValueChange = { wechatId = it },
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (wechatId.isEmpty()) Text("请输入微信号（选填）", fontSize = 16.sp, color = WeTheme.TextHint)
+                        innerTextField()
+                    }
+                }
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            Text("地区", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = region,
+                onValueChange = { region = it },
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (region.isEmpty()) Text("例如：北京 海淀", fontSize = 16.sp, color = WeTheme.TextHint)
+                        innerTextField()
+                    }
+                }
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            Text("人设信息 *", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = persona,
+                onValueChange = { persona = it },
+                modifier = Modifier.fillMaxWidth().height(100.dp).background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary, lineHeight = 22.sp),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (persona.isEmpty()) Text("描述这个联系人的性格、职业等信息", fontSize = 16.sp, color = WeTheme.TextHint)
+                        innerTextField()
+                    }
+                }
+            )
+            
+            Spacer(Modifier.height(32.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth().height(48.dp).background(
+                    if (nickname.isNotBlank() && persona.isNotBlank()) WeTheme.BrandGreen else Color(0xFFCCCCCC),
+                    RoundedCornerShape(8.dp)
+                ).clickable(enabled = nickname.isNotBlank() && persona.isNotBlank()) {
+                    if (nickname.isNotBlank() && persona.isNotBlank()) {
+                        contactDbHelper.updateContact(contactId, nickname, wechatId, region, persona, avatarUri)
+                        onContactUpdated()
+                    }
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("保存", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
         }
     }
