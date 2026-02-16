@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.icu.text.Transliterator
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -24,43 +25,25 @@ data class ContactInfo(
 ) {
     fun getPinyinInitial(): String {
         val firstChar = nickname.firstOrNull() ?: return "#"
-        return when {
-            firstChar.isLetter() -> firstChar.uppercaseChar().toString()
-            firstChar in '\u4e00'..'\u9fff' -> getPinyinFirstLetter(firstChar).toString()
-            else -> "#"
+        
+        // 如果是英文字母，直接返回大写
+        if (firstChar.isLetter() && firstChar.code < 128) {
+            return firstChar.uppercaseChar().toString()
         }
-    }
-    
-    companion object {
-        private fun getPinyinFirstLetter(c: Char): Char {
-            val code = c.code
-            return when (code) {
-                in 0x963F..0x9FFF -> 'A'
-                in 0x5DF4..0x5EF6 -> 'B'
-                in 0x5F00..0x62FF -> 'C'
-                in 0x6300..0x6536 -> 'D'
-                in 0x5384..0x5592 -> 'E'
-                in 0x53D1..0x5926 -> 'F'
-                in 0x7518..0x7A00 -> 'G'
-                in 0x54C8..0x5DF3 -> 'H'
-                in 0x673A..0x6770 -> 'J'
-                in 0x5361..0x5494 -> 'K'
-                in 0x5783..0x5D03 -> 'L'
-                in 0x5988..0x5BFF -> 'M'
-                in 0x54EA..0x5360 -> 'N'
-                in 0x5594..0x5783 -> 'O'
-                in 0x556A..0x5939 -> 'P'
-                in 0x4E03..0x5360 -> 'Q'
-                in 0x7136..0x7518 -> 'R'
-                in 0x4E09..0x53D0 -> 'S'
-                in 0x584C..0x6316 -> 'T'
-                in 0x6316..0x6770 -> 'W'
-                in 0x5915..0x5BFF -> 'X'
-                in 0x538B..0x5939 -> 'Y'
-                in 0x531D..0x5594 -> 'Z'
-                else -> '#'
+        
+        // 使用 Android ICU Transliterator 转换中文到拼音
+        try {
+            val transliterator = Transliterator.getInstance("Han-Latin")
+            val pinyin = transliterator.transliterate(firstChar.toString())
+            val initial = pinyin.firstOrNull()?.uppercaseChar()
+            if (initial != null && initial.isLetter()) {
+                return initial.toString()
             }
+        } catch (e: Exception) {
+            // 如果转换失败，返回 #
         }
+        
+        return "#"
     }
 }
 
