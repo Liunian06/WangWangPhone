@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.WangWangPhone.core.UserProfileDbHelper
+import com.WangWangPhone.core.ContactDbHelper
+import com.WangWangPhone.core.ContactInfo
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -123,53 +125,14 @@ data class Moment(val id: String, val name: String, val avatar: String, val cont
 data class ChatMessage(val type: String, val name: String = "", val avatar: String = "", val text: String = "")
 
 // ============================================
-// 模拟数据
+// 模拟数据（仅保留会话列表）
 // ============================================
 val mockConversations = listOf(
     Conversation("c1", "文件传输助手", "📁", "你好，这是一条测试消息", "12:51", iconBg = Color(0xFFFF9800)),
-    Conversation("c2", "小明", "😊", "[语音] 14\"", "11:38", unread = 2, iconBg = Color(0xFF4CAF50)),
-    Conversation("c3", "工作群", "👥", "张三: 收到，谢谢大家的配合", "周四", muted = true, unread = 1, iconBg = Color(0xFF2196F3)),
-    Conversation("c4", "家人群", "🏠", "妈妈: [链接] 今日菜谱推荐...", "周三", iconBg = Color(0xFFE91E63)),
-    Conversation("c5", "同学群", "🎓", "李华: 科目一快考完了", "1月30日", iconBg = Color(0xFF9C27B0)),
-    Conversation("c6", "技术交流群", "💻", "王工: 新版本已经部署上线", "12月2日", muted = true, unread = 1, iconBg = Color(0xFF607D8B)),
-    Conversation("c7", "公众号", "📰", "[3条] 今日科技资讯速览...", "16:37", unread = 3, iconBg = Color(0xFF1976D2), type = ConvType.SUBSCRIPTION),
-    Conversation("c8", "服务号", "🔔", "[5条通知] 您的快递已到达...", "16:30", unread = 5, iconBg = Color(0xFFD32F2F), type = ConvType.SERVICE),
-    Conversation("c9", "技术攻关群", "🔧", "应该就好了", "16:11", iconBg = Color(0xFF795548)),
-)
-
-val mockContactGroups = listOf(
-    ContactGroup("g1", "新的朋友", "👤", Color(0xFFFF9800)),
-    ContactGroup("g2", "仅聊天的朋友", "👤", Color(0xFFFF9800)),
-    ContactGroup("g3", "群聊", "👥", Color(0xFF4CAF50)),
-    ContactGroup("g4", "标签", "🏷️", Color(0xFF2196F3)),
-    ContactGroup("g5", "公众号", "📰", Color(0xFF1976D2)),
-    ContactGroup("g6", "服务号", "🔔", Color(0xFFD32F2F)),
-)
-
-val mockStarred = listOf(
-    Contact("u1", "小明", "😊"),
-    Contact("u2", "小红", "🌸"),
-)
-
-val mockContactList = listOf(
-    Contact("u3", "阿杰", "🧑", "A"),
-    Contact("u4", "陈伟", "👨", "C"),
-    Contact("u5", "大卫", "🧔", "D"),
-    Contact("u6", "方琳", "👩", "F"),
-    Contact("u7", "何志强", "👨‍💼", "H"),
-    Contact("u8", "李华", "🧑‍🎓", "L"),
-    Contact("u9", "马丽", "👩‍🦰", "M"),
-    Contact("u1b", "小明", "😊", "X"),
-    Contact("u2b", "小红", "🌸", "X"),
-    Contact("u10", "张伟", "👨‍🔧", "Z"),
-    Contact("u11", "赵敏", "👩‍🏫", "Z"),
 )
 
 val mockMoments = listOf(
     Moment("m1", "小明", "😊", "今天天气真好，出去走走 🌞", "1分钟前", listOf("小红", "李华"), listOf("小红" to "确实不错！")),
-    Moment("m2", "李华", "🧑‍🎓", "终于把项目做完了，庆祝一下 🎉", "30分钟前", listOf("小明", "张伟", "阿杰"), emptyList()),
-    Moment("m3", "小红", "🌸", "分享一首好听的歌曲，推荐给大家～", "2小时前", listOf("小明"), listOf("小明" to "什么歌？", "小红" to "周杰伦的新专辑")),
-    Moment("m4", "张伟", "👨‍🔧", "周末去爬山，风景超美！大家有空可以一起来", "昨天", listOf("小红", "李华", "马丽", "陈伟"), listOf("马丽" to "哪个山？下次带我！")),
 )
 
 val mockChatMessages = mapOf(
@@ -177,31 +140,6 @@ val mockChatMessages = mapOf(
         ChatMessage("time", text = "昨天 16:04"),
         ChatMessage("received", "文件传输助手", "📁", "你好，欢迎使用文件传输助手"),
         ChatMessage("sent", text = "你好，这是一条测试消息"),
-    ),
-    "c2" to listOf(
-        ChatMessage("time", text = "昨天 22:27"),
-        ChatMessage("received", "小明", "😊", "明天下午有空吗？一起去打球"),
-        ChatMessage("sent", text = "可以啊，几点？"),
-        ChatMessage("received", "小明", "😊", "下午三点吧"),
-        ChatMessage("sent", text = "好的，到时候见！"),
-        ChatMessage("time", text = "今天 11:30"),
-        ChatMessage("received", "小明", "😊", "[语音] 14\""),
-    ),
-    "c3" to listOf(
-        ChatMessage("time", text = "昨天 16:04"),
-        ChatMessage("received", "张三", "👨", "大家好，关于项目进度的问题"),
-        ChatMessage("received", "李四", "🧑", "我这边已经完成了80%"),
-        ChatMessage("sent", text = "收到"),
-        ChatMessage("time", text = "昨天 22:27"),
-        ChatMessage("received", "王五", "👨‍💼", "简单三步：先做设计、再写代码、最后测试"),
-        ChatMessage("received", "赵六", "🧔", "何意味"),
-        ChatMessage("received", "张三", "👨", "收到，谢谢大家的配合"),
-    ),
-    "c4" to listOf(
-        ChatMessage("time", text = "周三 19:00"),
-        ChatMessage("received", "妈妈", "👩", "今天做了你最爱吃的红烧肉"),
-        ChatMessage("sent", text = "太棒了！我明天回去"),
-        ChatMessage("received", "爸爸", "👨", "路上注意安全"),
     ),
 )
 
@@ -213,18 +151,23 @@ fun ChatAppScreen(onClose: () -> Unit) {
     var currentTab by remember { mutableStateOf("messages") }
     var currentView by remember { mutableStateOf("main") }
     var currentChatId by remember { mutableStateOf<String?>(null) }
+    var currentContactId by remember { mutableStateOf<String?>(null) }
 
     // 用户资料状态 - 在顶层管理，传递给子组件
     val context = LocalContext.current
     val profileDbHelper = remember { UserProfileDbHelper(context) }
+    val contactDbHelper = remember { ContactDbHelper(context) }
     var userNickname by remember { mutableStateOf(profileDbHelper.getUserProfile().nickname) }
     var userSignature by remember { mutableStateOf(profileDbHelper.getUserProfile().signature) }
     var avatarPath by remember { mutableStateOf(profileDbHelper.getAvatarFilePath()) }
     var coverPath by remember { mutableStateOf(profileDbHelper.getCoverFilePath()) }
+    var contactsRefreshTrigger by remember { mutableStateOf(0) }
 
     BackHandler {
         when (currentView) {
             "chat-detail" -> { currentView = "main"; currentChatId = null }
+            "contact-detail" -> { currentView = "main"; currentContactId = null }
+            "add-contact" -> { currentView = "main"; currentTab = "contacts" }
             "service" -> { currentView = "main"; currentTab = "me" }
             else -> onClose()
         }
@@ -236,6 +179,21 @@ fun ChatAppScreen(onClose: () -> Unit) {
             onBack = { currentView = "main"; currentChatId = null },
             avatarPath = avatarPath
         )
+        "contact-detail" -> ContactDetailScreen(
+            contactId = currentContactId ?: "",
+            onBack = { currentView = "main"; currentContactId = null },
+            onSendMessage = { id -> currentChatId = id; currentView = "chat-detail" },
+            contactDbHelper = contactDbHelper
+        )
+        "add-contact" -> AddContactScreen(
+            onBack = { currentView = "main"; currentTab = "contacts" },
+            onContactAdded = {
+                contactsRefreshTrigger++
+                currentView = "main"
+                currentTab = "contacts"
+            },
+            contactDbHelper = contactDbHelper
+        )
         "service" -> ServiceScreen(
             onBack = { currentView = "main"; currentTab = "me" }
         )
@@ -244,11 +202,15 @@ fun ChatAppScreen(onClose: () -> Unit) {
             onTabChange = { currentTab = it },
             onClose = onClose,
             onOpenChat = { id -> currentChatId = id; currentView = "chat-detail" },
+            onOpenContact = { id -> currentContactId = id; currentView = "contact-detail" },
+            onAddContact = { currentView = "add-contact" },
             onOpenService = { currentView = "service" },
             userNickname = userNickname,
             userSignature = userSignature,
             avatarPath = avatarPath,
             coverPath = coverPath,
+            contactDbHelper = contactDbHelper,
+            contactsRefreshTrigger = contactsRefreshTrigger,
             onNicknameChanged = { newName ->
                 profileDbHelper.updateNickname(newName)
                 userNickname = newName
@@ -278,11 +240,15 @@ fun ChatMainScreen(
     onTabChange: (String) -> Unit,
     onClose: () -> Unit,
     onOpenChat: (String) -> Unit,
+    onOpenContact: (String) -> Unit,
+    onAddContact: () -> Unit,
     onOpenService: () -> Unit,
     userNickname: String,
     userSignature: String,
     avatarPath: String?,
     coverPath: String?,
+    contactDbHelper: ContactDbHelper,
+    contactsRefreshTrigger: Int,
     onNicknameChanged: (String) -> Unit,
     onSignatureChanged: (String) -> Unit,
     onAvatarChanged: (Uri) -> Unit,
@@ -311,9 +277,14 @@ fun ChatMainScreen(
                             title = titles[currentTab] ?: "",
                             onClose = onClose,
                             showBack = false,
-                            showAdd = true
+                            showAdd = true,
+                            onAddClick = onAddContact
                         )
-                        ContactsTab(onOpenChat)
+                        ContactsTab(
+                            onOpenContact = onOpenContact,
+                            contactDbHelper = contactDbHelper,
+                            refreshTrigger = contactsRefreshTrigger
+                        )
                     }
                 }
                 "moments" -> {
@@ -357,10 +328,12 @@ fun WeChatHeader(
     title: String,
     onClose: () -> Unit,
     showBack: Boolean = false,
-    showAdd: Boolean = true
+    showAdd: Boolean = true,
+    onAddClick: (() -> Unit)? = null
 ) {
     val bgColor = WeTheme.Background
     val textColor = WeTheme.TextPrimary
+    var showMenu by remember { mutableStateOf(false) }
     
     Box(
         modifier = Modifier.fillMaxWidth().height(50.dp).background(bgColor),
@@ -371,7 +344,71 @@ fun WeChatHeader(
         Row(modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             WeIcon("ic_search", "🔍", modifier = Modifier.size(24.dp), tint = textColor)
             if (showAdd) {
-                WeIcon("ic_chat_add", "⊕", modifier = Modifier.size(24.dp), tint = textColor)
+                Box {
+                    WeIcon(
+                        "ic_chat_add", "⊕",
+                        modifier = Modifier.size(24.dp).clickable { showMenu = true },
+                        tint = textColor
+                    )
+                    DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false },
+                        modifier = Modifier
+                            .background(Color(0xFF414041))
+                            .width(140.dp)
+                    ) {
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    WeIcon("ic_chats", "💬", modifier = Modifier.size(20.dp), tint = Color.White)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text("发起群聊", color = Color.White, fontSize = 16.sp)
+                                }
+                            },
+                            onClick = { showMenu = false },
+                            modifier = Modifier.height(48.dp)
+                        )
+                        Divider(color = Color(0xFF5A5A5A), thickness = 0.5.dp)
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    WeIcon("ic_add_friends", "👤", modifier = Modifier.size(20.dp), tint = Color.White)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text("添加朋友", color = Color.White, fontSize = 16.sp)
+                                }
+                            },
+                            onClick = {
+                                showMenu = false
+                                onAddClick?.invoke()
+                            },
+                            modifier = Modifier.height(48.dp)
+                        )
+                        Divider(color = Color(0xFF5A5A5A), thickness = 0.5.dp)
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    WeIcon("ic_scan", "📷", modifier = Modifier.size(20.dp), tint = Color.White)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text("扫一扫", color = Color.White, fontSize = 16.sp)
+                                }
+                            },
+                            onClick = { showMenu = false },
+                            modifier = Modifier.height(48.dp)
+                        )
+                        Divider(color = Color(0xFF5A5A5A), thickness = 0.5.dp)
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    WeIcon("ic_pay_vendor", "💳", modifier = Modifier.size(20.dp), tint = Color.White)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text("收付款", color = Color.White, fontSize = 16.sp)
+                                }
+                            },
+                            onClick = { showMenu = false },
+                            modifier = Modifier.height(48.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -544,42 +581,35 @@ fun MessagesTab(onOpenChat: (String) -> Unit) {
 // Tab2: 通讯录
 // ============================================
 @Composable
-fun ContactsTab(onOpenChat: (String) -> Unit) {
+fun ContactsTab(
+    onOpenContact: (String) -> Unit,
+    contactDbHelper: ContactDbHelper,
+    refreshTrigger: Int
+) {
     val scrollState = rememberScrollState()
+    val allContacts = remember(refreshTrigger) { contactDbHelper.getAllContacts() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().verticalScroll(scrollState)) {
-            mockContactGroups.forEach { g ->
-                Row(
-                    modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp, 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(g.color),
-                        contentAlignment = Alignment.Center
-                    ) { Text(g.icon, fontSize = 20.sp, color = Color.White) }
-                    Spacer(Modifier.width(16.dp))
-                    Text(g.name, fontSize = 16.sp, color = WeTheme.TextPrimary)
-                }
-                Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 68.dp))
-            }
-
-            if (mockStarred.isNotEmpty()) {
-                Text("星标朋友", modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
-                mockStarred.forEach { c -> ContactItemRow(c, onOpenChat) }
-            }
-
             var curLetter = ""
-            mockContactList.forEach { c ->
-                if (c.letter.isNotEmpty() && c.letter != curLetter) {
-                    curLetter = c.letter
+            allContacts.forEach { c ->
+                val letter = c.nickname.firstOrNull()?.uppercaseChar()?.toString() ?: "#"
+                if (letter != curLetter) {
+                    curLetter = letter
                     Text(curLetter, modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
                 }
-                ContactItemRow(c, onOpenChat)
+                ContactItemRow(
+                    Contact(c.id, c.nickname, c.persona, letter),
+                    onOpenContact
+                )
             }
         }
 
-        val letters = listOf("↑", "☆") + mockContactList.map { it.letter }.filter { it.isNotEmpty() }.distinct() + listOf("#")
+        val letters = if (allContacts.isNotEmpty()) {
+            allContacts.map { it.nickname.firstOrNull()?.uppercaseChar()?.toString() ?: "#" }.distinct()
+        } else {
+            listOf("#")
+        }
         Column(
             modifier = Modifier.align(Alignment.CenterEnd).padding(end = 2.dp),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -592,11 +622,10 @@ fun ContactsTab(onOpenChat: (String) -> Unit) {
 }
 
 @Composable
-fun ContactItemRow(contact: Contact, onOpenChat: (String) -> Unit) {
+fun ContactItemRow(contact: Contact, onOpenContact: (String) -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).clickable {
-            val conv = mockConversations.find { it.name == contact.name }
-            onOpenChat(conv?.id ?: "u_${contact.id}")
+            onOpenContact(contact.id)
         }.padding(16.dp, 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1168,5 +1197,143 @@ fun ServiceScreen(onBack: () -> Unit) {
             color = WeTheme.TextHint,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
+    }
+}
+
+// ============================================
+// 联系人详情页
+// ============================================
+@Composable
+fun ContactDetailScreen(
+    contactId: String,
+    onBack: () -> Unit,
+    onSendMessage: (String) -> Unit,
+    contactDbHelper: ContactDbHelper
+) {
+    val contactInfo = remember(contactId) { contactDbHelper.getContactById(contactId) }
+    val contact = contactInfo?.let { Contact(it.id, it.nickname, it.persona, "") } ?: Contact(contactId, "未知联系人", "👤")
+    
+    BackHandler { onBack() }
+    
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text("通讯录", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
+            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
+        }
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+        
+        Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)) {
+                Row(verticalAlignment = Alignment.Top) {
+                    Box(modifier = Modifier.size(64.dp).clip(RoundedCornerShape(8.dp)).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+                        Text(contact.avatar, fontSize = 36.sp)
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(contact.name, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
+                        Spacer(Modifier.height(6.dp))
+                        Text("微信号：${contactInfo?.wechatId ?: contact.id}", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                        if (!contactInfo?.region.isNullOrEmpty()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text("地区：${contactInfo?.region}", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                        }
+                    }
+                }
+            }
+            
+            Spacer(Modifier.height(8.dp))
+            
+            Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)) {
+                Box(modifier = Modifier.fillMaxWidth().clickable {
+                    onSendMessage("u_${contact.id}")
+                }.padding(16.dp), contentAlignment = Alignment.Center) {
+                    Text("发消息", fontSize = 16.sp, color = WeTheme.TextPrimary)
+                }
+                Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 16.dp))
+                Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                    Text("音视频通话", fontSize = 16.sp, color = WeTheme.TextPrimary)
+                }
+            }
+        }
+    }
+}
+
+// ============================================
+// 添加联系人页面
+// ============================================
+@Composable
+fun AddContactScreen(
+    onBack: () -> Unit,
+    onContactAdded: () -> Unit,
+    contactDbHelper: ContactDbHelper
+) {
+    var name by remember { mutableStateOf("") }
+    var wechatId by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var avatar by remember { mutableStateOf("👤") }
+    
+    BackHandler { onBack() }
+    
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text("添加朋友", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
+        }
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+        
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+            Text("姓名", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = name,
+                onValueChange = { name = it },
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary)
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            Text("微信号", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = wechatId,
+                onValueChange = { wechatId = it },
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary)
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            Text("电话（可选）", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = phone,
+                onValueChange = { phone = it },
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary)
+            )
+            
+            Spacer(Modifier.height(16.dp))
+            Text("头像", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            Spacer(Modifier.height(8.dp))
+            BasicTextField(
+                value = avatar,
+                onValueChange = { avatar = it },
+                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell, RoundedCornerShape(8.dp)).padding(12.dp),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = WeTheme.TextPrimary)
+            )
+            
+            Spacer(Modifier.height(32.dp))
+            Box(
+                modifier = Modifier.fillMaxWidth().height(48.dp).background(WeTheme.BrandGreen, RoundedCornerShape(8.dp)).clickable {
+                    if (name.isNotBlank() && wechatId.isNotBlank()) {
+                        contactDbHelper.addContact(name, wechatId, phone, avatar, null)
+                        onContactAdded()
+                    }
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("添加", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+        }
     }
 }
