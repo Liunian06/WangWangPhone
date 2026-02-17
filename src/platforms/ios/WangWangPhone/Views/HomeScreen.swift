@@ -52,8 +52,8 @@ func getDefaultApps() -> [AppIconData] {
         AppIconData(id: "camera", name: "相机", icon: "📷", colors: [.white, .gray]),
         AppIconData(id: "calendar", name: "日历", icon: "📅", colors: [.white, .gray]),
         AppIconData(id: "settings", name: "设置", icon: "SettingsIcon", colors: [.white, .gray], useImage: true),
+        AppIconData(id: "persona_builder", name: "神笔马良", icon: "✨", colors: [Color(red: 1.0, green: 0.84, blue: 0.0), Color(red: 1.0, green: 0.65, blue: 0.0)]),
         AppIconData(id: "wangwang", name: "汪汪", icon: "🐶", colors: [.white, .gray]),
-        AppIconData(id: "persona_builder", name: "神笔马良", icon: "🖌️", colors: [.purple, .pink]),
         // 第二批应用
         AppIconData(id: "photos", name: "照片", icon: "🖼️", colors: [.yellow, Color(red: 0.97, green: 0.85, blue: 0.0)]),
         AppIconData(id: "video", name: "视频", icon: "🎬", colors: [.purple, .pink]),
@@ -154,7 +154,7 @@ func distributeItemsToPages(allApps: [AppIconData], widgets: [WidgetItem]) -> [[
     var pages: [[Int: AnyGridItem]] = []
     
     // 分离核心应用（聊天+设置）和其余应用
-    let coreAppIds: Set<String> = ["chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes", "persona_builder"]
+    let coreAppIds: Set<String> = ["chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes"]
     let coreApps = allApps.filter { coreAppIds.contains($0.id) }
     var otherApps = allApps.filter { !coreAppIds.contains($0.id) }
     
@@ -855,7 +855,7 @@ struct HomeScreen: View {
     @State private var showCalendarApp = false
     @State private var showCameraApp = false
     @State private var showNotesApp = false
-    @State private var showPersonaBuilder = false
+    @State private var showPersonaBuilderApp = false
     @State private var showActivation = false
     @State private var showDisplaySettings = false
     @State private var showIconCustomization = false
@@ -928,7 +928,7 @@ struct HomeScreen: View {
                             onCalendarClick: { showCalendarApp = true },
                             onCameraClick: { showCameraApp = true },
                             onNotesClick: { showNotesApp = true },
-                            onPersonaBuilderClick: { showPersonaBuilder = true },
+                            onPersonaBuilderClick: { showPersonaBuilderApp = true },
                             onLayoutChanged: { saveLayout() },
                             isActivated: isActivated,
                             onActivationAlert: { showActivationAlert = true }
@@ -985,7 +985,7 @@ struct HomeScreen: View {
                                 onCalendarClick: { showCalendarApp = true },
                                 onCameraClick: { showCameraApp = true },
                                 onNotesClick: { showNotesApp = true },
-                                onPersonaBuilderClick: { showPersonaBuilder = true },
+                                onPersonaBuilderClick: { showPersonaBuilderApp = true },
                                 onLayoutChanged: { saveLayout() }
                             )
                         }
@@ -1119,8 +1119,8 @@ struct HomeScreen: View {
                 NotesAppView(isPresented: $showNotesApp)
                     .transition(.move(edge: .trailing)).zIndex(9)
             }
-            if showPersonaBuilder {
-                PersonaBuilderApp()
+            if showPersonaBuilderApp {
+                PersonaBuilderApp(isPresented: $showPersonaBuilderApp)
                     .transition(.move(edge: .trailing)).zIndex(10)
             }
         }

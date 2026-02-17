@@ -1,11 +1,19 @@
 package com.WangWangPhone.ui
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,301 +21,492 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.WangWangPhone.core.PersonaDbHelper
+import com.WangWangPhone.core.ApiPresetDbHelper
+import com.WangWangPhone.core.ContactDbHelper
+import com.WangWangPhone.core.LlmApiService
+import kotlinx.coroutines.launch
+
+data class PersonaMessage(
+    val role: String, // "user" or "assistant"
+    val content: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 @Composable
-fun PersonaBuilderApp(onClose: () -> Unit) {
+fun PersonaBuilderAppScreen(onClose: () -> Unit) {
     BackHandler { onClose() }
     val isDark = isSystemInDarkTheme()
     val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     val card = if (isDark) Color(0xFF2C2C2E) else Color.White
     val txt = if (isDark) Color.White else Color.Black
+    
+    var showContactPicker by remember { mutableStateOf(false) }
+    var showApiPicker by remember { mutableStateOf(false) }
+    var selectedApiId by remember { mutableStateOf<Long?>(null) }
+    var messages by remember { mutableStateOf(listOf<PersonaMessage>()) }
+    var inputText by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var currentPersona by remember { mutableStateOf("") }
+    
     val context = LocalContext.current
-    val dbHelper = remember { PersonaDbHelper(context) }
+    val apiPresetDbHelper = remember { ApiPresetDbHelper(context) }
+    val contactDbHelper = remember { ContactDbHelper(context) }
     val clipboardManager = LocalClipboardManager.current
+    val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
     
-    var name by remember { mutableStateOf("") }
-    var gender by remember { mutableStateOf("") }
-    var age by remember { mutableStateOf("") }
-    var personality by remember { mutableStateOf("") }
-    var background by remember { mutableStateOf("") }
-    var appearance by remember { mutableStateOf("") }
-    var occupation by remember { mutableStateOf("") }
-    var hobbies by remember { mutableStateOf("") }
-    var relationships by remember { mutableStateOf("") }
-    var goals by remember { mutableStateOf("") }
-    var speechStyle by remember { mutableStateOf("") }
-    var specialTraits by remember { mutableStateOf("") }
-    
-    var showImportDialog by remember { mutableStateOf(false) }
-    var showSuccessMessage by remember { mutableStateOf(false) }
-    
+    // 初始化系统提示
     LaunchedEffect(Unit) {
-        val persona = dbHelper.getPersona()
-        persona?.let {
-            name = it.name
-            gender = it.gender
-            age = it.age
-            personality = it.personality
-            background = it.background
-            appearance = it.appearance
-            occupation = it.occupation
-            hobbies = it.hobbies
-            relationships = it.relationships
-            goals = it.goals
-            speechStyle = it.speechStyle
-            specialTraits = it.specialTraits
+        if (messages.isEmpty()) {
+            messages = listOf(
+                PersonaMessage(
+                    role = "assistant",
+                    content = "你好！我是神笔马良，专门帮你构建角色人设。\n\n我会通过几个问题来了解你想创建的角色：\n1. 角色的基本信息（姓名、年龄、职业等）\n2. 性格特点\n3. 说话风格\n4. 背景故事\n\n请告诉我，你想创建什么样的角色？"
+                )
+            )
         }
     }
     
-    Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
-        Box(
-            modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            Text("关闭", color = Color(0xFF007AFF), modifier = Modifier.clickable { onClose() })
-            Text("神笔马良", modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
+    // 自动滚动到底部
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            listState.animateScrollToItem(messages.size - 1)
         }
+    }
+    
+    fun sendMessage() {
+        if (inputText.isBlank() || isLoading) return
         
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().weight(1f).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            item {
-                Text("角色人设设计", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = txt)
-                Spacer(modifier = Modifier.height(8.dp))
+        val userMessage = inputText.trim()
+        inputText = ""
+        messages = messages + PersonaMessage(role = "user", content = userMessage)
+        
+        coroutineScope.launch {
+            isLoading = true
+            try {
+                val apiId = selectedApiId
+                if (apiId == null) {
+                    messages = messages + PersonaMessage(
+                        role = "assistant",
+                        content = "请先选择一个聊天API预设"
+                    )
+                    return@launch
+                }
+                
+                val preset = apiPresetDbHelper.getPresetById(apiId)
+                if (preset == null) {
+                    messages = messages + PersonaMessage(
+                        role = "assistant",
+                        content = "API预设不存在，请重新选择"
+                    )
+                    return@launch
+                }
+                
+                val systemPrompt = """你是一个专业的角色人设构建助手。你的任务是通过多轮对话，帮助用户构建完整的角色人设。
+
+构建流程：
+1. 询问角色基本信息（姓名、年龄、性别、职业等）
+2. 了解性格特点（外向/内向、乐观/悲观等）
+3. 确定说话风格（正式/随意、幽默/严肃等）
+4. 挖掘背景故事（成长经历、重要事件等）
+
+在每个阶段，你要：
+- 提出具体的引导性问题
+- 根据用户回答深入追问
+- 总结已收集的信息
+- 在收集完所有信息后，生成完整的人设描述
+
+最终输出格式：
+【角色人设】
+姓名：xxx
+年龄：xxx
+性别：xxx
+职业：xxx
+性格：xxx
+说话风格：xxx
+背景故事：xxx
+
+请保持友好、专业的对话风格。"""
+                
+                val conversationHistory = messages.map {
+                    mapOf("role" to it.role, "content" to it.content)
+                }
+                
+                val response = LlmApiService.sendChatRequest(
+                    preset = preset,
+                    messages = conversationHistory,
+                    systemPrompt = systemPrompt
+                )
+                
+                messages = messages + PersonaMessage(role = "assistant", content = response)
+                
+                // 提取人设（如果包含【角色人设】标记）
+                if (response.contains("【角色人设】")) {
+                    currentPersona = response.substringAfter("【角色人设】").trim()
+                }
+                
+            } catch (e: Exception) {
+                messages = messages + PersonaMessage(
+                    role = "assistant",
+                    content = "发送失败: ${e.message}"
+                )
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+    
+    Box(modifier = Modifier.fillMaxSize().background(bg)) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            // 顶部栏
+            Box(
+                modifier = Modifier.fillMaxWidth().height(56.dp).background(card)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text("关闭", color = Color(0xFF007AFF), modifier = Modifier.clickable { onClose() })
+                Text(
+                    "神笔马良",
+                    modifier = Modifier.align(Alignment.Center),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    color = txt
+                )
+                Row(modifier = Modifier.align(Alignment.CenterEnd)) {
+                    Text(
+                        "导入",
+                        color = Color(0xFF007AFF),
+                        modifier = Modifier.clickable { showContactPicker = true }
+                    )
+                    Spacer(modifier = Modifier.width(16.dp))
+                    Text(
+                        "API",
+                        color = Color(0xFF007AFF),
+                        modifier = Modifier.clickable { showApiPicker = true }
+                    )
+                }
             }
             
-            item { PersonaField("姓名", name, { name = it }, card, txt) }
-            item { PersonaField("性别", gender, { gender = it }, card, txt) }
-            item { PersonaField("年龄", age, { age = it }, card, txt) }
-            item { PersonaField("性格特点", personality, { personality = it }, card, txt, multiline = true) }
-            item { PersonaField("背景故事", background, { background = it }, card, txt, multiline = true) }
-            item { PersonaField("外貌特征", appearance, { appearance = it }, card, txt, multiline = true) }
-            item { PersonaField("职业", occupation, { occupation = it }, card, txt) }
-            item { PersonaField("兴趣爱好", hobbies, { hobbies = it }, card, txt, multiline = true) }
-            item { PersonaField("人际关系", relationships, { relationships = it }, card, txt, multiline = true) }
-            item { PersonaField("目标与动机", goals, { goals = it }, card, txt, multiline = true) }
-            item { PersonaField("说话风格", speechStyle, { speechStyle = it }, card, txt, multiline = true) }
-            item { PersonaField("特殊技能或习惯", specialTraits, { specialTraits = it }, card, txt, multiline = true) }
+            // API选择提示
+            if (selectedApiId == null) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().background(Color(0xFFFF9500).copy(alpha = 0.1f))
+                        .padding(12.dp)
+                ) {
+                    Text(
+                        "请先点击右上角「API」选择聊天API预设",
+                        color = Color(0xFFFF9500),
+                        fontSize = 13.sp
+                    )
+                }
+            }
             
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // 消息列表
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                state = listState
+            ) {
+                items(messages) { message ->
+                    MessageBubble(message = message, isDark = isDark, card = card, txt = txt)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                
+                if (isLoading) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(card)
+                                    .padding(12.dp)
+                            ) {
+                                Text("正在思考...", color = txt.copy(alpha = 0.6f), fontSize = 14.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+            }
+            
+            // 操作按钮
+            if (currentPersona.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     Button(
                         onClick = {
-                            val personaText = buildPersonaText(name, gender, age, personality, background, appearance, occupation, hobbies, relationships, goals, speechStyle, specialTraits)
-                            clipboardManager.setText(AnnotatedString(personaText))
-                            showSuccessMessage = true
+                            clipboardManager.setText(AnnotatedString(currentPersona))
+                            android.widget.Toast.makeText(context, "人设已复制", android.widget.Toast.LENGTH_SHORT).show()
                         },
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759)),
-                        shape = RoundedCornerShape(10.dp)
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF34C759))
                     ) {
-                        Text("复制人设", color = Color.White, fontSize = 16.sp)
+                        Text("复制人设")
                     }
-                    
                     Button(
-                        onClick = { showImportDialog = true },
-                        modifier = Modifier.weight(1f).height(48.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5856D6)),
-                        shape = RoundedCornerShape(10.dp)
+                        onClick = {
+                            messages = listOf(
+                                PersonaMessage(
+                                    role = "assistant",
+                                    content = "你好！我是神笔马良，专门帮你构建角色人设。\n\n我会通过几个问题来了解你想创建的角色：\n1. 角色的基本信息（姓名、年龄、职业等）\n2. 性格特点\n3. 说话风格\n4. 背景故事\n\n请告诉我，你想创建什么样的角色？"
+                                )
+                            )
+                            currentPersona = ""
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF))
                     ) {
-                        Text("导入联系人", color = Color.White, fontSize = 16.sp)
+                        Text("重新开始")
                     }
                 }
             }
             
-            item {
-                Button(
-                    onClick = {
-                        dbHelper.savePersona(
-                            com.WangWangPhone.core.PersonaRecord(
-                                name = name,
-                                gender = gender,
-                                age = age,
-                                personality = personality,
-                                background = background,
-                                appearance = appearance,
-                                occupation = occupation,
-                                hobbies = hobbies,
-                                relationships = relationships,
-                                goals = goals,
-                                speechStyle = speechStyle,
-                                specialTraits = specialTraits
-                            )
-                        )
-                        showSuccessMessage = true
-                    },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("保存人设", color = Color.White, fontSize = 16.sp)
-                }
-            }
-            
-            item { Spacer(modifier = Modifier.height(20.dp)) }
-        }
-    }
-    
-    if (showImportDialog) {
-        ImportContactDialog(
-            onDismiss = { showImportDialog = false },
-            onImport = { contactText ->
-                parseContactToPersona(contactText)?.let { parsed ->
-                    name = parsed["name"] ?: name
-                    gender = parsed["gender"] ?: gender
-                    age = parsed["age"] ?: age
-                    personality = parsed["personality"] ?: personality
-                    background = parsed["background"] ?: background
-                    appearance = parsed["appearance"] ?: appearance
-                    occupation = parsed["occupation"] ?: occupation
-                    hobbies = parsed["hobbies"] ?: hobbies
-                    relationships = parsed["relationships"] ?: relationships
-                    goals = parsed["goals"] ?: goals
-                    speechStyle = parsed["speechStyle"] ?: speechStyle
-                    specialTraits = parsed["specialTraits"] ?: specialTraits
-                    showImportDialog = false
-                    showSuccessMessage = true
-                }
-            }
-        )
-    }
-    
-    if (showSuccessMessage) {
-        LaunchedEffect(Unit) {
-            kotlinx.coroutines.delay(2000)
-            showSuccessMessage = false
-        }
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.Black.copy(alpha = 0.8f))
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
+            // 输入框
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .background(card)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("操作成功", color = Color.White, fontSize = 16.sp)
+                TextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("输入消息...", color = txt.copy(alpha = 0.5f)) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = bg,
+                        unfocusedContainerColor = bg,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = txt,
+                        unfocusedTextColor = txt
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier.size(40.dp).clip(CircleShape)
+                        .background(if (inputText.isBlank() || isLoading) Color.Gray else Color(0xFF007AFF))
+                        .clickable(enabled = inputText.isNotBlank() && !isLoading) { sendMessage() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("↑", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
             }
+        }
+        
+        // API选择器
+        if (showApiPicker) {
+            ApiPickerDialog(
+                apiPresetDbHelper = apiPresetDbHelper,
+                onDismiss = { showApiPicker = false },
+                onSelect = { apiId ->
+                    selectedApiId = apiId
+                    showApiPicker = false
+                },
+                isDark = isDark,
+                bg = bg,
+                card = card,
+                txt = txt
+            )
+        }
+        
+        // 联系人选择器
+        if (showContactPicker) {
+            ContactPickerDialog(
+                contactDbHelper = contactDbHelper,
+                onDismiss = { showContactPicker = false },
+                onSelect = { contact ->
+                    if (contact.persona.isNotEmpty()) {
+                        inputText = "请帮我基于以下人设继续完善：\n\n${contact.persona}"
+                        showContactPicker = false
+                    } else {
+                        android.widget.Toast.makeText(context, "该联系人没有人设信息", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                isDark = isDark,
+                bg = bg,
+                card = card,
+                txt = txt
+            )
         }
     }
 }
 
 @Composable
-fun PersonaField(
-    label: String,
-    value: String,
-    onValueChange: (String) -> Unit,
-    cardColor: Color,
-    textColor: Color,
-    multiline: Boolean = false
-) {
-    Column {
-        Text(label, fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 4.dp))
-        TextField(
-            value = value,
-            onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().then(if (multiline) Modifier.height(120.dp) else Modifier),
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = cardColor,
-                unfocusedContainerColor = cardColor,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-                focusedTextColor = textColor,
-                unfocusedTextColor = textColor
-            ),
-            shape = RoundedCornerShape(10.dp),
-            maxLines = if (multiline) 5 else 1
-        )
+fun MessageBubble(message: PersonaMessage, isDark: Boolean, card: Color, txt: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (message.role == "user") Color(0xFF007AFF)
+                    else card
+                )
+                .padding(12.dp)
+        ) {
+            Text(
+                text = message.content,
+                color = if (message.role == "user") Color.White else txt,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+        }
     }
 }
 
 @Composable
-fun ImportContactDialog(onDismiss: () -> Unit, onImport: (String) -> Unit) {
-    val clipboardManager = LocalClipboardManager.current
-    var importText by remember { mutableStateOf("") }
+fun ApiPickerDialog(
+    apiPresetDbHelper: ApiPresetDbHelper,
+    onDismiss: () -> Unit,
+    onSelect: (Long) -> Unit,
+    isDark: Boolean,
+    bg: Color,
+    card: Color,
+    txt: Color
+) {
+    val chatPresets = remember { apiPresetDbHelper.getPresetsByType("chat") }
     
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("导入联系人") },
+        title = { Text("选择聊天API") },
         text = {
-            Column {
-                Text("粘贴联系人信息，系统将自动解析", fontSize = 14.sp, color = Color.Gray)
-                Spacer(modifier = Modifier.height(8.dp))
-                TextField(
-                    value = importText,
-                    onValueChange = { importText = it },
-                    modifier = Modifier.fillMaxWidth().height(200.dp),
-                    placeholder = { Text("粘贴联系人信息...") }
-                )
+            if (chatPresets.isEmpty()) {
+                Text("暂无聊天API预设，请先在设置中添加")
+            } else {
+                LazyColumn {
+                    items(chatPresets) { preset ->
+                        Box(
+                            modifier = Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onSelect(preset.id) }
+                                .padding(12.dp)
+                        ) {
+                            Column {
+                                Text(preset.name, fontWeight = FontWeight.Bold, color = txt)
+                                Text(
+                                    "${preset.provider} - ${preset.model}",
+                                    fontSize = 12.sp,
+                                    color = txt.copy(alpha = 0.6f)
+                                )
+                            }
+                        }
+                        Divider(color = txt.copy(alpha = 0.1f))
+                    }
+                }
             }
         },
         confirmButton = {
-            TextButton(onClick = { onImport(importText) }) {
-                Text("导入")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = {
-                clipboardManager.getText()?.let { importText = it.text }
-            }) {
-                Text("粘贴")
+            TextButton(onClick = onDismiss) {
+                Text("取消")
             }
         }
     )
 }
 
-fun buildPersonaText(
-    name: String, gender: String, age: String, personality: String,
-    background: String, appearance: String, occupation: String, hobbies: String,
-    relationships: String, goals: String, speechStyle: String, specialTraits: String
-): String {
-    return buildString {
-        if (name.isNotBlank()) appendLine("姓名：$name")
-        if (gender.isNotBlank()) appendLine("性别：$gender")
-        if (age.isNotBlank()) appendLine("年龄：$age")
-        if (personality.isNotBlank()) appendLine("性格特点：$personality")
-        if (background.isNotBlank()) appendLine("背景故事：$background")
-        if (appearance.isNotBlank()) appendLine("外貌特征：$appearance")
-        if (occupation.isNotBlank()) appendLine("职业：$occupation")
-        if (hobbies.isNotBlank()) appendLine("兴趣爱好：$hobbies")
-        if (relationships.isNotBlank()) appendLine("人际关系：$relationships")
-        if (goals.isNotBlank()) appendLine("目标与动机：$goals")
-        if (speechStyle.isNotBlank()) appendLine("说话风格：$speechStyle")
-        if (specialTraits.isNotBlank()) appendLine("特殊技能或习惯：$specialTraits")
-    }.trim()
-}
-
-fun parseContactToPersona(text: String): Map<String, String>? {
-    if (text.isBlank()) return null
-    val result = mutableMapOf<String, String>()
-    val lines = text.lines()
+@Composable
+fun ContactPickerDialog(
+    contactDbHelper: ContactDbHelper,
+    onDismiss: () -> Unit,
+    onSelect: (com.WangWangPhone.core.ContactInfo) -> Unit,
+    isDark: Boolean,
+    bg: Color,
+    card: Color,
+    txt: Color
+) {
+    val contacts = remember { contactDbHelper.getAllContacts() }
     
-    for (line in lines) {
-        when {
-            line.startsWith("姓名：") || line.startsWith("姓名:") -> result["name"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("性别：") || line.startsWith("性别:") -> result["gender"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("年龄：") || line.startsWith("年龄:") -> result["age"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("性格特点：") || line.startsWith("性格特点:") -> result["personality"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("背景故事：") || line.startsWith("背景故事:") -> result["background"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("外貌特征：") || line.startsWith("外貌特征:") -> result["appearance"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("职业：") || line.startsWith("职业:") -> result["occupation"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("兴趣爱好：") || line.startsWith("兴趣爱好:") -> result["hobbies"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("人际关系：") || line.startsWith("人际关系:") -> result["relationships"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("目标与动机：") || line.startsWith("目标与动机:") -> result["goals"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("说话风格：") || line.startsWith("说话风格:") -> result["speechStyle"] = line.substringAfter("：").substringAfter(":")
-            line.startsWith("特殊技能或习惯：") || line.startsWith("特殊技能或习惯:") -> result["specialTraits"] = line.substringAfter("：").substringAfter(":")
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("选择联系人") },
+        text = {
+            if (contacts.isEmpty()) {
+                Text("暂无联系人")
+            } else {
+                LazyColumn {
+                    items(contacts) { contact ->
+                        Box(
+                            modifier = Modifier.fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onSelect(contact) }
+                                .padding(12.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                // 头像
+                                if (contact.avatarFileName.isNotEmpty()) {
+                                    val avatarPath = contactDbHelper.getAvatarFilePath(contact.avatarFileName)
+                                    if (avatarPath != null) {
+                                        val bitmap = remember(avatarPath) {
+                                            android.graphics.BitmapFactory.decodeFile(avatarPath)
+                                        }
+                                        if (bitmap != null) {
+                                            Image(
+                                                bitmap = bitmap.asImageBitmap(),
+                                                contentDescription = contact.nickname,
+                                                modifier = Modifier.size(40.dp).clip(CircleShape),
+                                                contentScale = ContentScale.Crop
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Box(
+                                        modifier = Modifier.size(40.dp).clip(CircleShape)
+                                            .background(Color.Gray),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            contact.nickname.firstOrNull()?.toString() ?: "?",
+                                            color = Color.White,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                
+                                Spacer(modifier = Modifier.width(12.dp))
+                                
+                                Column {
+                                    Text(contact.nickname, fontWeight = FontWeight.Bold, color = txt)
+                                    if (contact.persona.isNotEmpty()) {
+                                        Text(
+                                            "有人设信息",
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF34C759)
+                                        )
+                                    } else {
+                                        Text(
+                                            "无人设信息",
+                                            fontSize = 12.sp,
+                                            color = txt.copy(alpha = 0.4f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        Divider(color = txt.copy(alpha = 0.1f))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
         }
-    }
-    
-    return if (result.isNotEmpty()) result else null
+    )
 }
