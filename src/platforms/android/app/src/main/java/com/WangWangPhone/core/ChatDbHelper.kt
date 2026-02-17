@@ -12,6 +12,7 @@ data class ConversationData(
     val id: String,
     val aiRoleId: String,
     val userPersonaId: String,
+    val apiPresetId: Long = -1,
     val lastMessage: String = "",
     val lastMessageTime: Long = 0,
     val unreadCount: Int = 0,
@@ -44,13 +45,14 @@ class ChatDbHelper(private val context: Context) : SQLiteOpenHelper(
 ) {
     companion object {
         private const val DATABASE_NAME = "wangwang_chat.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         // 会话表
         private const val TABLE_CONVERSATIONS = "conversations"
         private const val COL_CONV_ID = "id"
         private const val COL_CONV_AI_ROLE_ID = "ai_role_id"
         private const val COL_CONV_USER_PERSONA_ID = "user_persona_id"
+        private const val COL_CONV_API_PRESET_ID = "api_preset_id"
         private const val COL_CONV_LAST_MESSAGE = "last_message"
         private const val COL_CONV_LAST_MESSAGE_TIME = "last_message_time"
         private const val COL_CONV_UNREAD_COUNT = "unread_count"
@@ -75,6 +77,7 @@ class ChatDbHelper(private val context: Context) : SQLiteOpenHelper(
                 $COL_CONV_ID TEXT PRIMARY KEY,
                 $COL_CONV_AI_ROLE_ID TEXT NOT NULL,
                 $COL_CONV_USER_PERSONA_ID TEXT NOT NULL,
+                $COL_CONV_API_PRESET_ID INTEGER DEFAULT -1,
                 $COL_CONV_LAST_MESSAGE TEXT DEFAULT '',
                 $COL_CONV_LAST_MESSAGE_TIME INTEGER DEFAULT 0,
                 $COL_CONV_UNREAD_COUNT INTEGER DEFAULT 0,
@@ -104,13 +107,16 @@ class ChatDbHelper(private val context: Context) : SQLiteOpenHelper(
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // 未来版本升级逻辑
+        if (oldVersion < 2) {
+            // 添加 api_preset_id 字段
+            db.execSQL("ALTER TABLE $TABLE_CONVERSATIONS ADD COLUMN $COL_CONV_API_PRESET_ID INTEGER DEFAULT -1")
+        }
     }
 
     /**
      * 创建新会话
      */
-    fun createConversation(aiRoleId: String, userPersonaId: String): String? {
+    fun createConversation(aiRoleId: String, userPersonaId: String, apiPresetId: Long = -1): String? {
         return try {
             val conversationId = java.util.UUID.randomUUID().toString()
             val db = writableDatabase
@@ -118,6 +124,7 @@ class ChatDbHelper(private val context: Context) : SQLiteOpenHelper(
                 put(COL_CONV_ID, conversationId)
                 put(COL_CONV_AI_ROLE_ID, aiRoleId)
                 put(COL_CONV_USER_PERSONA_ID, userPersonaId)
+                put(COL_CONV_API_PRESET_ID, apiPresetId)
                 put(COL_CONV_CREATED_AT, System.currentTimeMillis() / 1000)
                 put(COL_CONV_UPDATED_AT, System.currentTimeMillis() / 1000)
             }
@@ -152,6 +159,7 @@ class ChatDbHelper(private val context: Context) : SQLiteOpenHelper(
                             id = it.getString(it.getColumnIndexOrThrow(COL_CONV_ID)),
                             aiRoleId = it.getString(it.getColumnIndexOrThrow(COL_CONV_AI_ROLE_ID)),
                             userPersonaId = it.getString(it.getColumnIndexOrThrow(COL_CONV_USER_PERSONA_ID)),
+                            apiPresetId = it.getLong(it.getColumnIndexOrThrow(COL_CONV_API_PRESET_ID)),
                             lastMessage = it.getString(it.getColumnIndexOrThrow(COL_CONV_LAST_MESSAGE)) ?: "",
                             lastMessageTime = it.getLong(it.getColumnIndexOrThrow(COL_CONV_LAST_MESSAGE_TIME)),
                             unreadCount = it.getInt(it.getColumnIndexOrThrow(COL_CONV_UNREAD_COUNT)),
@@ -190,6 +198,7 @@ class ChatDbHelper(private val context: Context) : SQLiteOpenHelper(
                         id = it.getString(it.getColumnIndexOrThrow(COL_CONV_ID)),
                         aiRoleId = it.getString(it.getColumnIndexOrThrow(COL_CONV_AI_ROLE_ID)),
                         userPersonaId = it.getString(it.getColumnIndexOrThrow(COL_CONV_USER_PERSONA_ID)),
+                        apiPresetId = it.getLong(it.getColumnIndexOrThrow(COL_CONV_API_PRESET_ID)),
                         lastMessage = it.getString(it.getColumnIndexOrThrow(COL_CONV_LAST_MESSAGE)) ?: "",
                         lastMessageTime = it.getLong(it.getColumnIndexOrThrow(COL_CONV_LAST_MESSAGE_TIME)),
                         unreadCount = it.getInt(it.getColumnIndexOrThrow(COL_CONV_UNREAD_COUNT)),
@@ -306,22 +315,40 @@ class ChatDbHelper(private val context: Context) : SQLiteOpenHelper(
             e.printStackTrace()
             false
         }
-    }
-
-    /**
-     * 设置静音状态
-     */
-    fun setMuted(conversationId: String, isMuted: Boolean): Boolean {
-        return try {
-            val db = writableDatabase
-            val values = ContentValues().apply {
-                put(COL_CONV_IS_MUTED, if (isMuted) 1 else 0)
-            }
-            db.update(TABLE_CONVERSATIONS, values, "$COL_CONV_ID = ?", arrayOf(conversationId))
-            true
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
-        }
-    }
-}
+     }
+ 
+     /**
+      * 设置静音状态
+      */
+     fun setMuted(conversationId: String, isMuted: Boolean): Boolean {
+         return try {
+             val db = writableDatabase
+             val values = ContentValues().apply {
+                 put(COL_CONV_IS_MUTED, if (isMuted) 1 else 0)
+             }
+             db.update(TABLE_CONVERSATIONS, values, "$COL_CONV_ID = ?", arrayOf(conversationId))
+             true
+         } catch (e: Exception) {
+             e.printStackTrace()
+             false
+         }
+     }
+ 
+     /**
+      * 更新会话的API预设ID
+      */
+     fun updateApiPresetId(conversationId: String, apiPresetId: Long): Boolean {
+         return try {
+             val db = writableDatabase
+             val values = ContentValues().apply {
+                 put(COL_CONV_API_PRESET_ID, apiPresetId)
+                 put(COL_CONV_UPDATED_AT, System.currentTimeMillis() / 1000)
+             }
+             val result = db.update(TABLE_CONVERSATIONS, values, "$COL_CONV_ID = ?", arrayOf(conversationId))
+             result > 0
+         } catch (e: Exception) {
+             e.printStackTrace()
+             false
+         }
+     }
+ }

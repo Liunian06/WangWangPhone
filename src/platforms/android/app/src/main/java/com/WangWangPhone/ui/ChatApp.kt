@@ -39,6 +39,8 @@ import com.WangWangPhone.core.ContactInfo
 import com.WangWangPhone.core.ChatDbHelper
 import com.WangWangPhone.core.ConversationData
 import com.WangWangPhone.core.MessageData
+import com.WangWangPhone.core.ApiPresetDbHelper
+import com.WangWangPhone.core.LlmApiService
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -131,6 +133,333 @@ data class Moment(val id: String, val name: String, val avatar: String, val cont
 data class ChatMessage(val type: String, val name: String = "", val avatar: String = "", val text: String = "")
 
 // ============================================
+// API预设选择界面
+// ============================================
+@Composable
+fun ApiPresetSelectionScreen(
+    onBack: () -> Unit,
+    onPresetSelected: (Long) -> Unit,
+    apiPresetDbHelper: ApiPresetDbHelper
+) {
+    val chatPresets = remember { apiPresetDbHelper.getPresetsByType("chat") }
+    
+    BackHandler { onBack() }
+    
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text("选择API预设", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
+        }
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+        
+        if (chatPresets.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("暂无聊天API预设，请先在设置中添加", fontSize = 14.sp, color = WeTheme.TextSecondary)
+            }
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(chatPresets) { preset ->
+                    Box(
+                        modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)
+                            .clickable { onPresetSelected(preset.id) }
+                            .padding(16.dp, 12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(preset.name, fontSize = 16.sp, color = WeTheme.TextPrimary, modifier = Modifier.weight(1f))
+                            Text(preset.provider.uppercase(), fontSize = 12.sp, color = WeTheme.BrandGreen)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text("模型: ${preset.model}", fontSize = 12.sp, color = WeTheme.TextSecondary)
+                    }
+                    Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 16.dp))
+                }
+            }
+        }
+    }
+}
+
+// ============================================
+// 联系人选择界面（用于发起聊天）
+// ============================================
+@Composable
+fun ContactSelectionScreen(
+    onBack: () -> Unit,
+    onContactsSelected: (String, String) -> Unit,
+    contactDbHelper: ContactDbHelper,
+    selectedContact1: String?,
+    selectedContact2: String?,
+    onContact1Selected: (String?) -> Unit,
+    onContact2Selected: (String?) -> Unit,
+    allContacts: List<ContactInfo>
+) {
+    // 使用传入的状态变量
+    val selectedContact1State = selectedContact1
+    val selectedContact2State = selectedContact2
+    val onContact1SelectedState = onContact1Selected
+    val onContact2SelectedState = onContact2Selected
+    
+    BackHandler { onBack() }
+    
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text("选择联系人", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
+        }
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+        
+        // 提示信息
+        Box(
+            modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)
+        ) {
+            Column {
+                Text("请选择两个联系人：", fontSize = 14.sp, color = WeTheme.TextPrimary, fontWeight = FontWeight.Medium)
+                Spacer(Modifier.height(8.dp))
+                Text("1. 第一个联系人：AI角色人设", fontSize = 13.sp, color = WeTheme.TextSecondary)
+                Text("2. 第二个联系人：用户人设", fontSize = 13.sp, color = WeTheme.TextSecondary)
+            }
+        }
+        
+        Spacer(Modifier.height(8.dp))
+        
+        // 已选择的联系人显示
+        if (selectedContact1State != null || selectedContact2State != null) {
+            Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)) {
+                if (selectedContact1State != null) {
+                    val contact1 = allContacts.find { it.id == selectedContact1State }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("角色人设：", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(contact1?.nickname ?: "", fontSize = 14.sp, color = WeTheme.BrandGreen, fontWeight = FontWeight.Medium)
+                    }
+                }
+                if (selectedContact2State != null) {
+                    Spacer(Modifier.height(8.dp))
+                    val contact2 = allContacts.find { it.id == selectedContact2State }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("用户人设：", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                        Spacer(Modifier.width(8.dp))
+                        Text(contact2?.nickname ?: "", fontSize = 14.sp, color = WeTheme.BrandGreen, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+        }
+        
+        // 联系人列表
+        LazyColumn(modifier = Modifier.weight(1f)) {
+            var curLetter = ""
+            allContacts.forEach { c ->
+                val letter = c.getPinyinInitial()
+                if (letter != curLetter) {
+                    curLetter = letter
+                    item {
+                        Text(curLetter, modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
+                    }
+                }
+                item {
+                    ContactSelectionItem(
+                        contact = c,
+                        isSelected = c.id == selectedContact1State || c.id == selectedContact2State,
+                        selectionLabel = when (c.id) {
+                            selectedContact1State -> "角色"
+                            selectedContact2State -> "用户"
+                            else -> null
+                        },
+                        onClick = {
+                            when {
+                                selectedContact1State == null -> onContact1SelectedState(c.id)
+                                selectedContact2State == null && c.id != selectedContact1State -> onContact2SelectedState(c.id)
+                                c.id == selectedContact1State -> onContact1SelectedState(null)
+                                c.id == selectedContact2State -> onContact2SelectedState(null)
+                            }
+                        },
+                        contactDbHelper = contactDbHelper
+                    )
+                }
+            }
+        }
+        
+        // 确认按钮
+        Box(
+            modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)
+        ) {
+            // API预设选择按钮
+            Box(
+                modifier = Modifier.fillMaxWidth().height(48.dp).background(
+                    if (selectedContact1 != null && selectedContact2 != null) WeTheme.BrandGreen else Color(0xFFCCCCCC),
+                    RoundedCornerShape(8.dp)
+                ).clickable(enabled = selectedContact1 != null && selectedContact2 != null) {
+                    if (selectedContact1State != null && selectedContact2State != null) {
+                        onContactsSelected(selectedContact1State!!, selectedContact2State!!)
+                    }
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("选择API预设", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+}
+
+@Composable
+fun ContactSelectionItem(
+    contact: ContactInfo,
+    isSelected: Boolean,
+    selectionLabel: String?,
+    onClick: () -> Unit,
+    contactDbHelper: ContactDbHelper
+) {
+    val avatarPath = remember(contact.avatarFileName) {
+        contact.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
+    }
+    
+    Row(
+        modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).clickable { onClick() }.padding(16.dp, 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // 头像
+        if (avatarPath != null) {
+            val bitmap = remember(avatarPath) { BitmapFactory.decodeFile(avatarPath) }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "头像",
+                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(
+                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5DC)),
+                    contentAlignment = Alignment.Center
+                ) { Text(contact.persona.firstOrNull()?.toString() ?: "👤", fontSize = 22.sp) }
+            }
+        } else {
+            Box(
+                modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5DC)),
+                contentAlignment = Alignment.Center
+            ) { Text(contact.persona.firstOrNull()?.toString() ?: "👤", fontSize = 22.sp) }
+        }
+        
+        Spacer(Modifier.width(16.dp))
+        Text(contact.nickname, fontSize = 16.sp, color = WeTheme.TextPrimary, modifier = Modifier.weight(1f))
+        
+        // 选择标签
+        if (isSelected && selectionLabel != null) {
+            Box(
+                modifier = Modifier.background(WeTheme.BrandGreen, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(selectionLabel, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+            }
+        }
+    }
+    Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 68.dp))
+}
+
+// ============================================
+// 聊天设置界面
+// ============================================
+@Composable
+fun ChatSettingsScreen(
+    chatId: String,
+    onBack: () -> Unit,
+    chatDbHelper: ChatDbHelper,
+    apiPresetDbHelper: ApiPresetDbHelper,
+    onApiPresetChanged: () -> Unit
+) {
+    val context = LocalContext.current
+    val conversation = remember(chatId) { chatDbHelper.getConversationById(chatId) }
+    val currentPresetId = conversation?.apiPresetId ?: -1L
+    val currentPreset = remember(currentPresetId) {
+        if (currentPresetId != -1L) {
+            apiPresetDbHelper.getPresetById(currentPresetId)
+        } else {
+            null
+        }
+    }
+    val chatPresets = remember { apiPresetDbHelper.getPresetsByType("chat") }
+    
+    BackHandler { onBack() }
+    
+    Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
+        Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
+            WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
+            Text("聊天设置", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
+        }
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+        
+        // API预设设置
+        Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)) {
+            Text("API预设", fontSize = 14.sp, color = WeTheme.TextSecondary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp))
+            
+            // 当前选择的预设
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp)
+            ) {
+                if (currentPreset != null) {
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(currentPreset.name, fontSize = 16.sp, color = WeTheme.TextPrimary, modifier = Modifier.weight(1f))
+                            Text(currentPreset.provider.uppercase(), fontSize = 12.sp, color = WeTheme.BrandGreen)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        Text("模型: ${currentPreset.model}", fontSize = 12.sp, color = WeTheme.TextSecondary)
+                    }
+                } else {
+                    Text("未选择API预设", fontSize = 16.sp, color = WeTheme.TextHint)
+                }
+            }
+            
+            Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 16.dp))
+            
+            // 更改按钮
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp)
+                    .clickable {
+                        // 跳转到API预设选择界面
+                        onBack()
+                        onApiPresetChanged()
+                    }
+            ) {
+                Text("更改API预设", fontSize = 16.sp, color = WeTheme.BrandGreen)
+            }
+        }
+        
+        Spacer(Modifier.height(16.dp))
+        
+        // 其他设置选项（可以扩展）
+        Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)) {
+            Text("其他设置", fontSize = 14.sp, color = WeTheme.TextSecondary, modifier = Modifier.padding(16.dp, 12.dp, 16.dp, 0.dp))
+            
+            // 静音设置
+            var isMuted by remember { mutableStateOf(conversation?.isMuted ?: false) }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp)
+                    .clickable {
+                        isMuted = !isMuted
+                        chatDbHelper.setMuted(chatId, isMuted)
+                    },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("消息免打扰", fontSize = 16.sp, color = WeTheme.TextPrimary, modifier = Modifier.weight(1f))
+                Switch(
+                    checked = isMuted,
+                    onCheckedChange = { newValue ->
+                        isMuted = newValue
+                        chatDbHelper.setMuted(chatId, newValue)
+                    },
+                    colors = SwitchDefaults.colors(
+                        uncheckedThumbColor = WeTheme.BackgroundCell,
+                        uncheckedTrackColor = WeTheme.TextHint,
+                        checkedThumbColor = Color.White,
+                        checkedTrackColor = WeTheme.BrandGreen
+                    )
+                )
+            }
+        }
+    }
+}
+
+// ============================================
 // 从数据库加载会话列表
 // ============================================
 fun getConversations(contactDbHelper: ContactDbHelper, chatDbHelper: ChatDbHelper): List<Conversation> {
@@ -195,12 +524,19 @@ fun ChatAppScreen(onClose: () -> Unit) {
     var currentContactId by remember { mutableStateOf<String?>(null) }
     var editingContactId by remember { mutableStateOf<String?>(null) }
     var showContactSelection by remember { mutableStateOf(false) }
+    var showApiPresetSelection by remember { mutableStateOf(false) }
+    var selectedApiPresetId by remember { mutableStateOf(-1L) }
+    var selectedContact1Id by remember { mutableStateOf<String?>(null) }
+    var selectedContact2Id by remember { mutableStateOf<String?>(null) }
+
+    var showChatSettings by remember { mutableStateOf(false) }
 
     // 用户资料状态 - 在顶层管理，传递给子组件
     val context = LocalContext.current
     val profileDbHelper = remember { UserProfileDbHelper(context) }
     val contactDbHelper = remember { ContactDbHelper(context) }
     val chatDbHelper = remember { ChatDbHelper(context) }
+    val apiPresetDbHelper = remember { ApiPresetDbHelper(context) }
     var userNickname by remember { mutableStateOf(profileDbHelper.getUserProfile().nickname) }
     var userSignature by remember { mutableStateOf(profileDbHelper.getUserProfile().signature) }
     var avatarPath by remember { mutableStateOf(profileDbHelper.getAvatarFilePath()) }
@@ -216,28 +552,79 @@ fun ChatAppScreen(onClose: () -> Unit) {
             "edit-contact" -> { currentView = "contact-detail"; editingContactId = null }
             "service" -> { currentView = "main"; currentTab = "me" }
             "select-contacts" -> { currentView = "main"; showContactSelection = false }
+            "select-api-preset" -> { currentView = "select-contacts"; showApiPresetSelection = false }
+            "chat-settings" -> { currentView = "chat-detail"; showChatSettings = false }
             else -> onClose()
         }
     }
 
     when (currentView) {
-        "select-contacts" -> ContactSelectionScreen(
-            onBack = { currentView = "main"; showContactSelection = false },
-            onContactsSelected = { contact1Id, contact2Id ->
-                val chatId = chatDbHelper.createChat(contact1Id, contact2Id)
-                currentChatId = chatId
-                currentView = "chat-detail"
-                showContactSelection = false
-                chatsRefreshTrigger++
-            },
-            contactDbHelper = contactDbHelper
-        )
+         "select-contacts" -> {
+             var selectedContact1 by remember { mutableStateOf<String?>(null) }
+             var selectedContact2 by remember { mutableStateOf<String?>(null) }
+             val allContacts = remember { contactDbHelper.getAllContacts() }
+             
+             ContactSelectionScreen(
+                 onBack = { currentView = "main"; showContactSelection = false },
+                 onContactsSelected = { contact1Id, contact2Id ->
+                     // 保存选择的联系人
+                     selectedContact1Id = contact1Id
+                     selectedContact2Id = contact2Id
+                     // 跳转到API预设选择界面
+                     currentView = "select-api-preset"
+                     showApiPresetSelection = true
+                 },
+                 contactDbHelper = contactDbHelper,
+                 selectedContact1 = selectedContact1,
+                 selectedContact2 = selectedContact2,
+                 onContact1Selected = { selectedContact1 = it },
+                 onContact2Selected = { selectedContact2 = it },
+                 allContacts = allContacts
+             )
+         }
+       "select-api-preset" -> ApiPresetSelectionScreen(
+           onBack = {
+               if (currentView == "chat-settings") {
+                   currentView = "chat-settings"
+               } else {
+                   currentView = "select-contacts"
+               }
+               showApiPresetSelection = false
+           },
+           onPresetSelected = { presetId ->
+               if (currentView == "chat-settings" && currentChatId != null) {
+                   // 更新现有聊天的API预设
+                   if (chatDbHelper.updateApiPresetId(currentChatId!!, presetId)) {
+                       currentView = "chat-detail"
+                       showApiPresetSelection = false
+                       chatsRefreshTrigger++
+                   }
+               } else {
+                   // 创建新聊天
+                   if (selectedContact1Id != null && selectedContact2Id != null) {
+                       val chatId = chatDbHelper.createConversation(selectedContact1Id!!, selectedContact2Id!!, presetId)
+                       if (chatId != null) {
+                           currentChatId = chatId
+                           currentView = "chat-detail"
+                           showApiPresetSelection = false
+                           chatsRefreshTrigger++
+                       }
+                   }
+               }
+           },
+           apiPresetDbHelper = ApiPresetDbHelper(context)
+       )
         "chat-detail" -> ChatDetailScreen(
             chatId = currentChatId ?: "",
             onBack = {
                 chatsRefreshTrigger++
                 currentView = "main"
                 currentChatId = null
+            },
+            onSettingsClick = {
+                // 跳转到聊天设置界面
+                currentView = "chat-settings"
+                showChatSettings = true
             },
             avatarPath = avatarPath,
             contactDbHelper = contactDbHelper,
@@ -274,6 +661,17 @@ fun ChatAppScreen(onClose: () -> Unit) {
             },
             contactDbHelper = contactDbHelper
         )
+        "chat-settings" -> ChatSettingsScreen(
+            chatId = currentChatId ?: "",
+            onBack = { currentView = "chat-detail"; showChatSettings = false },
+            chatDbHelper = chatDbHelper,
+            apiPresetDbHelper = apiPresetDbHelper,
+            onApiPresetChanged = {
+                // 跳转到API预设选择界面用于更改现有聊天的API预设
+                currentView = "select-api-preset"
+                showApiPresetSelection = true
+            }
+        )
         "service" -> ServiceScreen(
             onBack = { currentView = "main"; currentTab = "me" }
         )
@@ -281,7 +679,15 @@ fun ChatAppScreen(onClose: () -> Unit) {
             currentTab = currentTab,
             onTabChange = { currentTab = it },
             onClose = onClose,
-            onOpenChat = { id -> currentChatId = id; currentView = "chat-detail" },
+            onOpenChat = { id ->
+                if (id == "new") {
+                    currentView = "select-contacts"
+                    showContactSelection = true
+                } else {
+                    currentChatId = id
+                    currentView = "chat-detail"
+                }
+            },
             onOpenContact = { id -> currentContactId = id; currentView = "contact-detail" },
             onAddContact = { currentView = "add-contact" },
             onOpenService = { currentView = "service" },
@@ -346,17 +752,17 @@ fun ChatMainScreen(
         // Content (权重为1，撑开中间部分)
         Box(modifier = Modifier.weight(1f)) {
             when (currentTab) {
-                "messages" -> {
-                    Column {
-                        WeChatHeader(
-                            title = titles[currentTab] ?: "",
-                            onClose = onClose,
-                            showBack = false,
-                            onStartChat = { currentView = "select-contacts"; showContactSelection = true }
-                        )
-                        MessagesTab(onOpenChat, conversations, contactDbHelper)
-                    }
+            "messages" -> {
+                Column {
+                    WeChatHeader(
+                        title = titles[currentTab] ?: "",
+                        onClose = onClose,
+                        showBack = false,
+                        onStartChat = { onOpenChat("new") }
+                    )
+                    MessagesTab(onOpenChat, conversations, contactDbHelper)
                 }
+            }
                 "contacts" -> {
                     Column {
                         WeChatHeader(
@@ -1167,6 +1573,7 @@ fun MeTab(
 fun ChatDetailScreen(
     chatId: String,
     onBack: () -> Unit,
+    onSettingsClick: () -> Unit,
     avatarPath: String? = null,
     contactDbHelper: ContactDbHelper? = null,
     chatDbHelper: ChatDbHelper? = null
@@ -1233,7 +1640,7 @@ fun ChatDetailScreen(
         Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
             WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
             Text(displayTitle, fontWeight = FontWeight.SemiBold, fontSize = 17.sp, maxLines = 1, color = WeTheme.TextPrimary)
-            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
+            Text("···", modifier = Modifier.align(Alignment.CenterEnd).padding(end = 12.dp).clickable { onSettingsClick() }, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WeTheme.TextPrimary)
         }
         Divider(color = WeTheme.Separator, thickness = 0.5.dp)
 
@@ -1328,30 +1735,88 @@ fun ChatDetailScreen(
             )
             WeIcon("ic_chat_emoji", "😊", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
             
-            val hasText = inputText.text.trim().isNotEmpty()
-            if (hasText) {
-                 Box(
-                     modifier = Modifier.height(32.dp).width(56.dp).background(WeTheme.BrandGreen, RoundedCornerShape(4.dp)).clickable {
-                         val messageText = inputText.text.trim()
-                         messages.add(ChatMessage("sent", text = messageText))
-                         
-                         // 保存消息到数据库
-                         if (chatId.startsWith("contact_")) {
-                             val contactId = chatId.removePrefix("contact_")
-                             chatDbHelper?.addMessage(contactId, true, messageText)
-                         }
-                         
-                         inputText = TextFieldValue("")
-                         scope.launch { listState.animateScrollToItem(messages.size - 1) }
-                     },
-                     contentAlignment = Alignment.Center
-                 ) {
-                     Text("发送", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                 }
-            } else {
-                WeIcon("ic_chat_add", "⊕", modifier = Modifier.size(28.dp).clickable {
-                }, tint = WeTheme.TextPrimary)
-            }
+             val hasText = inputText.text.trim().isNotEmpty()
+             if (hasText) {
+                  Box(
+                      modifier = Modifier.height(32.dp).width(56.dp).background(WeTheme.BrandGreen, RoundedCornerShape(4.dp)).clickable {
+                          val messageText = inputText.text.trim()
+                          messages.add(ChatMessage("sent", text = messageText))
+                          
+                          // 保存用户消息到数据库
+                          var conversationId = chatId
+                          if (chatId.startsWith("contact_")) {
+                              val contactId = chatId.removePrefix("contact_")
+                              chatDbHelper?.addMessage(contactId, true, messageText)
+                              
+                              // 获取聊天API预设
+                              val apiPresetDbHelper = ApiPresetDbHelper(context)
+                              val conversation = chatDbHelper?.getConversationById(chatId)
+                              val presetId = conversation?.apiPresetId ?: -1L
+                              
+                              val preset = if (presetId != -1L) {
+                                  apiPresetDbHelper.getPresetById(presetId)
+                              } else {
+                                  // 如果没有指定预设，使用第一个可用的
+                                  apiPresetDbHelper.getPresetsByType("chat").firstOrNull()
+                              }
+                              
+                              if (preset != null) {
+                                  
+                                  // 获取AI角色和用户人设
+                                  val aiContact = contactInfo
+                                  // 从会话中获取用户人设ID
+                                  val conversation = chatDbHelper?.getConversationById(chatId)
+                                  val userPersonaId = conversation?.userPersonaId ?: ""
+                                  val userContact = contactDbHelper?.getContactById(userPersonaId)
+                                  
+                                  val aiPersona = aiContact?.persona ?: ""
+                                  val userPersona = userContact?.persona ?: ""
+                                  
+                                  // 获取历史消息
+                                  val historyMessages = chatDbHelper?.getMessages(contactId) ?: emptyList()
+                                  
+                                  // 调用LLM API获取AI回复
+                                  scope.launch {
+                                      val llmService = LlmApiService()
+                                      val aiResponse = llmService.sendChatRequest(
+                                          preset = preset,
+                                          aiPersona = aiPersona,
+                                          userPersona = userPersona,
+                                          messages = historyMessages,
+                                          userMessage = messageText
+                                      )
+                                      
+                                      if (aiResponse != null) {
+                                          // 添加AI回复到消息列表
+                                          messages.add(ChatMessage("received", chatName, chatAvatar, aiResponse))
+                                          
+                                          // 保存AI回复到数据库
+                                          chatDbHelper?.addMessage(contactId, false, aiResponse)
+                                      } else {
+                                          // API调用失败，显示错误消息
+                                          messages.add(ChatMessage("received", chatName, chatAvatar, "抱歉，我无法处理您的请求。请检查API设置。"))
+                                      }
+                                      
+                                      // 滚动到底部
+                                      listState.animateScrollToItem(messages.size - 1)
+                                  }
+                              } else {
+                                  // 没有配置API预设，显示提示消息
+                                  messages.add(ChatMessage("received", chatName, chatAvatar, "请先在设置中配置聊天API预设。"))
+                              }
+                          }
+                          
+                          inputText = TextFieldValue("")
+                          scope.launch { listState.animateScrollToItem(messages.size - 1) }
+                      },
+                      contentAlignment = Alignment.Center
+                  ) {
+                      Text("发送", color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                  }
+             } else {
+                 WeIcon("ic_chat_add", "⊕", modifier = Modifier.size(28.dp).clickable {
+                 }, tint = WeTheme.TextPrimary)
+             }
         }
     }
 
@@ -1903,172 +2368,5 @@ fun EditContactScreen(
         }
     }
     
-    // ============================================
-    // 联系人选择界面（用于发起聊天）
-    // ============================================
-    @Composable
-    fun ContactSelectionScreen(
-        onBack: () -> Unit,
-        onContactsSelected: (String, String) -> Unit,
-        contactDbHelper: ContactDbHelper
-    ) {
-        var selectedContact1 by remember { mutableStateOf<String?>(null) }
-        var selectedContact2 by remember { mutableStateOf<String?>(null) }
-        val allContacts = remember { contactDbHelper.getAllContacts() }
-        
-        BackHandler { onBack() }
-        
-        Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
-            Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
-                WeIcon("ic_nav_back", "‹", modifier = Modifier.align(Alignment.CenterStart).padding(start = 12.dp).size(24.dp).clickable { onBack() }, tint = WeTheme.TextPrimary)
-                Text("选择联系人", fontWeight = FontWeight.SemiBold, fontSize = 17.sp, color = WeTheme.TextPrimary)
-            }
-            Divider(color = WeTheme.Separator, thickness = 0.5.dp)
-            
-            // 提示信息
-            Box(
-                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)
-            ) {
-                Column {
-                    Text("请选择两个联系人：", fontSize = 14.sp, color = WeTheme.TextPrimary, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(8.dp))
-                    Text("1. 第一个联系人：AI角色人设", fontSize = 13.sp, color = WeTheme.TextSecondary)
-                    Text("2. 第二个联系人：用户人设", fontSize = 13.sp, color = WeTheme.TextSecondary)
-                }
-            }
-            
-            Spacer(Modifier.height(8.dp))
-            
-            // 已选择的联系人显示
-            if (selectedContact1 != null || selectedContact2 != null) {
-                Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)) {
-                    if (selectedContact1 != null) {
-                        val contact1 = allContacts.find { it.id == selectedContact1 }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("角色人设：", fontSize = 14.sp, color = WeTheme.TextSecondary)
-                            Spacer(Modifier.width(8.dp))
-                            Text(contact1?.nickname ?: "", fontSize = 14.sp, color = WeTheme.BrandGreen, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                    if (selectedContact2 != null) {
-                        Spacer(Modifier.height(8.dp))
-                        val contact2 = allContacts.find { it.id == selectedContact2 }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("用户人设：", fontSize = 14.sp, color = WeTheme.TextSecondary)
-                            Spacer(Modifier.width(8.dp))
-                            Text(contact2?.nickname ?: "", fontSize = 14.sp, color = WeTheme.BrandGreen, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-            
-            // 联系人列表
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                var curLetter = ""
-                allContacts.forEach { c ->
-                    val letter = c.getPinyinInitial()
-                    if (letter != curLetter) {
-                        curLetter = letter
-                        item {
-                            Text(curLetter, modifier = Modifier.fillMaxWidth().background(WeTheme.Background).padding(16.dp, 6.dp), fontSize = 12.sp, color = WeTheme.TextSecondary)
-                        }
-                    }
-                    item {
-                        ContactSelectionItem(
-                            contact = c,
-                            isSelected = c.id == selectedContact1 || c.id == selectedContact2,
-                            selectionLabel = when (c.id) {
-                                selectedContact1 -> "角色"
-                                selectedContact2 -> "用户"
-                                else -> null
-                            },
-                            onClick = {
-                                when {
-                                    selectedContact1 == null -> selectedContact1 = c.id
-                                    selectedContact2 == null && c.id != selectedContact1 -> selectedContact2 = c.id
-                                    c.id == selectedContact1 -> selectedContact1 = null
-                                    c.id == selectedContact2 -> selectedContact2 = null
-                                }
-                            },
-                            contactDbHelper = contactDbHelper
-                        )
-                    }
-                }
-            }
-            
-            // 确认按钮
-            Box(
-                modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxWidth().height(48.dp).background(
-                        if (selectedContact1 != null && selectedContact2 != null) WeTheme.BrandGreen else Color(0xFFCCCCCC),
-                        RoundedCornerShape(8.dp)
-                    ).clickable(enabled = selectedContact1 != null && selectedContact2 != null) {
-                        if (selectedContact1 != null && selectedContact2 != null) {
-                            onContactsSelected(selectedContact1!!, selectedContact2!!)
-                        }
-                    },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("确定", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-        }
-    }
-    
-    @Composable
-    fun ContactSelectionItem(
-        contact: ContactInfo,
-        isSelected: Boolean,
-        selectionLabel: String?,
-        onClick: () -> Unit,
-        contactDbHelper: ContactDbHelper
-    ) {
-        val avatarPath = remember(contact.avatarFileName) {
-            contact.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
-        }
-        
-        Row(
-            modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).clickable { onClick() }.padding(16.dp, 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // 头像
-            if (avatarPath != null) {
-                val bitmap = remember(avatarPath) { BitmapFactory.decodeFile(avatarPath) }
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "头像",
-                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5DC)),
-                        contentAlignment = Alignment.Center
-                    ) { Text(contact.persona.firstOrNull()?.toString() ?: "👤", fontSize = 22.sp) }
-                }
-            } else {
-                Box(
-                    modifier = Modifier.size(36.dp).clip(RoundedCornerShape(4.dp)).background(Color(0xFFF5F5DC)),
-                    contentAlignment = Alignment.Center
-                ) { Text(contact.persona.firstOrNull()?.toString() ?: "👤", fontSize = 22.sp) }
-            }
-            
-            Spacer(Modifier.width(16.dp))
-            Text(contact.nickname, fontSize = 16.sp, color = WeTheme.TextPrimary, modifier = Modifier.weight(1f))
-            
-            // 选择标签
-            if (isSelected && selectionLabel != null) {
-                Box(
-                    modifier = Modifier.background(WeTheme.BrandGreen, RoundedCornerShape(4.dp)).padding(horizontal = 8.dp, vertical = 4.dp)
-                ) {
-                    Text(selectionLabel, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                }
-            }
-        }
-        Divider(color = WeTheme.Separator, thickness = 0.5.dp, modifier = Modifier.padding(start = 68.dp))
-    }
+
 }

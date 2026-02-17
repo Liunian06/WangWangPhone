@@ -106,6 +106,7 @@ fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
     AppIcon("settings", "设置", if (isDark) "ic_settings_dark" else "ic_settings_light",
         Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
     AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
+    AppIcon("persona_builder", "神笔马良", "🖌️", Brush.linearGradient(listOf(Color(0xFFFFD700), Color(0xFFFFA500)))),
     // 第二批应用
     AppIcon("photos", "照片", "🖼️", Brush.linearGradient(listOf(Color(0xFFFDEB71), Color(0xFFF8D800)))),
     AppIcon("video", "视频", "🎬", Brush.linearGradient(listOf(Color(0xFFA18CD1), Color(0xFFFBC2EB)))),
@@ -408,6 +409,7 @@ fun HomeScreen() {
     var showCalendarApp by remember { mutableStateOf(false) }
     var showCameraApp by remember { mutableStateOf(false) }
     var showNotesApp by remember { mutableStateOf(false) }
+    var showPersonaBuilder by remember { mutableStateOf(false) }
     var showActivationAlert by remember { mutableStateOf(false) }
     var showResetConfirm by remember { mutableStateOf(false) }
     var layoutReloadTrigger by remember { mutableIntStateOf(0) }
@@ -435,6 +437,7 @@ fun HomeScreen() {
             onCalendarClick = { showCalendarApp = true },
             onCameraClick = { showCameraApp = true },
             onNotesClick = { showNotesApp = true },
+            onPersonaBuilderClick = { showPersonaBuilder = true },
             onActivationAlert = { showActivationAlert = true },
             homeWallpaperPath = homeWallpaperPath,
             layoutReloadTrigger = layoutReloadTrigger
@@ -513,6 +516,7 @@ fun HomeScreen() {
         if (showCalendarApp) CalendarAppScreen(onClose = { showCalendarApp = false })
         if (showCameraApp) CameraAppScreen(onClose = { showCameraApp = false })
         if (showNotesApp) NotesAppScreen(onClose = { showNotesApp = false })
+        if (showPersonaBuilder) PersonaBuilderApp(onClose = { showPersonaBuilder = false })
         if (showActivation) ActivationScreen(onBack = { showActivation = false }, onActivated = {
             isActivated = licenseManager.isActivated(); expiryDate = licenseManager.getExpirationDateString()
         })
@@ -578,6 +582,7 @@ fun HomeScreenContent(
     onCalendarClick: () -> Unit = {},
     onCameraClick: () -> Unit = {},
     onNotesClick: () -> Unit = {},
+    onPersonaBuilderClick: () -> Unit = {},
     onActivationAlert: () -> Unit,
     homeWallpaperPath: String? = null,
     layoutReloadTrigger: Int = 0
@@ -856,6 +861,7 @@ fun HomeScreenContent(
                                     else if (startItem!!.id == "calendar") onCalendarClick()
                                     else if (startItem!!.id == "camera") onCameraClick()
                                     else if (startItem!!.id == "notes") onNotesClick()
+                                    else if (startItem!!.id == "persona_builder") onPersonaBuilderClick()
                                 } else {
                                     onActivationAlert()
                                 }

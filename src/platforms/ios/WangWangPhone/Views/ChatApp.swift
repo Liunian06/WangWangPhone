@@ -912,9 +912,64 @@ struct ChatDetailView: View {
         let trimmed = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         
+        // 保存用户消息到数据库
         ChatDbHelper.shared.addMessage(contactId: chatId, isSent: true, message: trimmed)
         messages.append(WXChatMessage(type: "sent", text: trimmed))
         inputText = ""
+        
+        // 获取AI角色和用户人设
+        var aiPersona = ""
+        var userPersona = ""
+        
+        // 尝试从联系人数据库获取AI角色人设
+        if let contact = ContactDbHelper.shared.getContactById(chatId) {
+            aiPersona = contact.persona
+        }
+        
+        // 获取当前用户人设
+        let userProfile = UserProfileManager.shared.getUserProfile()
+        userPersona = userProfile.signature
+        
+        // 获取默认的聊天API预设
+        let chatPresets = ApiPresetManager.shared.getPresetsByType("chat")
+        guard let preset = chatPresets.first else {
+            // 如果没有配置API预设，使用模拟回复
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                let mockResponse = "这是模拟回复：\(trimmed)"
+                ChatDbHelper.shared.addMessage(contactId: self.chatId, isSent: false, message: mockResponse)
+                self.messages.append(WXChatMessage(type: "received", name: self.conv?.name ?? "对方", avatar: self.conv?.avatar ?? "👤", text: mockResponse))
+            }
+            return
+        }
+        
+        // 显示加载状态
+        messages.append(WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: "思考中..."))
+        
+        // 调用LLM API
+        LlmApiService.shared.callLlmApi(
+            preset: preset,
+            userMessage: trimmed,
+            aiPersona: aiPersona,
+            userPersona: userPersona
+        ) { [weak self] response in
+            guard let self = self else { return }
+            
+            // 移除"思考中..."消息
+            if self.messages.last?.text == "思考中..." {
+                self.messages.removeLast()
+            }
+            
+            if response.isError {
+                // 显示错误消息
+                let errorMessage = "API错误: \(response.errorMessage ?? "未知错误")"
+                ChatDbHelper.shared.addMessage(contactId: self.chatId, isSent: false, message: errorMessage)
+                self.messages.append(WXChatMessage(type: "received", name: self.conv?.name ?? "对方", avatar: self.conv?.avatar ?? "👤", text: errorMessage))
+            } else {
+                // 保存AI回复到数据库并显示
+                ChatDbHelper.shared.addMessage(contactId: self.chatId, isSent: false, message: response.content)
+                self.messages.append(WXChatMessage(type: "received", name: self.conv?.name ?? "对方", avatar: self.conv?.avatar ?? "👤", text: response.content))
+            }
+        }
     }
 }
 

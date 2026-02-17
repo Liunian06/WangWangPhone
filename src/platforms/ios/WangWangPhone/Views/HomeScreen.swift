@@ -53,6 +53,7 @@ func getDefaultApps() -> [AppIconData] {
         AppIconData(id: "calendar", name: "日历", icon: "📅", colors: [.white, .gray]),
         AppIconData(id: "settings", name: "设置", icon: "SettingsIcon", colors: [.white, .gray], useImage: true),
         AppIconData(id: "wangwang", name: "汪汪", icon: "🐶", colors: [.white, .gray]),
+        AppIconData(id: "persona_builder", name: "神笔马良", icon: "🖌️", colors: [.purple, .pink]),
         // 第二批应用
         AppIconData(id: "photos", name: "照片", icon: "🖼️", colors: [.yellow, Color(red: 0.97, green: 0.85, blue: 0.0)]),
         AppIconData(id: "video", name: "视频", icon: "🎬", colors: [.purple, .pink]),
@@ -153,7 +154,7 @@ func distributeItemsToPages(allApps: [AppIconData], widgets: [WidgetItem]) -> [[
     var pages: [[Int: AnyGridItem]] = []
     
     // 分离核心应用（聊天+设置）和其余应用
-    let coreAppIds: Set<String> = ["chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes"]
+    let coreAppIds: Set<String> = ["chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes", "persona_builder"]
     let coreApps = allApps.filter { coreAppIds.contains($0.id) }
     var otherApps = allApps.filter { !coreAppIds.contains($0.id) }
     
@@ -210,6 +211,7 @@ struct PageGridView: View {
     var onCalendarClick: () -> Void
     var onCameraClick: () -> Void
     var onNotesClick: () -> Void
+    var onPersonaBuilderClick: () -> Void
     var onLayoutChanged: () -> Void
     @Environment(\.colorScheme) var colorScheme
     
@@ -314,6 +316,7 @@ struct PageGridView: View {
                                     else if app.id == "calendar" { onCalendarClick() }
                                     else if app.id == "camera" { onCameraClick() }
                                     else if app.id == "notes" { onNotesClick() }
+                                    else if app.id == "persona_builder" { onPersonaBuilderClick() }
                                 } else {
                                     onActivationAlert()
                                 }
@@ -515,6 +518,7 @@ struct DraggableDockIconView: View {
     var onCalendarClick: () -> Void
     var onCameraClick: () -> Void
     var onNotesClick: () -> Void
+    var onPersonaBuilderClick: () -> Void
     var onLayoutChanged: () -> Void
     
     @State private var dragOffset: CGSize = .zero
@@ -560,6 +564,7 @@ struct DraggableDockIconView: View {
                                 else if app.id == "calendar" { onCalendarClick() }
                                 else if app.id == "camera" { onCameraClick() }
                                 else if app.id == "notes" { onNotesClick() }
+                                else if app.id == "persona_builder" { onPersonaBuilderClick() }
                                 else { onTap() }
                             } else {
                                 onActivationAlert()
@@ -850,6 +855,7 @@ struct HomeScreen: View {
     @State private var showCalendarApp = false
     @State private var showCameraApp = false
     @State private var showNotesApp = false
+    @State private var showPersonaBuilder = false
     @State private var showActivation = false
     @State private var showDisplaySettings = false
     @State private var showIconCustomization = false
@@ -922,6 +928,7 @@ struct HomeScreen: View {
                             onCalendarClick: { showCalendarApp = true },
                             onCameraClick: { showCameraApp = true },
                             onNotesClick: { showNotesApp = true },
+                            onPersonaBuilderClick: { showPersonaBuilder = true },
                             onLayoutChanged: { saveLayout() },
                             isActivated: isActivated,
                             onActivationAlert: { showActivationAlert = true }
@@ -978,6 +985,7 @@ struct HomeScreen: View {
                                 onCalendarClick: { showCalendarApp = true },
                                 onCameraClick: { showCameraApp = true },
                                 onNotesClick: { showNotesApp = true },
+                                onPersonaBuilderClick: { showPersonaBuilder = true },
                                 onLayoutChanged: { saveLayout() }
                             )
                         }
@@ -1110,6 +1118,10 @@ struct HomeScreen: View {
             if showNotesApp {
                 NotesAppView(isPresented: $showNotesApp)
                     .transition(.move(edge: .trailing)).zIndex(9)
+            }
+            if showPersonaBuilder {
+                PersonaBuilderApp()
+                    .transition(.move(edge: .trailing)).zIndex(10)
             }
         }
         .alert(isPresented: $showActivationAlert) {
