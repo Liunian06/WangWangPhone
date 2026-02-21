@@ -1,6 +1,7 @@
 package com.WangWangPhone.ui
 
 import android.net.Uri
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -110,31 +111,13 @@ fun PersonaBuilderAppScreen(onClose: () -> Unit) {
                     return@launch
                 }
                 
-                val systemPrompt = """你是一个专业的角色人设构建助手。你的任务是通过多轮对话，帮助用户构建完整的角色人设。
-
-构建流程：
-1. 询问角色基本信息（姓名、年龄、性别、职业等）
-2. 了解性格特点（外向/内向、乐观/悲观等）
-3. 确定说话风格（正式/随意、幽默/严肃等）
-4. 挖掘背景故事（成长经历、重要事件等）
-
-在每个阶段，你要：
-- 提出具体的引导性问题
-- 根据用户回答深入追问
-- 总结已收集的信息
-- 在收集完所有信息后，生成完整的人设描述
-
-最终输出格式：
-【角色人设】
-姓名：xxx
-年龄：xxx
-性别：xxx
-职业：xxx
-性格：xxx
-说话风格：xxx
-背景故事：xxx
-
-请保持友好、专业的对话风格。"""
+                // 从 assets 读取提示词文件
+                val systemPrompt = try {
+                    context.assets.open("prompt/角色人设设计.txt").bufferedReader().use { it.readText() }
+                } catch (e: Exception) {
+                    Log.e("PersonaBuilder", "Failed to load prompt file", e)
+                    "你是一个专业的角色人设构建助手，帮助用户通过对话构建完整的角色人设。"
+                }
                 
                 val conversationHistory = messages.map {
                     mapOf("role" to it.role, "content" to it.content)

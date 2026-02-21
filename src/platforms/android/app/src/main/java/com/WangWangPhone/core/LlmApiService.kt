@@ -19,6 +19,19 @@ class LlmApiService {
     companion object {
         private const val TAG = "LlmApiService"
         private const val DEFAULT_TIMEOUT = 60L // 60秒超时
+        
+        /**
+         * 发送聊天请求（用于神笔马良等通用场景）
+         */
+        suspend fun sendChatRequest(
+            preset: ApiPreset,
+            messages: List<Map<String, String>>,
+            systemPrompt: String
+        ): String = withContext(Dispatchers.IO) {
+            val service = LlmApiService()
+            val result = service.sendChatRequestInternal(preset, messages, systemPrompt)
+            result ?: throw Exception("API 返回空响应")
+        }
     }
     
     private val client = OkHttpClient.Builder()
@@ -28,8 +41,38 @@ class LlmApiService {
         .build()
     
     /**
+     * 发送聊天请求（内部方法，用于神笔马良等通用场景）
+     */
+    private suspend fun sendChatRequestInternal(
+        preset: ApiPreset,
+        messages: List<Map<String, String>>,
+        systemPrompt: String
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val messageHistory = messages.map { msg ->
+                JSONObject().apply {
+                    put("role", msg["role"] ?: "user")
+                    put("content", msg["content"] ?: "")
+                }
+            }
+            
+            when (preset.provider) {
+                "openai" -> sendOpenAiRequest(preset, systemPrompt, messageHistory)
+                "gemini" -> sendGeminiRequest(preset, systemPrompt, messageHistory)
+                else -> {
+                    Log.e(TAG, "Unsupported provider: ${preset.provider}")
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error sending chat request", e)
+            null
+        }
+    }
+    
+    /**
      * 发送聊天请求到LLM API
-     * 
+     *
      * @param preset API预设配置
      * @param aiPersona AI角色人设
      * @param userPersona 用户人设

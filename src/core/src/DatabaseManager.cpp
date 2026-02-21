@@ -16,6 +16,8 @@ DatabaseManager::~DatabaseManager() {
 }
 
 bool DatabaseManager::initialize(const std::string& path) {
+    std::lock_guard<std::mutex> lock(dbMutex);
+    
     if (initialized) {
         return true;
     }
@@ -32,22 +34,73 @@ bool DatabaseManager::initialize(const std::string& path) {
 
     db = sqliteDb;
     
+    // 启用WAL模式和性能优化
+    if (!enableWALMode()) {
+        std::cerr << "启用WAL模式失败" << std::endl;
+        close();
+        return false;
+    }
+    
     if (!createTables()) {
         close();
         return false;
     }
 
     initialized = true;
-    std::cout << "数据库初始化成功: " << path << std::endl;
+    std::cout << "数据库初始化成功 (WAL模式已启用): " << path << std::endl;
     return true;
 }
 
 void DatabaseManager::close() {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (db) {
         sqlite3_close(static_cast<sqlite3*>(db));
         db = nullptr;
     }
     initialized = false;
+}
+
+bool DatabaseManager::enableWALMode() {
+    if (!db) return false;
+    
+    // 启用WAL模式 - 允许并发读写
+    if (!executeSQL("PRAGMA journal_mode=WAL;")) {
+        std::cerr << "启用WAL模式失败" << std::endl;
+        return false;
+    }
+    
+    // 设置同步模式为NORMAL - 平衡性能和安全性
+    if (!executeSQL("PRAGMA synchronous=NORMAL;")) {
+        std::cerr << "设置同步模式失败" << std::endl;
+        return false;
+    }
+    
+    // 设置缓存大小为10MB
+    if (!executeSQL("PRAGMA cache_size=-10000;")) {
+        std::cerr << "设置缓存大小失败" << std::endl;
+        return false;
+    }
+    
+    // 启用外键约束
+    if (!executeSQL("PRAGMA foreign_keys=ON;")) {
+        std::cerr << "启用外键约束失败" << std::endl;
+        return false;
+    }
+    
+    // 设置临时存储在内存中
+    if (!executeSQL("PRAGMA temp_store=MEMORY;")) {
+        std::cerr << "设置临时存储失败" << std::endl;
+        return false;
+    }
+    
+    // 设置mmap大小为30MB - 提升读取性能
+    if (!executeSQL("PRAGMA mmap_size=30000000;")) {
+        std::cerr << "设置mmap大小失败" << std::endl;
+        return false;
+    }
+    
+    std::cout << "WAL模式和性能优化已启用" << std::endl;
+    return true;
 }
 
 bool DatabaseManager::isInitialized() const {
@@ -182,6 +235,44 @@ bool DatabaseManager::createTables() {
         return false;
     }
 
+    // 创建性能优化索引
+    const char* createLicenseTimeIndexSQL = R"(
+        CREATE INDEX IF NOT EXISTS idx_license_expiration ON license(expiration_time);
+    )";
+    
+    const char* createLayoutPositionIndexSQL = R"(
+        CREATE INDEX IF NOT EXISTS idx_layout_position ON app_layout(area, position);
+    )";
+    
+    const char* createWeatherDateIndexSQL = R"(
+        CREATE INDEX IF NOT EXISTS idx_weather_date ON weather_cache(request_date);
+    )";
+    
+    const char* createWeatherCityIndexSQL = R"(
+        CREATE INDEX IF NOT EXISTS idx_weather_city ON weather_cache(city);
+    )";
+
+    if (!executeSQL(createLicenseTimeIndexSQL)) {
+        std::cerr << "创建授权时间索引失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(createLayoutPositionIndexSQL)) {
+        std::cerr << "创建布局位置索引失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(createWeatherDateIndexSQL)) {
+        std::cerr << "创建天气日期索引失败" << std::endl;
+        return false;
+    }
+
+    if (!executeSQL(createWeatherCityIndexSQL)) {
+        std::cerr << "创建天气城市索引失败" << std::endl;
+        return false;
+    }
+
+    std::cout << "数据库表和索引创建完成" << std::endl;
     return true;
 }
 

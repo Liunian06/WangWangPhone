@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <functional>
+#include <mutex>
 
 namespace wwj_core {
 
@@ -114,9 +115,13 @@ private:
     // 执行 SQL
     bool executeSQL(const std::string& sql);
 
+    // 启用WAL模式和性能优化
+    bool enableWALMode();
+
     bool initialized;
     void* db;  // sqlite3* 类型，使用 void* 避免头文件依赖
     std::string dbPath;
+    mutable std::mutex dbMutex;  // 线程安全互斥锁
 };
 
 } // namespace wwj_core
