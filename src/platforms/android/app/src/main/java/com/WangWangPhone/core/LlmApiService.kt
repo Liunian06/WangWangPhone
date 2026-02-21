@@ -44,6 +44,24 @@ class LlmApiService {
             val service = LlmApiService()
             service.fetchModelsInternal(provider, apiKey, baseUrl)
         }
+        
+        /**
+         * 测试API连通性
+         */
+        suspend fun testConnection(preset: ApiPreset): Boolean = withContext(Dispatchers.IO) {
+            val service = LlmApiService()
+            try {
+                val result = service.sendChatRequestInternal(
+                    preset,
+                    listOf(mapOf("role" to "user", "content" to "你好")),
+                    "请简短回复"
+                )
+                result != null
+            } catch (e: Exception) {
+                Log.e(TAG, "Connection test failed", e)
+                false
+            }
+        }
     }
     
     private val client = OkHttpClient.Builder()

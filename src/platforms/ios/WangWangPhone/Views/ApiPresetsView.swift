@@ -230,6 +230,8 @@ struct ApiPresetEditView: View {
     @State private var availableModels: [String] = []
     @State private var isLoadingModels = false
     @State private var modelError: String?
+    @State private var isTestingConnection = false
+    @State private var testResult: String?
     
     init(type: String, preset: ApiPreset?, onSave: @escaping (ApiPreset) -> Void, onDelete: ((Int64) -> Void)? = nil, onCancel: @escaping () -> Void) {
         self.type = type
@@ -420,6 +422,79 @@ struct ApiPresetEditView: View {
                     }
                 }
                 
+                Section {
+                    Button(action: {
+                        let finalBaseUrl = baseUrl.isEmpty ? getDefaultBaseUrl(provider: provider, type: type) : baseUrl
+                        let finalModel = model.isEmpty ? getDefaultModel(provider: provider, type: type) : model
+                        let extraParams = buildExtraParams()
+                        
+                        let testPreset = ApiPreset(
+                            id: preset?.id ?? 0,
+                            name: name,
+                            type: type,
+                            provider: provider,
+                            apiKey: apiKey,
+                            baseUrl: finalBaseUrl,
+                            model: finalModel,
+                            extraParams: extraParams
+                        )
+                        
+                        isTestingConnection = true
+                        testResult = nil
+                        LlmApiService.shared.testConnection(preset: testPreset) { success in
+                            isTestingConnection = false
+                            testResult = success ? "✓ 连接成功" : "✗ 连接失败"
+                        }
+                    }) {
+                        HStack {
+                            if isTestingConnection {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("测试中...")
+                                    .foregroundColor(.primary)
+                            } else {
+                                Text("测试连通性")
+                                    .foregroundColor(name.isEmpty || apiKey.isEmpty ? .gray : .blue)
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    .disabled(name.isEmpty || apiKey.isEmpty || isTestingConnection)
+                    
+                    if let result = testResult {
+                        Text(result)
+                            .font(.caption)
+                            .foregroundColor(result.hasPrefix("✓") ? .green : .red)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                    }
+                    
+                    Button(action: {
+                        let finalBaseUrl = baseUrl.isEmpty ? getDefaultBaseUrl(provider: provider, type: type) : baseUrl
+                        let finalModel = model.isEmpty ? getDefaultModel(provider: provider, type: type) : model
+                        let extraParams = buildExtraParams()
+                        
+                        let newPreset = ApiPreset(
+                            id: preset?.id ?? 0,
+                            name: name,
+                            type: type,
+                            provider: provider,
+                            apiKey: apiKey,
+                            baseUrl: finalBaseUrl,
+                            model: finalModel,
+                            extraParams: extraParams
+                        )
+                        onSave(newPreset)
+                    }) {
+                        Text("保存预设")
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity, alignment: .center)
+                            .padding(.vertical, 8)
+                            .background(name.isEmpty || apiKey.isEmpty ? Color.gray : Color.blue)
+                            .cornerRadius(8)
+                    }
+                    .disabled(name.isEmpty || apiKey.isEmpty)
+                }
+                
                 if preset != nil && onDelete != nil {
                     Section {
                         Button(action: {
@@ -437,26 +512,6 @@ struct ApiPresetEditView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") { onCancel() }
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        let finalBaseUrl = baseUrl.isEmpty ? getDefaultBaseUrl(provider: provider, type: type) : baseUrl
-                        let finalModel = model.isEmpty ? getDefaultModel(provider: provider, type: type) : model
-                        let extraParams = buildExtraParams()
-                        
-                        let newPreset = ApiPreset(
-                            id: preset?.id ?? 0,
-                            name: name,
-                            type: type,
-                            provider: provider,
-                            apiKey: apiKey,
-                            baseUrl: finalBaseUrl,
-                            model: finalModel,
-                            extraParams: extraParams
-                        )
-                        onSave(newPreset)
-                    }
-                    .disabled(name.isEmpty || apiKey.isEmpty)
                 }
             }
             .alert(isPresented: $showDeleteConfirm) {

@@ -552,6 +552,118 @@ fun ApiPresetEditScreen(
                 Spacer(modifier = Modifier.height(20.dp))
             }
             
+            // 测试连通性和保存按钮
+            item {
+                var isTestingConnection by remember { mutableStateOf(false) }
+                var testResult by remember { mutableStateOf<String?>(null) }
+                
+                Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+                    // 测试连通性按钮
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(card)
+                            .clickable(enabled = !isTestingConnection && name.isNotBlank() && apiKey.isNotBlank()) {
+                                isTestingConnection = true
+                                testResult = null
+                                scope.launch {
+                                    try {
+                                        val currentPreset = ApiPreset(
+                                            id = preset?.id ?: 0,
+                                            name = name,
+                                            type = type,
+                                            provider = provider,
+                                            apiKey = apiKey,
+                                            baseUrl = baseUrl.ifBlank { getDefaultBaseUrl(provider, type) },
+                                            model = model.ifBlank { getDefaultModel(provider, type) },
+                                            extraParams = buildExtraParams(
+                                                streamEnabled, streamValue, temperatureEnabled, temperature,
+                                                maxTokensEnabled, maxTokens, topPEnabled, topP,
+                                                topKEnabled, topK, thinkingLevelEnabled, thinkingLevel,
+                                                thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
+                                            )
+                                        )
+                                        val success = LlmApiService.testConnection(currentPreset)
+                                        testResult = if (success) "✓ 连接成功" else "✗ 连接失败"
+                                    } catch (e: Exception) {
+                                        testResult = "✗ 连接失败: ${e.message}"
+                                    } finally {
+                                        isTestingConnection = false
+                                    }
+                                }
+                            }
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isTestingConnection) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = Color(0xFF007AFF),
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("测试中...", color = txt, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                            }
+                        } else {
+                            Text(
+                                "测试连通性",
+                                color = if (name.isNotBlank() && apiKey.isNotBlank()) Color(0xFF007AFF) else Color.Gray,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    
+                    // 测试结果提示
+                    if (testResult != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = testResult!!,
+                            color = if (testResult!!.startsWith("✓")) Color(0xFF34C759) else Color.Red,
+                            fontSize = 14.sp,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                    
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    // 保存预设按钮
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (name.isNotBlank() && apiKey.isNotBlank()) Color(0xFF007AFF) else Color.Gray.copy(alpha = 0.3f))
+                            .clickable(enabled = name.isNotBlank() && apiKey.isNotBlank()) {
+                                val extraParams = buildExtraParams(
+                                    streamEnabled, streamValue, temperatureEnabled, temperature,
+                                    maxTokensEnabled, maxTokens, topPEnabled, topP,
+                                    topKEnabled, topK, thinkingLevelEnabled, thinkingLevel,
+                                    thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
+                                )
+                                onSave(
+                                    ApiPreset(
+                                        id = preset?.id ?: 0,
+                                        name = name,
+                                        type = type,
+                                        provider = provider,
+                                        apiKey = apiKey,
+                                        baseUrl = baseUrl.ifBlank { getDefaultBaseUrl(provider, type) },
+                                        model = model.ifBlank { getDefaultModel(provider, type) },
+                                        extraParams = extraParams
+                                    )
+                                )
+                            }
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("保存预设", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+            
             // 删除按钮
             if (preset != null && onDelete != null) {
                 item {
