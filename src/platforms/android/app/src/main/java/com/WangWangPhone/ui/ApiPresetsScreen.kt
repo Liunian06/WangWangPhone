@@ -555,7 +555,8 @@ fun ApiPresetEditScreen(
             // 测试连通性和保存按钮
             item {
                 var isTestingConnection by remember { mutableStateOf(false) }
-                var testResult by remember { mutableStateOf<String?>(null) }
+                var testSuccess by remember { mutableStateOf<Boolean?>(null) }
+                var testResponse by remember { mutableStateOf<String?>(null) }
                 
                 Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
                     // 测试连通性按钮
@@ -566,7 +567,8 @@ fun ApiPresetEditScreen(
                             .background(card)
                             .clickable(enabled = !isTestingConnection && name.isNotBlank() && apiKey.isNotBlank()) {
                                 isTestingConnection = true
-                                testResult = null
+                                testSuccess = null
+                                testResponse = null
                                 scope.launch {
                                     try {
                                         val currentPreset = ApiPreset(
@@ -584,10 +586,12 @@ fun ApiPresetEditScreen(
                                                 thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
                                             )
                                         )
-                                        val success = LlmApiService.testConnection(currentPreset)
-                                        testResult = if (success) "✓ 连接成功" else "✗ 连接失败"
+                                        val (success, response) = LlmApiService.testConnection(currentPreset)
+                                        testSuccess = success
+                                        testResponse = response
                                     } catch (e: Exception) {
-                                        testResult = "✗ 连接失败: ${e.message}"
+                                        testSuccess = false
+                                        testResponse = "连接失败: ${e.message}"
                                     } finally {
                                         isTestingConnection = false
                                     }
@@ -617,14 +621,31 @@ fun ApiPresetEditScreen(
                     }
                     
                     // 测试结果提示
-                    if (testResult != null) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = testResult!!,
-                            color = if (testResult!!.startsWith("✓")) Color(0xFF34C759) else Color.Red,
-                            fontSize = 14.sp,
-                            modifier = Modifier.padding(horizontal = 16.dp)
-                        )
+                    if (testSuccess != null && testResponse != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (testSuccess == true) Color(0xFF34C759).copy(alpha = 0.1f) else Color.Red.copy(alpha = 0.1f))
+                                .padding(12.dp)
+                        ) {
+                            Column {
+                                Text(
+                                    text = if (testSuccess == true) "✓ 连接成功" else "✗ 连接失败",
+                                    color = if (testSuccess == true) Color(0xFF34C759) else Color.Red,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = testResponse!!,
+                                    color = txt,
+                                    fontSize = 13.sp,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
                     }
                     
                     Spacer(modifier = Modifier.height(12.dp))

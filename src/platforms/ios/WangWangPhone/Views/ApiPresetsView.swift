@@ -231,7 +231,8 @@ struct ApiPresetEditView: View {
     @State private var isLoadingModels = false
     @State private var modelError: String?
     @State private var isTestingConnection = false
-    @State private var testResult: String?
+    @State private var testSuccess: Bool?
+    @State private var testResponse: String?
     
     init(type: String, preset: ApiPreset?, onSave: @escaping (ApiPreset) -> Void, onDelete: ((Int64) -> Void)? = nil, onCancel: @escaping () -> Void) {
         self.type = type
@@ -440,10 +441,12 @@ struct ApiPresetEditView: View {
                         )
                         
                         isTestingConnection = true
-                        testResult = nil
-                        LlmApiService.shared.testConnection(preset: testPreset) { success in
+                        testSuccess = nil
+                        testResponse = nil
+                        LlmApiService.shared.testConnection(preset: testPreset) { success, response in
                             isTestingConnection = false
-                            testResult = success ? "✓ 连接成功" : "✗ 连接失败"
+                            testSuccess = success
+                            testResponse = response
                         }
                     }) {
                         HStack {
@@ -461,11 +464,26 @@ struct ApiPresetEditView: View {
                     }
                     .disabled(name.isEmpty || apiKey.isEmpty || isTestingConnection)
                     
-                    if let result = testResult {
-                        Text(result)
-                            .font(.caption)
-                            .foregroundColor(result.hasPrefix("✓") ? .green : .red)
-                            .frame(maxWidth: .infinity, alignment: .center)
+                    if let success = testSuccess {
+                        VStack(spacing: 8) {
+                            Text(success ? "✓ 连接成功" : "✗ 连接失败")
+                                .font(.caption)
+                                .foregroundColor(success ? .green : .red)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            
+                            if let response = testResponse {
+                                ScrollView {
+                                    Text(response)
+                                        .font(.caption)
+                                        .foregroundColor(.primary)
+                                        .padding(8)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                                        .cornerRadius(8)
+                                }
+                                .frame(maxHeight: 150)
+                            }
+                        }
                     }
                     
                     Button(action: {

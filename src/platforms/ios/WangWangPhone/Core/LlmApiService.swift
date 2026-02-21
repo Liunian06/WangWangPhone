@@ -302,9 +302,13 @@ class LlmApiService {
     
     // MARK: - 测试连通性
     
-    func testConnection(preset: ApiPreset, completion: @escaping (Bool) -> Void) {
-        callLlmApi(preset: preset, userMessage: "你好", aiPersona: "", userPersona: "") { response in
-            completion(!response.isError)
+    func testConnection(preset: ApiPreset, completion: @escaping (Bool, String) -> Void) {
+        callLlmApi(preset: preset, userMessage: "你好，你是什么模型？你是哪个公司研发的？", aiPersona: "", userPersona: "") { response in
+            if response.isError {
+                completion(false, response.errorMessage ?? "连接失败")
+            } else {
+                completion(true, response.content)
+            }
         }
     }
     

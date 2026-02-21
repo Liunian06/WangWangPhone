@@ -47,19 +47,24 @@ class LlmApiService {
         
         /**
          * 测试API连通性
+         * @return Pair<Boolean, String> 第一个值表示是否成功，第二个值表示响应内容或错误信息
          */
-        suspend fun testConnection(preset: ApiPreset): Boolean = withContext(Dispatchers.IO) {
+        suspend fun testConnection(preset: ApiPreset): Pair<Boolean, String> = withContext(Dispatchers.IO) {
             val service = LlmApiService()
             try {
                 val result = service.sendChatRequestInternal(
                     preset,
-                    listOf(mapOf("role" to "user", "content" to "你好")),
-                    "请简短回复"
+                    listOf(mapOf("role" to "user", "content" to "你好，你是什么模型？你是哪个公司研发的？")),
+                    ""
                 )
-                result != null
+                if (result != null) {
+                    Pair(true, result)
+                } else {
+                    Pair(false, "API返回空响应")
+                }
             } catch (e: Exception) {
                 Log.e(TAG, "Connection test failed", e)
-                false
+                Pair(false, "连接失败: ${e.message}")
             }
         }
     }
