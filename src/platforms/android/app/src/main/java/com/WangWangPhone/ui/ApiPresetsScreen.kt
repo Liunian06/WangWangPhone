@@ -20,6 +20,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.WangWangPhone.core.ApiPreset
 import com.WangWangPhone.core.ApiPresetDbHelper
+import com.WangWangPhone.core.LlmApiService
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 
@@ -193,6 +195,11 @@ fun ApiPresetEditScreen(
     var baseUrl by remember { mutableStateOf(preset?.baseUrl ?: "") }
     var model by remember { mutableStateOf(preset?.model ?: "") }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showModelPicker by remember { mutableStateOf(false) }
+    var availableModels by remember { mutableStateOf<List<String>>(emptyList()) }
+    var isLoadingModels by remember { mutableStateOf(false) }
+    var modelError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
     
     // 参数开关状态
     var streamEnabled by remember { mutableStateOf(true) }
@@ -362,11 +369,56 @@ fun ApiPresetEditScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Button(
-                                onClick = { /* TODO: 拉取模型列表 */ },
+                                onClick = {
+                                    if (apiKey.isBlank()) {
+                                        modelError = "请先填写 API Key"
+                                        return@Button
+                                    }
+                                    isLoadingModels = true
+                                    modelError = null
+                                    scope.launch {
+                                        try {
+                                            val models = LlmApiService.fetchModels(
+                                                provider = provider,
+                                                apiKey = apiKey,
+                                                baseUrl = baseUrl.ifBlank { getDefaultBaseUrl(provider, type) }
+                                            )
+                                            if (models.isEmpty()) {
+                                                modelError = "未获取到模型列表"
+                                            } else {
+                                                availableModels = models
+                                                showModelPicker = true
+                                            }
+                                        } catch (e: Exception) {
+                                            modelError = "获取失败: ${e.message}"
+                                        } finally {
+                                            isLoadingModels = false
+                                        }
+                                    }
+                                },
+                                enabled = !isLoadingModels,
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF))
                             ) {
-                                Text("拉取模型", fontSize = 12.sp)
+                                if (isLoadingModels) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                } else {
+                                    Text("拉取模型", fontSize = 12.sp)
+                                }
                             }
+                        }
+                        
+                        // 错误提示
+                        if (modelError != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = modelError!!,
+                                color = Color.Red,
+                                fontSize = 12.sp
+                            )
                         }
                     }
                 }
@@ -530,6 +582,36 @@ fun ApiPresetEditScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+    
+    // 模型选择对话框
+    if (showModelPicker && availableModels.isNotEmpty()) {
+        AlertDialog(
+            onDismissRequest = { showModelPicker = false },
+            title = { Text("选择模型") },
+            text = {
+                LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                    items(availableModels) { modelName ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    model = modelName
+                                    showModelPicker = false
+                                }
+                                .padding(vertical = 12.dp, horizontal = 16.dp)
+                        ) {
+                            Text(modelName, fontSize = 14.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showModelPicker = false }) {
                     Text("取消")
                 }
             }

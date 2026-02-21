@@ -32,6 +32,18 @@ class LlmApiService {
             val result = service.sendChatRequestInternal(preset, messages, systemPrompt)
             result ?: throw Exception("API 返回空响应")
         }
+        
+        /**
+         * 获取模型列表
+         */
+        suspend fun fetchModels(
+            provider: String,
+            apiKey: String,
+            baseUrl: String
+        ): List<String> = withContext(Dispatchers.IO) {
+            val service = LlmApiService()
+            service.fetchModelsInternal(provider, apiKey, baseUrl)
+        }
     }
     
     private val client = OkHttpClient.Builder()
@@ -347,6 +359,99 @@ class LlmApiService {
         } catch (e: Exception) {
             Log.e(TAG, "Error parsing response: $responseBody", e)
             null
+        }
+    }
+    
+    /**
+     * 获取模型列表（内部方法）
+     */
+    private fun fetchModelsInternal(
+        provider: String,
+        apiKey: String,
+        baseUrl: String
+    ): List<String> {
+        return try {
+            when (provider) {
+                "openai" -> fetchOpenAiModels(apiKey, baseUrl)
+                "gemini" -> fetchGeminiModels(apiKey, baseUrl)
+                else -> emptyList()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching models", e)
+            emptyList()
+        }
+    }
+    
+    /**
+     * 获取 OpenAI 模型列表
+     */
+    private fun fetchOpenAiModels(apiKey: String, baseUrl: String): List<String> {
+        val request = Request.Builder()
+            .url("$baseUrl/models")
+            .get()
+            .addHeader("Authorization", "Bearer $apiKey")
+            .build()
+        
+        var response: Response? = null
+        return try {
+            response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Failed to fetch OpenAI models: ${response.code}")
+                return emptyList()
+            }
+            
+            val responseBody = response.body?.string() ?: return emptyList()
+            val json = JSONObject(responseBody)
+            val data = json.getJSONArray("data")
+            
+            val models = mutableListOf<String>()
+            for (i in 0 until data.length()) {
+                val model = data.getJSONObject(i)
+                models.add(model.getString("id"))
+            }
+            models.sorted()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing OpenAI models", e)
+            emptyList()
+        } finally {
+            response?.close()
+        }
+    }
+    
+    /**
+     * 获取 Gemini 模型列表
+     */
+    private fun fetchGeminiModels(apiKey: String, baseUrl: String): List<String> {
+        val request = Request.Builder()
+            .url("$baseUrl/models?key=$apiKey")
+            .get()
+            .build()
+        
+        var response: Response? = null
+        return try {
+            response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.e(TAG, "Failed to fetch Gemini models: ${response.code}")
+                return emptyList()
+            }
+            
+            val responseBody = response.body?.string() ?: return emptyList()
+            val json = JSONObject(responseBody)
+            val models = json.getJSONArray("models")
+            
+            val modelList = mutableListOf<String>()
+            for (i in 0 until models.length()) {
+                val model = models.getJSONObject(i)
+                val name = model.getString("name")
+                // Gemini 返回的是 "models/gemini-pro" 格式，提取模型名
+                modelList.add(name.removePrefix("models/"))
+            }
+            modelList.sorted()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error parsing Gemini models", e)
+            emptyList()
+        } finally {
+            response?.close()
         }
     }
 }

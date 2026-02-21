@@ -289,6 +289,108 @@ class LlmApiService {
                         ))
                     }
                 }
+                
+                // MARK: - 获取模型列表
+                
+                static func fetchModels(
+                    provider: String,
+                    apiKey: String,
+                    baseUrl: String,
+                    completion: @escaping ([String]) -> Void
+                ) {
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        let models: [String]
+                        switch provider {
+                        case "openai":
+                            models = fetchOpenAIModels(apiKey: apiKey, baseUrl: baseUrl)
+                        case "gemini":
+                            models = fetchGeminiModels(apiKey: apiKey, baseUrl: baseUrl)
+                        default:
+                            models = []
+                        }
+                        DispatchQueue.main.async {
+                            completion(models)
+                        }
+                    }
+                }
+                
+                private static func fetchOpenAIModels(apiKey: String, baseUrl: String) -> [String] {
+                    guard let url = URL(string: "\(baseUrl)/models") else {
+                        return []
+                    }
+                    
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "GET"
+                    request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+                    
+                    let semaphore = DispatchSemaphore(value: 0)
+                    var result: [String] = []
+                    
+                    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                        defer { semaphore.signal() }
+                        
+                        guard error == nil, let data = data else {
+                            return
+                        }
+                        
+                        do {
+                            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let dataArray = json["data"] as? [[String: Any]] {
+                                result = dataArray.compactMap { $0["id"] as? String }
+                            }
+                        } catch {
+                            print("Error parsing OpenAI models: \(error)")
+                        }
+                    }
+                    task.resume()
+                    semaphore.wait()
+                    
+                    return result.sorted()
+                }
+                
+                private static func fetchGeminiModels(apiKey: String, baseUrl: String) -> [String] {
+                    guard var urlComponents = URLComponents(string: "\(baseUrl)/models") else {
+                        return []
+                    }
+                    
+                    urlComponents.queryItems = [URLQueryItem(name: "key", value: apiKey)]
+                    
+                    guard let url = urlComponents.url else {
+                        return []
+                    }
+                    
+                    var request = URLRequest(url: url)
+                    request.httpMethod = "GET"
+                    
+                    let semaphore = DispatchSemaphore(value: 0)
+                    var result: [String] = []
+                    
+                    let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                        defer { semaphore.signal() }
+                        
+                        guard error == nil, let data = data else {
+                            return
+                        }
+                        
+                        do {
+                            if let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                               let models = json["models"] as? [[String: Any]] {
+                                result = models.compactMap { model in
+                                    if let name = model["name"] as? String {
+                                        return name.replacingOccurrences(of: "models/", with: "")
+                                    }
+                                    return nil
+                                }
+                            }
+                        } catch {
+                            print("Error parsing Gemini models: \(error)")
+                        }
+                    }
+                    task.resume()
+                    semaphore.wait()
+                    
+                    return result.sorted()
+                }
             }
             task.resume()
         } catch {

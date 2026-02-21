@@ -226,6 +226,11 @@ struct ApiPresetEditView: View {
     @State private var thinkingEffortEnabled = false
     @State private var thinkingEffort = "medium"
     
+    @State private var showModelPicker = false
+    @State private var availableModels: [String] = []
+    @State private var isLoadingModels = false
+    @State private var modelError: String?
+    
     init(type: String, preset: ApiPreset?, onSave: @escaping (ApiPreset) -> Void, onDelete: ((Int64) -> Void)? = nil, onCancel: @escaping () -> Void) {
         self.type = type
         self.preset = preset
@@ -298,10 +303,43 @@ struct ApiPresetEditView: View {
                             }
                             TextField("模型名称", text: $model)
                         }
-                        Button("拉取模型") {
-                            // TODO: 拉取模型列表
+                        Button(action: {
+                            if apiKey.isEmpty {
+                                modelError = "请先填写API Key"
+                                return
+                            }
+                            let finalBaseUrl = baseUrl.isEmpty ? getDefaultBaseUrl(provider: provider, type: type) : baseUrl
+                            isLoadingModels = true
+                            modelError = nil
+                            LlmApiService.fetchModels(
+                                provider: provider,
+                                apiKey: apiKey,
+                                baseUrl: finalBaseUrl
+                            ) { models in
+                                isLoadingModels = false
+                                if models.isEmpty {
+                                    modelError = "未获取到模型列表"
+                                } else {
+                                    availableModels = models
+                                    showModelPicker = true
+                                }
+                            }
+                        }) {
+                            if isLoadingModels {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                            } else {
+                                Text("拉取模型")
+                            }
                         }
                         .font(.caption)
+                        .disabled(isLoadingModels || apiKey.isEmpty)
+                    }
+                    
+                    if let error = modelError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
                     }
                 }
                 
@@ -432,6 +470,37 @@ struct ApiPresetEditView: View {
                     },
                     secondaryButton: .cancel()
                 )
+            }
+            .sheet(isPresented: $showModelPicker) {
+                NavigationView {
+                    List {
+                        ForEach(availableModels, id: \.self) { modelName in
+                            Button(action: {
+                                model = modelName
+                                showModelPicker = false
+                            }) {
+                                HStack {
+                                    Text(modelName)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    if model == modelName {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.blue)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .navigationTitle("选择模型")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .navigationBarTrailing) {
+                            Button("取消") {
+                                showModelPicker = false
+                            }
+                        }
+                    }
+                }
             }
         }
     }
