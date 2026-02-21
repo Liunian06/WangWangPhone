@@ -292,6 +292,7 @@ bool DatabaseManager::executeSQL(const std::string& sql) {
 }
 
 bool DatabaseManager::saveLicenseRecord(const LicenseRecord& record) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     // 先清除旧记录，确保只保留一条授权
@@ -331,6 +332,7 @@ bool DatabaseManager::saveLicenseRecord(const LicenseRecord& record) {
 }
 
 bool DatabaseManager::getLicenseRecord(LicenseRecord& outRecord) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* selectSQL = R"(
@@ -372,6 +374,7 @@ bool DatabaseManager::clearLicenseRecord() {
 }
 
 bool DatabaseManager::saveLayout(const std::vector<LayoutItem>& items) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     sqlite3* sqliteDb = static_cast<sqlite3*>(db);
@@ -426,6 +429,7 @@ bool DatabaseManager::saveLayout(const std::vector<LayoutItem>& items) {
 }
 
 std::vector<LayoutItem> DatabaseManager::getLayout() {
+    std::lock_guard<std::mutex> lock(dbMutex);
     std::vector<LayoutItem> items;
     if (!db) return items;
 
@@ -460,6 +464,7 @@ bool DatabaseManager::clearLayout() {
 }
 
 bool DatabaseManager::saveWallpaperRecord(const WallpaperRecord& record) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     // 使用 INSERT OR REPLACE 实现 upsert（按 wallpaper_type 唯一）
@@ -499,6 +504,7 @@ bool DatabaseManager::saveWallpaperRecord(const WallpaperRecord& record) {
 
 bool DatabaseManager::getWallpaperRecord(
     const std::string& wallpaperType, WallpaperRecord& outRecord) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* selectSQL = R"(
@@ -540,6 +546,7 @@ bool DatabaseManager::getWallpaperRecord(
 
 bool DatabaseManager::clearWallpaperRecord(
     const std::string& wallpaperType) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* deleteSQL = R"(
@@ -564,6 +571,7 @@ bool DatabaseManager::clearWallpaperRecord(
 // ==================== 天气缓存操作 ====================
 
 bool DatabaseManager::saveWeatherCache(const WeatherCacheRecord& record) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* upsertSQL = R"(
@@ -604,6 +612,7 @@ bool DatabaseManager::saveWeatherCache(const WeatherCacheRecord& record) {
 
 bool DatabaseManager::getWeatherCache(
     const std::string& city, const std::string& date, WeatherCacheRecord& outRecord) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* selectSQL = R"(
@@ -646,6 +655,7 @@ bool DatabaseManager::getWeatherCache(
 }
 
 bool DatabaseManager::clearExpiredWeatherCache(const std::string& todayDate) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* deleteSQL = R"(
@@ -671,6 +681,7 @@ bool DatabaseManager::clearAllWeatherCache() {
 }
 
 bool DatabaseManager::resetToDefaultSettings() {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     // 开启事务确保原子性
@@ -718,6 +729,7 @@ bool DatabaseManager::resetToDefaultSettings() {
 // ==================== 用户资料操作 ====================
 
 bool DatabaseManager::saveUserProfile(const UserProfileRecord& record) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* upsertSQL = R"(
@@ -754,6 +766,7 @@ bool DatabaseManager::saveUserProfile(const UserProfileRecord& record) {
 }
 
 bool DatabaseManager::getUserProfile(UserProfileRecord& outRecord) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* selectSQL = R"(
@@ -796,6 +809,7 @@ bool DatabaseManager::getUserProfile(UserProfileRecord& outRecord) {
 }
 
 bool DatabaseManager::updateUserNickname(const std::string& nickname) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* updateSQL = R"(
@@ -814,6 +828,7 @@ bool DatabaseManager::updateUserNickname(const std::string& nickname) {
 }
 
 bool DatabaseManager::updateUserSignature(const std::string& signature) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* updateSQL = R"(
@@ -832,6 +847,7 @@ bool DatabaseManager::updateUserSignature(const std::string& signature) {
 }
 
 bool DatabaseManager::updateUserAvatar(const std::string& avatarFile) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* updateSQL = R"(
@@ -850,6 +866,7 @@ bool DatabaseManager::updateUserAvatar(const std::string& avatarFile) {
 }
 
 bool DatabaseManager::updateUserCover(const std::string& coverFile) {
+    std::lock_guard<std::mutex> lock(dbMutex);
     if (!db) return false;
 
     const char* updateSQL = R"(
