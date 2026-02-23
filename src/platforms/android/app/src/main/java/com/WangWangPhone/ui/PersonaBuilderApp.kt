@@ -12,6 +12,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -76,6 +77,28 @@ private fun renderMarkdownToSpanned(markdown: String): Spanned {
         builder.delete(builder.length - 1, builder.length)
     }
     return SpannedString(builder)
+}
+
+private fun normalizeMarkdownForDisplay(raw: String): String {
+    if (raw.isBlank()) return raw
+
+    val normalizedBold = Regex("""\*\*\s+(.+?)\s+\*\*""")
+        .replace(raw) { match ->
+            val inner = match.groupValues.getOrElse(1) { "" }.trim()
+            if (inner.isEmpty()) match.value else "**$inner**"
+        }
+
+    return normalizedBold.lineSequence().joinToString("\n") { line ->
+        val prefix = line.takeWhile { it == ' ' || it == '\t' }
+        val content = line.drop(prefix.length)
+        when {
+            content.startsWith("•") || content.startsWith("·") -> {
+                val body = content.drop(1).trimStart()
+                "$prefix● $body"
+            }
+            else -> line
+        }
+    }
 }
 
 @Composable
@@ -617,7 +640,9 @@ private fun MarkdownBubbleText(
     val typography = MaterialTheme.typography.bodyMedium
     val textSizeSp = if (typography.fontSize.isUnspecified) 14f else typography.fontSize.value
     val textColor = color.toArgb()
-    val spannedText = remember(markdown) { renderMarkdownToSpanned(markdown) }
+    val spannedText = remember(markdown) {
+        renderMarkdownToSpanned(normalizeMarkdownForDisplay(markdown))
+    }
 
     AndroidView(
         modifier = modifier,
@@ -754,25 +779,53 @@ fun MessageBubble(
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 if (!isUser && parsedContent.thoughtText.isNotBlank()) {
-                    Text(
-                        text = if (thoughtExpanded) "收起思维链" else "展开思维链",
-                        color = textColor.copy(alpha = 0.78f),
-                        fontSize = 12.sp,
+                    Surface(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .clickable { thoughtExpanded = !thoughtExpanded }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .clickable { thoughtExpanded = !thoughtExpanded },
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, textColor.copy(alpha = 0.18f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("💡", fontSize = 14.sp)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (thoughtExpanded) "思考中（点击收起）" else "已深度思考（点击展开）",
+                                color = textColor.copy(alpha = 0.92f),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Text(
+                                text = if (thoughtExpanded) "▴" else "▾",
+                                color = textColor.copy(alpha = 0.7f),
+                                fontSize = 12.sp
+                            )
+                        }
+                    }
 
                     if (thoughtExpanded) {
                         Spacer(modifier = Modifier.height(6.dp))
-                        MarkdownBubbleText(
-                            markdown = parsedContent.thoughtText,
-                            color = textColor.copy(alpha = 0.88f),
-                            onLongPress = if (onLongPress != null) {
-                                { onLongPress(message) }
-                            } else null
-                        )
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.48f),
+                            border = BorderStroke(1.dp, textColor.copy(alpha = 0.14f))
+                        ) {
+                            MarkdownBubbleText(
+                                markdown = parsedContent.thoughtText,
+                                color = textColor.copy(alpha = 0.88f),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                onLongPress = if (onLongPress != null) {
+                                    { onLongPress(message) }
+                                } else null
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         Divider(color = textColor.copy(alpha = 0.18f))
                         Spacer(modifier = Modifier.height(8.dp))

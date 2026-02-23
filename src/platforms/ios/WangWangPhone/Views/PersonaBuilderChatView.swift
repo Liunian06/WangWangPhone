@@ -364,6 +364,58 @@ private struct ParsedPersonaContent {
     let thoughtText: String
 }
 
+private func normalizeMarkdownForDisplay(_ raw: String) -> String {
+    if raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return raw
+    }
+
+    var result = raw
+    if let regex = try? NSRegularExpression(pattern: #"\*\*\s+(.+?)\s+\*\*"#, options: []) {
+        let nsText = result as NSString
+        let matches = regex.matches(in: result, options: [], range: NSRange(location: 0, length: nsText.length))
+        for match in matches.reversed() {
+            guard match.numberOfRanges > 1 else { continue }
+            let inner = nsText.substring(with: match.range(at: 1)).trimmingCharacters(in: .whitespacesAndNewlines)
+            if inner.isEmpty { continue }
+            result = (result as NSString).replacingCharacters(in: match.range, with: "**\(inner)**")
+        }
+    }
+
+    let normalizedLines = result.components(separatedBy: .newlines).map { line -> String in
+        let prefix = String(line.prefix { $0 == " " || $0 == "\t" })
+        let content = String(line.dropFirst(prefix.count))
+        if content.hasPrefix("•") || content.hasPrefix("·") {
+            let body = String(content.dropFirst()).trimmingCharacters(in: .whitespaces)
+            return "\(prefix)● \(body)"
+        }
+        return line
+    }
+    return normalizedLines.joined(separator: "\n")
+}
+
+private struct MarkdownTextBlock: View {
+    let markdown: String
+    let color: Color
+    var font: Font = .body
+
+    var body: some View {
+        let normalized = normalizeMarkdownForDisplay(markdown)
+        Group {
+            if let attributed = try? AttributedString(
+                markdown: normalized,
+                options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .full)
+            ) {
+                Text(attributed)
+            } else {
+                Text(normalized)
+            }
+        }
+        .font(font)
+        .foregroundColor(color)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
 private func sanitizeMessageForHistory(_ raw: String) -> String {
     let parsed = parsePersonaContent(raw)
     if !parsed.mainText.isEmpty {
@@ -434,17 +486,46 @@ struct MessageBubble: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 if message.role == "assistant", !parsed.thoughtText.isEmpty {
-                    Button(thoughtExpanded ? "收起思维链" : "展开思维链") {
+                    Button {
                         thoughtExpanded.toggle()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "lightbulb")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.secondary)
+                            Text(thoughtExpanded ? "思考中（点击收起）" : "已深度思考（点击展开）")
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundColor(.primary)
+                            Spacer(minLength: 6)
+                            Image(systemName: thoughtExpanded ? "chevron.up" : "chevron.down")
+                                .font(.caption.weight(.semibold))
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color(UIColor.systemGray6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(UIColor.separator).opacity(0.5), lineWidth: 0.8)
+                        )
+                        .cornerRadius(10)
                     }
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .buttonStyle(.plain)
 
                     if thoughtExpanded {
-                        Text(parsed.thoughtText)
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        MarkdownTextBlock(
+                            markdown: parsed.thoughtText,
+                            color: .secondary,
+                            font: .subheadline
+                        )
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color(UIColor.systemGray6).opacity(0.8))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color(UIColor.separator).opacity(0.35), lineWidth: 0.8)
+                        )
+                        .cornerRadius(10)
                         Divider()
                     }
                 }
@@ -454,8 +535,11 @@ struct MessageBubble: View {
                     : parsed.mainText
 
                 if !displayMain.isEmpty {
-                    Text(displayMain)
-                        .fixedSize(horizontal: false, vertical: true)
+                    MarkdownTextBlock(
+                        markdown: displayMain,
+                        color: message.role == "user" ? .white : .primary,
+                        font: .body
+                    )
                 }
             }
             .padding(12)
