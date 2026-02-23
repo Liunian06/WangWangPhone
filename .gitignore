@@ -29,7 +29,9 @@
 .idea/
 *.swp
 *.bak
+.codex/
 
 # Backend SQLite logs
 tools/*.db
-tools/keys/
+tools/keys/*
+!tools/keys/public.pem

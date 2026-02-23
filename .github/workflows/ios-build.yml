@@ -1,4 +1,4 @@
-name: Build iOS (Manual)
+name: Build iOS Unsigned IPA
 
 on:
   workflow_dispatch:
@@ -8,47 +8,89 @@ jobs:
   build-ios:
     runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Select Xcode
-      run: sudo xcode-select -s /Applications/Xcode_15.0.app
+      - name: Prepare public key file
+        run: |
+          set -euo pipefail
+          mkdir -p tools/keys
 
-    - name: Install XcodeGen
-      run: brew install xcodegen
+          if [ -f "tools/keys/public.pem" ]; then
+            echo "Found committed tools/keys/public.pem."
+            exit 0
+          fi
 
-    - name: Generate Xcode Project
-      run: |
-        cd src/platforms/ios
-        xcodegen generate
+          if [ -n "${{ secrets.LICENSE_PUBLIC_PEM || '' }}" ]; then
+            printf "%s\n" "${{ secrets.LICENSE_PUBLIC_PEM }}" > tools/keys/public.pem
+            echo "Prepared tools/keys/public.pem from GitHub secret."
+            exit 0
+          fi
 
-    - name: Build Unsigned .app
-      run: |
-        # 这里的关键是：ipa 本质上是 Payload/AppName.app 的 zip 压缩包
-        
-        # 使用生成的 .xcodeproj 进行构建
-        xcodebuild -project src/platforms/ios/WangWangPhone.xcodeproj \
-                   -scheme WangWangPhone \
-                   -configuration Release \
-                   -sdk iphoneos \
-                   -derivedDataPath build_output \
-                   CODE_SIGNING_ALLOWED=NO \
-                   CODE_SIGNING_REQUIRED=NO \
-                   ENTITLEMENTS_REQUIRED=NO \
-                   AD_HOC_CODE_SIGNING_ALLOWED=YES
+          KEY_B64=$(sed -n 's/.*rsaPublicKeyBase64 = "\(.*\)".*/\1/p' src/platforms/ios/WangWangPhone/Core/GeneratedPublicKey.swift | head -n 1)
+          if [ -z "${KEY_B64}" ]; then
+            echo "::error::Cannot prepare tools/keys/public.pem. Set secret LICENSE_PUBLIC_PEM or commit GeneratedPublicKey.swift with rsaPublicKeyBase64."
+            exit 1
+          fi
 
-        # 创建 IPA 目录结构
-        mkdir -p build/Payload
-        
-        # 将构建出的 .app 放入 Payload 文件夹
-        # xcodebuild 的默认输出路径在 derivedDataPath 下
-        APP_PATH=$(find build_output/Build/Products/Release-iphoneos -name "*.app" | head -n 1)
-        cp -r "$APP_PATH" build/Payload/
-        
-        # 打包成 .ipa
-        cd build && zip -r WangWangPhone.ipa Payload
-        
-    - name: Upload .ipa
-      uses: actions/upload-artifact@v4
-      with:
-        name: wangwangji-ios-unsigned
-        path: build/WangWangPhone.ipa
+          {
+            echo "-----BEGIN PUBLIC KEY-----"
+            printf "%s" "${KEY_B64}" | fold -w 64
+            echo
+            echo "-----END PUBLIC KEY-----"
+          } > tools/keys/public.pem
+          echo "Prepared tools/keys/public.pem from GeneratedPublicKey.swift."
+
+      - name: Select latest stable Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Install XcodeGen
+        run: |
+          if ! command -v xcodegen >/dev/null 2>&1; then
+            brew install xcodegen
+          fi
+
+      - name: Generate Xcode project
+        run: |
+          cd src/platforms/ios
+          xcodegen generate
+
+      - name: Build unsigned .app
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project src/platforms/ios/WangWangPhone.xcodeproj \
+            -scheme WangWangPhone \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination "generic/platform=iOS" \
+            -derivedDataPath build_output \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            ENTITLEMENTS_REQUIRED=NO \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find build_output/Build/Products/Release-iphoneos -maxdepth 1 -name "*.app" -print -quit)
+          if [ -z "${APP_PATH}" ]; then
+            echo "::error::No .app found at build_output/Build/Products/Release-iphoneos"
+            exit 1
+          fi
+
+          mkdir -p build/Payload
+          cp -R "${APP_PATH}" build/Payload/
+          cd build
+          zip -qry WangWangPhone-unsigned.ipa Payload
+
+      - name: Upload unsigned IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wangwangji-ios-unsigned
+          path: build/WangWangPhone-unsigned.ipa
+          if-no-files-found: error
