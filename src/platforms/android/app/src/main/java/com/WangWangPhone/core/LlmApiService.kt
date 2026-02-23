@@ -3,7 +3,7 @@ package com.WangWangPhone.core
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
@@ -43,10 +43,10 @@ class LlmApiService {
             preset: ApiPreset,
             messages: List<Map<String, String>>,
             systemPrompt: String
-        ): Flow<String> = flow {
+        ): Flow<String> = channelFlow {
             val service = LlmApiService()
             service.sendChatRequestStreamInternal(preset, messages, systemPrompt) { chunk ->
-                emit(chunk)
+                trySend(chunk)
             }
         }
         

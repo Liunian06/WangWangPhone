@@ -1,5 +1,6 @@
 package com.WangWangPhone.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -30,6 +31,8 @@ fun PersonaCardListScreen(
     onCardSelected: (Long) -> Unit,
     onBack: () -> Unit
 ) {
+    BackHandler { onBack() }
+
     var cards by remember { mutableStateOf<List<PersonaCard>>(emptyList()) }
     var presets by remember { mutableStateOf<List<ApiPreset>>(emptyList()) }
     var showNewCardDialog by remember { mutableStateOf(false) }
@@ -205,7 +208,7 @@ fun PersonaCardItem(
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    text = formatTime(card.updatedAt),
+                    text = formatPersonaCardTime(card.updatedAt),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                 )
@@ -221,6 +224,7 @@ fun PersonaCardItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NewCardDialog(
     presets: List<ApiPreset>,
@@ -292,7 +296,7 @@ fun NewCardDialog(
     )
 }
 
-private fun formatTime(timestamp: Long): String {
+private fun formatPersonaCardTime(timestamp: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - timestamp
     

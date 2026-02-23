@@ -185,7 +185,7 @@ class PersonaCardDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE
             arrayOf(cardId.toString()),
             null,
             null,
-            "$COLUMN_TIMESTAMP ASC"
+            "$COLUMN_TIMESTAMP ASC, $COLUMN_ID ASC"
         )
 
         cursor.use {
@@ -202,6 +202,39 @@ class PersonaCardDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE
             }
         }
         return messages
+    }
+
+    fun updateMessageContent(cardId: Long, messageId: Long, content: String): Boolean {
+        val db = writableDatabase
+        val messageValues = ContentValues().apply {
+            put(COLUMN_CONTENT, content)
+        }
+        val rows = db.update(
+            TABLE_MESSAGES,
+            messageValues,
+            "$COLUMN_ID = ? AND $COLUMN_CARD_ID = ?",
+            arrayOf(messageId.toString(), cardId.toString())
+        )
+        if (rows > 0) {
+            val cardValues = ContentValues().apply {
+                put(COLUMN_UPDATED_AT, System.currentTimeMillis())
+            }
+            db.update(TABLE_CARDS, cardValues, "$COLUMN_ID = ?", arrayOf(cardId.toString()))
+        }
+        return rows > 0
+    }
+
+    fun deleteMessagesAfter(cardId: Long, messageId: Long) {
+        val db = writableDatabase
+        db.delete(
+            TABLE_MESSAGES,
+            "$COLUMN_CARD_ID = ? AND $COLUMN_ID > ?",
+            arrayOf(cardId.toString(), messageId.toString())
+        )
+        val cardValues = ContentValues().apply {
+            put(COLUMN_UPDATED_AT, System.currentTimeMillis())
+        }
+        db.update(TABLE_CARDS, cardValues, "$COLUMN_ID = ?", arrayOf(cardId.toString()))
     }
 
     fun clearMessages(cardId: Long) {

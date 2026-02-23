@@ -1,7 +1,9 @@
 package com.WangWangPhone.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
@@ -13,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -185,9 +188,10 @@ fun ApiPresetEditScreen(
 ) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
-    val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
-    val card = if (isDark) Color(0xFF2C2C2E) else Color.White
-    val txt = if (isDark) Color.White else Color.Black
+    val uiColors = apiPresetEditColors(isDark)
+    val backgroundBrush = remember(isDark) {
+        Brush.verticalGradient(listOf(uiColors.backgroundTop, uiColors.backgroundBottom))
+    }
     
     var name by remember { mutableStateOf(preset?.name ?: "") }
     var provider by remember { mutableStateOf(preset?.provider ?: if (type == "voice") "minimax" else "openai") }
@@ -218,375 +222,391 @@ fun ApiPresetEditScreen(
     var thinkingBudget by remember { mutableStateOf("1000") }
     var thinkingEffortEnabled by remember { mutableStateOf(false) }
     var thinkingEffort by remember { mutableStateOf("medium") }
+    var isTestingConnection by remember { mutableStateOf(false) }
+    var testSuccess by remember { mutableStateOf<Boolean?>(null) }
+    var testResponse by remember { mutableStateOf<String?>(null) }
+    val canSave = name.isNotBlank() && apiKey.isNotBlank()
+    val dividerColor = uiColors.separator.copy(alpha = 0.75f)
+    val buildCurrentPreset = {
+        val extraParams = buildExtraParams(
+            streamEnabled, streamValue, temperatureEnabled, temperature,
+            maxTokensEnabled, maxTokens, topPEnabled, topP,
+            topKEnabled, topK, thinkingLevelEnabled, thinkingLevel,
+            thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
+        )
+        ApiPreset(
+            id = preset?.id ?: 0,
+            name = name.trim(),
+            type = type,
+            provider = provider,
+            apiKey = apiKey.trim(),
+            baseUrl = baseUrl.trim().ifBlank { getDefaultBaseUrl(provider, type) },
+            model = model.trim().ifBlank { getDefaultModel(provider, type) },
+            extraParams = extraParams
+        )
+    }
+    val inputFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = uiColors.textPrimary,
+        unfocusedTextColor = uiColors.textPrimary,
+        disabledTextColor = uiColors.textHint,
+        cursorColor = uiColors.accent,
+        focusedBorderColor = uiColors.accent,
+        unfocusedBorderColor = uiColors.inputBorder,
+        disabledBorderColor = uiColors.inputBorder,
+        focusedLabelColor = uiColors.accent,
+        unfocusedLabelColor = uiColors.textSecondary,
+        disabledLabelColor = uiColors.textHint,
+        focusedPlaceholderColor = uiColors.textHint,
+        unfocusedPlaceholderColor = uiColors.textHint,
+        disabledPlaceholderColor = uiColors.textHint,
+        focusedContainerColor = uiColors.inputBackground,
+        unfocusedContainerColor = uiColors.inputBackground,
+        disabledContainerColor = uiColors.inputBackground
+    )
     
-    Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
-        // 顶部导航栏
-        Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
-            contentAlignment = Alignment.CenterStart) {
-            Text("取消", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
-            Text(if (preset == null) "添加预设" else "编辑预设", 
-                modifier = Modifier.align(Alignment.Center), 
-                fontWeight = FontWeight.SemiBold, 
-                fontSize = 18.sp, 
-                color = txt)
-            Text("保存", 
-                color = if (name.isNotBlank() && apiKey.isNotBlank()) Color(0xFF007AFF) else Color.Gray,
-                modifier = Modifier.align(Alignment.CenterEnd).clickable(enabled = name.isNotBlank() && apiKey.isNotBlank()) {
-                    val extraParams = buildExtraParams(
-                        streamEnabled, streamValue, temperatureEnabled, temperature,
-                        maxTokensEnabled, maxTokens, topPEnabled, topP,
-                        topKEnabled, topK, thinkingLevelEnabled, thinkingLevel,
-                        thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
-                    )
-                    onSave(
-                        ApiPreset(
-                            id = preset?.id ?: 0,
-                            name = name,
-                            type = type,
-                            provider = provider,
-                            apiKey = apiKey,
-                            baseUrl = baseUrl.ifBlank { getDefaultBaseUrl(provider, type) },
-                            model = model.ifBlank { getDefaultModel(provider, type) },
-                            extraParams = extraParams
-                        )
-                    )
-                })
+    Column(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(uiColors.topBar)
+                .statusBarsPadding()
+                .height(56.dp)
+                .padding(horizontal = 16.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Text("取消", color = uiColors.accent, modifier = Modifier.clickable { onBack() })
+            Text(
+                if (preset == null) "添加预设" else "编辑预设",
+                modifier = Modifier.align(Alignment.Center),
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 18.sp,
+                color = uiColors.textPrimary
+            )
+            Text(
+                "保存",
+                color = if (canSave) uiColors.accent else uiColors.textHint,
+                modifier = Modifier.align(Alignment.CenterEnd).clickable(enabled = canSave) {
+                    onSave(buildCurrentPreset())
+                }
+            )
         }
+        Divider(color = uiColors.separator, thickness = 0.8.dp)
         
-        LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 20.dp)) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
             // 基本信息
             item {
-                Text("基本信息", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), 
-                    fontSize = 13.sp, color = Color.Gray)
-                Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                    Column {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ApiPresetSectionTitle("基本信息", uiColors)
+                    ApiPresetSectionCard(uiColors) {
                         OutlinedTextField(
                             value = name,
                             onValueChange = { name = it },
                             label = { Text("预设名称") },
+                            placeholder = { Text("例如：OpenAI 主力模型") },
                             modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
                             singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = txt,
-                                unfocusedTextColor = txt
-                            )
+                            colors = inputFieldColors
                         )
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
             
             // 提供商选择
             item {
-                Text("提供商", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), 
-                    fontSize = 13.sp, color = Color.Gray)
-                Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                    if (type != "voice") {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(
-                                onClick = { 
-                                    provider = "openai"
-                                    baseUrl = ""
-                                    model = ""
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (provider == "openai") Color(0xFF007AFF) else Color.Gray.copy(alpha = 0.3f)
-                                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ApiPresetSectionTitle("提供商", uiColors)
+                    ApiPresetSectionCard(uiColors) {
+                        if (type != "voice") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(uiColors.inputBackground)
+                                    .padding(4.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("OpenAI", color = Color.White)
-                            }
-                            Button(
-                                onClick = { 
-                                    provider = "gemini"
-                                    baseUrl = ""
-                                    model = ""
-                                },
-                                modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (provider == "gemini") Color(0xFF007AFF) else Color.Gray.copy(alpha = 0.3f)
+                                ProviderChoiceButton(
+                                    label = "OpenAI",
+                                    selected = provider == "openai",
+                                    onClick = {
+                                        provider = "openai"
+                                        baseUrl = ""
+                                        model = ""
+                                        modelError = null
+                                    },
+                                    uiColors = uiColors,
+                                    modifier = Modifier.weight(1f)
                                 )
-                            ) {
-                                Text("Gemini", color = Color.White)
+                                ProviderChoiceButton(
+                                    label = "Gemini",
+                                    selected = provider == "gemini",
+                                    onClick = {
+                                        provider = "gemini"
+                                        baseUrl = ""
+                                        model = ""
+                                        modelError = null
+                                    },
+                                    uiColors = uiColors,
+                                    modifier = Modifier.weight(1f)
+                                )
                             }
+                        } else {
+                            Text("Minimax", fontSize = 16.sp, color = uiColors.textPrimary, fontWeight = FontWeight.Medium)
                         }
-                    } else {
-                        Text("Minimax", fontSize = 16.sp, color = txt)
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
             
             // API配置
             item {
-                Text("API配置", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), 
-                    fontSize = 13.sp, color = Color.Gray)
-                Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                    Column {
-                        OutlinedTextField(
-                            value = apiKey,
-                            onValueChange = { apiKey = it },
-                            label = { Text("API Key") },
-                            placeholder = { Text("sk-...", color = Color.Gray) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = txt,
-                                unfocusedTextColor = txt
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        OutlinedTextField(
-                            value = baseUrl,
-                            onValueChange = { baseUrl = it },
-                            label = { Text("Base URL") },
-                            placeholder = { Text(getDefaultBaseUrl(provider, type), color = Color.Gray) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = txt,
-                                unfocusedTextColor = txt
-                            )
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        
-                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ApiPresetSectionTitle("API配置", uiColors)
+                    ApiPresetSectionCard(uiColors) {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedTextField(
-                                value = model,
-                                onValueChange = { model = it },
-                                label = { Text("模型名称") },
-                                placeholder = { Text(getDefaultModel(provider, type), color = Color.Gray) },
-                                modifier = Modifier.weight(1f),
+                                value = apiKey,
+                                onValueChange = { apiKey = it },
+                                label = { Text("API Key") },
+                                placeholder = { Text("sk-...") },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
                                 singleLine = true,
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedTextColor = txt,
-                                    unfocusedTextColor = txt
-                                )
+                                colors = inputFieldColors
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Button(
-                                onClick = {
-                                    if (apiKey.isBlank()) {
-                                        modelError = "请先填写 API Key"
-                                        return@Button
-                                    }
-                                    isLoadingModels = true
-                                    modelError = null
-                                    scope.launch {
-                                        try {
-                                            val models = LlmApiService.fetchModels(
-                                                provider = provider,
-                                                apiKey = apiKey,
-                                                baseUrl = baseUrl.ifBlank { getDefaultBaseUrl(provider, type) }
-                                            )
-                                            if (models.isEmpty()) {
-                                                modelError = "未获取到模型列表"
-                                            } else {
-                                                availableModels = models
-                                                showModelPicker = true
-                                            }
-                                        } catch (e: Exception) {
-                                            modelError = "获取失败: ${e.message}"
-                                        } finally {
-                                            isLoadingModels = false
-                                        }
-                                    }
-                                },
-                                enabled = !isLoadingModels,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007AFF))
+
+                            OutlinedTextField(
+                                value = baseUrl,
+                                onValueChange = { baseUrl = it },
+                                label = { Text("Base URL") },
+                                placeholder = { Text(getDefaultBaseUrl(provider, type)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(14.dp),
+                                singleLine = true,
+                                colors = inputFieldColors
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                if (isLoadingModels) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
+                                OutlinedTextField(
+                                    value = model,
+                                    onValueChange = { model = it },
+                                    label = { Text("模型名称") },
+                                    placeholder = { Text(getDefaultModel(provider, type)) },
+                                    modifier = Modifier.weight(1f),
+                                    shape = RoundedCornerShape(14.dp),
+                                    singleLine = true,
+                                    colors = inputFieldColors
+                                )
+                                Button(
+                                    onClick = {
+                                        if (apiKey.isBlank()) {
+                                            modelError = "请先填写 API Key"
+                                            return@Button
+                                        }
+                                        isLoadingModels = true
+                                        modelError = null
+                                        scope.launch {
+                                            try {
+                                                val models = LlmApiService.fetchModels(
+                                                    provider = provider,
+                                                    apiKey = apiKey.trim(),
+                                                    baseUrl = baseUrl.trim().ifBlank { getDefaultBaseUrl(provider, type) }
+                                                )
+                                                if (models.isEmpty()) {
+                                                    modelError = "未获取到模型列表"
+                                                } else {
+                                                    availableModels = models
+                                                    showModelPicker = true
+                                                }
+                                            } catch (e: Exception) {
+                                                modelError = "获取失败: ${e.message}"
+                                            } finally {
+                                                isLoadingModels = false
+                                            }
+                                        }
+                                    },
+                                    enabled = !isLoadingModels,
+                                    shape = RoundedCornerShape(14.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = uiColors.accent,
+                                        contentColor = Color.White,
+                                        disabledContainerColor = uiColors.disabledAction,
+                                        disabledContentColor = Color.White.copy(alpha = 0.5f)
                                     )
-                                } else {
-                                    Text("拉取模型", fontSize = 12.sp)
+                                ) {
+                                    if (isLoadingModels) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(16.dp),
+                                            color = Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text("拉取模型", fontSize = 12.sp)
+                                    }
                                 }
                             }
-                        }
-                        
-                        // 错误提示
-                        if (modelError != null) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = modelError!!,
-                                color = Color.Red,
-                                fontSize = 12.sp
-                            )
+
+                            if (modelError != null) {
+                                Text(
+                                    text = modelError!!,
+                                    color = uiColors.error,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
             
             // 模型参数
             item {
-                Text("模型参数", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), 
-                    fontSize = 13.sp, color = Color.Gray)
-                Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp)).background(card).padding(16.dp)) {
-                    Column {
-                        // 流式输出
-                        ParameterRow(
-                            label = "流式输出",
-                            enabled = streamEnabled,
-                            onEnabledChange = { streamEnabled = it },
-                            value = if (streamValue) "True" else "False",
-                            onValueChange = { streamValue = it == "True" },
-                            txt = txt,
-                            isDropdown = true,
-                            dropdownOptions = listOf("True", "False")
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray.copy(alpha = 0.2f))
-                        
-                        // 温度
-                        ParameterRow(
-                            label = "温度 (0-2)",
-                            enabled = temperatureEnabled,
-                            onEnabledChange = { temperatureEnabled = it },
-                            value = temperature,
-                            onValueChange = { 
-                                val filtered = it.filter { c -> c.isDigit() || c == '.' }
-                                val parts = filtered.split(".")
-                                if (parts.size <= 2 && parts.getOrNull(1)?.length ?: 0 <= 2) {
-                                    val num = filtered.toFloatOrNull()
-                                    if (num == null || num in 0f..2f) {
-                                        temperature = filtered
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ApiPresetSectionTitle("模型参数", uiColors)
+                    ApiPresetSectionCard(uiColors) {
+                        Column {
+                            ParameterRow(
+                                label = "流式输出",
+                                enabled = streamEnabled,
+                                onEnabledChange = { streamEnabled = it },
+                                value = if (streamValue) "True" else "False",
+                                onValueChange = { streamValue = it == "True" },
+                                colors = uiColors,
+                                isDropdown = true,
+                                dropdownOptions = listOf("True", "False")
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "温度 (0-2)",
+                                enabled = temperatureEnabled,
+                                onEnabledChange = { temperatureEnabled = it },
+                                value = temperature,
+                                onValueChange = {
+                                    val filtered = it.filter { c -> c.isDigit() || c == '.' }
+                                    val parts = filtered.split(".")
+                                    if (parts.size <= 2 && (parts.getOrNull(1)?.length ?: 0) <= 2) {
+                                        val num = filtered.toFloatOrNull()
+                                        if (num == null || num in 0f..2f) {
+                                            temperature = filtered
+                                        }
                                     }
-                                }
-                            },
-                            txt = txt
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray.copy(alpha = 0.2f))
-                        
-                        // Max Tokens
-                        ParameterRow(
-                            label = "最大令牌数",
-                            enabled = maxTokensEnabled,
-                            onEnabledChange = { maxTokensEnabled = it },
-                            value = maxTokens,
-                            onValueChange = { if (it.all { c -> c.isDigit() }) maxTokens = it },
-                            txt = txt
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray.copy(alpha = 0.2f))
-                        
-                        // Top P
-                        ParameterRow(
-                            label = "Top P (0-1)",
-                            enabled = topPEnabled,
-                            onEnabledChange = { topPEnabled = it },
-                            value = topP,
-                            onValueChange = { 
-                                val filtered = it.filter { c -> c.isDigit() || c == '.' }
-                                val parts = filtered.split(".")
-                                if (parts.size <= 2 && parts.getOrNull(1)?.length ?: 0 <= 2) {
-                                    val num = filtered.toFloatOrNull()
-                                    if (num == null || num in 0f..1f) {
-                                        topP = filtered
+                                },
+                                colors = uiColors
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "最大令牌数",
+                                enabled = maxTokensEnabled,
+                                onEnabledChange = { maxTokensEnabled = it },
+                                value = maxTokens,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) maxTokens = it },
+                                colors = uiColors
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "Top P (0-1)",
+                                enabled = topPEnabled,
+                                onEnabledChange = { topPEnabled = it },
+                                value = topP,
+                                onValueChange = {
+                                    val filtered = it.filter { c -> c.isDigit() || c == '.' }
+                                    val parts = filtered.split(".")
+                                    if (parts.size <= 2 && (parts.getOrNull(1)?.length ?: 0) <= 2) {
+                                        val num = filtered.toFloatOrNull()
+                                        if (num == null || num in 0f..1f) {
+                                            topP = filtered
+                                        }
                                     }
-                                }
-                            },
-                            txt = txt
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray.copy(alpha = 0.2f))
-                        
-                        // Top K
-                        ParameterRow(
-                            label = "Top K",
-                            enabled = topKEnabled,
-                            onEnabledChange = { topKEnabled = it },
-                            value = topK,
-                            onValueChange = { if (it.all { c -> c.isDigit() }) topK = it },
-                            txt = txt
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray.copy(alpha = 0.2f))
-                        
-                        // Thinking Level
-                        ParameterRow(
-                            label = "思考级别",
-                            enabled = thinkingLevelEnabled,
-                            onEnabledChange = { thinkingLevelEnabled = it },
-                            value = thinkingLevel,
-                            onValueChange = { if (it.all { c -> c.isDigit() }) thinkingLevel = it },
-                            txt = txt
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray.copy(alpha = 0.2f))
-                        
-                        // Thinking Budget
-                        ParameterRow(
-                            label = "思考预算",
-                            enabled = thinkingBudgetEnabled,
-                            onEnabledChange = { thinkingBudgetEnabled = it },
-                            value = thinkingBudget,
-                            onValueChange = { if (it.all { c -> c.isDigit() }) thinkingBudget = it },
-                            txt = txt
-                        )
-                        
-                        Divider(modifier = Modifier.padding(vertical = 12.dp), color = Color.Gray.copy(alpha = 0.2f))
-                        
-                        // Thinking Effort
-                        ParameterRow(
-                            label = "思考努力度",
-                            enabled = thinkingEffortEnabled,
-                            onEnabledChange = { thinkingEffortEnabled = it },
-                            value = thinkingEffort,
-                            onValueChange = { thinkingEffort = it },
-                            txt = txt,
-                            isDropdown = true,
-                            dropdownOptions = listOf("minimal", "low", "medium", "high", "max")
-                        )
+                                },
+                                colors = uiColors
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "Top K",
+                                enabled = topKEnabled,
+                                onEnabledChange = { topKEnabled = it },
+                                value = topK,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) topK = it },
+                                colors = uiColors
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "思考级别",
+                                enabled = thinkingLevelEnabled,
+                                onEnabledChange = { thinkingLevelEnabled = it },
+                                value = thinkingLevel,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) thinkingLevel = it },
+                                colors = uiColors
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "思考预算",
+                                enabled = thinkingBudgetEnabled,
+                                onEnabledChange = { thinkingBudgetEnabled = it },
+                                value = thinkingBudget,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) thinkingBudget = it },
+                                colors = uiColors
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "思考努力度",
+                                enabled = thinkingEffortEnabled,
+                                onEnabledChange = { thinkingEffortEnabled = it },
+                                value = thinkingEffort,
+                                onValueChange = { thinkingEffort = it },
+                                colors = uiColors,
+                                isDropdown = true,
+                                dropdownOptions = listOf("minimal", "low", "medium", "high", "max")
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
             
             // 测试连通性和保存按钮
             item {
-                var isTestingConnection by remember { mutableStateOf(false) }
-                var testSuccess by remember { mutableStateOf<Boolean?>(null) }
-                var testResponse by remember { mutableStateOf<String?>(null) }
-                
-                Column(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
-                    // 测试连通性按钮
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(card)
-                            .clickable(enabled = !isTestingConnection && name.isNotBlank() && apiKey.isNotBlank()) {
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(uiColors.cardBackground)
+                            .border(
+                                border = BorderStroke(
+                                    1.dp,
+                                    if (canSave) uiColors.accent.copy(alpha = 0.45f) else uiColors.inputBorder
+                                ),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .clickable(enabled = !isTestingConnection && canSave) {
                                 isTestingConnection = true
                                 testSuccess = null
                                 testResponse = null
                                 scope.launch {
                                     try {
-                                        val currentPreset = ApiPreset(
-                                            id = preset?.id ?: 0,
-                                            name = name,
-                                            type = type,
-                                            provider = provider,
-                                            apiKey = apiKey,
-                                            baseUrl = baseUrl.ifBlank { getDefaultBaseUrl(provider, type) },
-                                            model = model.ifBlank { getDefaultModel(provider, type) },
-                                            extraParams = buildExtraParams(
-                                                streamEnabled, streamValue, temperatureEnabled, temperature,
-                                                maxTokensEnabled, maxTokens, topPEnabled, topP,
-                                                topKEnabled, topK, thinkingLevelEnabled, thinkingLevel,
-                                                thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
-                                            )
-                                        )
-                                        val (success, response) = LlmApiService.testConnection(currentPreset)
+                                        val (success, response) = LlmApiService.testConnection(buildCurrentPreset())
                                         testSuccess = success
                                         testResponse = response
                                     } catch (e: Exception) {
@@ -596,51 +616,59 @@ fun ApiPresetEditScreen(
                                         isTestingConnection = false
                                     }
                                 }
-                            }
-                            .padding(16.dp),
+                            },
                         contentAlignment = Alignment.Center
                     ) {
                         if (isTestingConnection) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
-                                    color = Color(0xFF007AFF),
+                                    color = uiColors.accent,
                                     strokeWidth = 2.dp
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("测试中...", color = txt, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                                Text("测试中...", color = uiColors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                             }
                         } else {
                             Text(
                                 "测试连通性",
-                                color = if (name.isNotBlank() && apiKey.isNotBlank()) Color(0xFF007AFF) else Color.Gray,
-                                fontSize = 16.sp,
+                                color = if (canSave) uiColors.accent else uiColors.textHint,
+                                fontSize = 15.sp,
                                 fontWeight = FontWeight.Medium
                             )
                         }
                     }
                     
-                    // 测试结果提示
                     if (testSuccess != null && testResponse != null) {
-                        Spacer(modifier = Modifier.height(12.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (testSuccess == true) Color(0xFF34C759).copy(alpha = 0.1f) else Color.Red.copy(alpha = 0.1f))
-                                .padding(12.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    if (testSuccess == true) uiColors.success.copy(alpha = 0.14f)
+                                    else uiColors.error.copy(alpha = 0.14f)
+                                )
+                                .border(
+                                    border = BorderStroke(
+                                        1.dp,
+                                        if (testSuccess == true) uiColors.success.copy(alpha = 0.4f)
+                                        else uiColors.error.copy(alpha = 0.4f)
+                                    ),
+                                    shape = RoundedCornerShape(14.dp)
+                                )
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
                         ) {
                             Column {
                                 Text(
                                     text = if (testSuccess == true) "✓ 连接成功" else "✗ 连接失败",
-                                    color = if (testSuccess == true) Color(0xFF34C759) else Color.Red,
+                                    color = if (testSuccess == true) uiColors.success else uiColors.error,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Text(
                                     text = testResponse!!,
-                                    color = txt,
+                                    color = uiColors.textPrimary,
                                     fontSize = 13.sp,
                                     lineHeight = 18.sp
                                 )
@@ -648,53 +676,43 @@ fun ApiPresetEditScreen(
                         }
                     }
                     
-                    Spacer(modifier = Modifier.height(12.dp))
-                    
-                    // 保存预设按钮
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (name.isNotBlank() && apiKey.isNotBlank()) Color(0xFF007AFF) else Color.Gray.copy(alpha = 0.3f))
-                            .clickable(enabled = name.isNotBlank() && apiKey.isNotBlank()) {
-                                val extraParams = buildExtraParams(
-                                    streamEnabled, streamValue, temperatureEnabled, temperature,
-                                    maxTokensEnabled, maxTokens, topPEnabled, topP,
-                                    topKEnabled, topK, thinkingLevelEnabled, thinkingLevel,
-                                    thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
-                                )
-                                onSave(
-                                    ApiPreset(
-                                        id = preset?.id ?: 0,
-                                        name = name,
-                                        type = type,
-                                        provider = provider,
-                                        apiKey = apiKey,
-                                        baseUrl = baseUrl.ifBlank { getDefaultBaseUrl(provider, type) },
-                                        model = model.ifBlank { getDefaultModel(provider, type) },
-                                        extraParams = extraParams
-                                    )
-                                )
-                            }
-                            .padding(16.dp),
+                            .height(54.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (canSave) uiColors.accent else uiColors.disabledAction)
+                            .clickable(enabled = canSave) { onSave(buildCurrentPreset()) },
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("保存预设", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                        Text(
+                            "保存预设",
+                            color = Color.White.copy(alpha = if (canSave) 1f else 0.6f),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.height(20.dp))
             }
             
             // 删除按钮
             if (preset != null && onDelete != null) {
                 item {
-                    Box(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp)).background(card)
-                        .clickable { showDeleteConfirm = true }.padding(16.dp),
-                        contentAlignment = Alignment.Center) {
-                        Text("删除预设", color = Color.Red, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(uiColors.cardBackground)
+                            .border(
+                                border = BorderStroke(1.dp, uiColors.error.copy(alpha = 0.45f)),
+                                shape = RoundedCornerShape(14.dp)
+                            )
+                            .clickable { showDeleteConfirm = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("删除预设", color = uiColors.error, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                     }
-                    Spacer(modifier = Modifier.height(20.dp))
                 }
             }
         }
@@ -752,49 +770,187 @@ fun ApiPresetEditScreen(
     }
 }
 
+private data class ApiPresetEditColors(
+    val backgroundTop: Color,
+    val backgroundBottom: Color,
+    val topBar: Color,
+    val cardBackground: Color,
+    val cardBorder: Color,
+    val inputBackground: Color,
+    val inputBorder: Color,
+    val separator: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textHint: Color,
+    val accent: Color,
+    val success: Color,
+    val error: Color,
+    val disabledAction: Color
+)
+
+private fun apiPresetEditColors(isDark: Boolean): ApiPresetEditColors {
+    return if (isDark) {
+        ApiPresetEditColors(
+            backgroundTop = Color(0xFF17181D),
+            backgroundBottom = Color(0xFF12131A),
+            topBar = Color(0xFF23252D),
+            cardBackground = Color(0xFF2A2D36),
+            cardBorder = Color(0xFF393D48),
+            inputBackground = Color(0xFF1F222B),
+            inputBorder = Color(0xFF4B5262),
+            separator = Color(0xFF373B46),
+            textPrimary = Color(0xFFF4F6FF),
+            textSecondary = Color(0xFFBAC1CE),
+            textHint = Color(0xFF80899B),
+            accent = Color(0xFF2F8CFF),
+            success = Color(0xFF32C766),
+            error = Color(0xFFFF5E57),
+            disabledAction = Color(0xFF3A3F4D)
+        )
+    } else {
+        ApiPresetEditColors(
+            backgroundTop = Color(0xFFF5F8FF),
+            backgroundBottom = Color(0xFFEDEFF6),
+            topBar = Color(0xFFF9FAFD),
+            cardBackground = Color.White,
+            cardBorder = Color(0xFFD9E0EC),
+            inputBackground = Color(0xFFF4F7FC),
+            inputBorder = Color(0xFFC5CDDD),
+            separator = Color(0xFFDCE3EF),
+            textPrimary = Color(0xFF1C2433),
+            textSecondary = Color(0xFF5F6A7C),
+            textHint = Color(0xFF8D97A8),
+            accent = Color(0xFF0A7CFF),
+            success = Color(0xFF20A85A),
+            error = Color(0xFFD33A32),
+            disabledAction = Color(0xFFC0C8D8)
+        )
+    }
+}
+
 @Composable
-fun ParameterRow(
+private fun ApiPresetSectionTitle(title: String, uiColors: ApiPresetEditColors) {
+    Text(
+        text = title,
+        modifier = Modifier.padding(start = 4.dp),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Medium,
+        color = uiColors.textSecondary
+    )
+}
+
+@Composable
+private fun ApiPresetSectionCard(
+    uiColors: ApiPresetEditColors,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = uiColors.cardBackground,
+        border = BorderStroke(1.dp, uiColors.cardBorder),
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp
+    ) {
+        Column(modifier = Modifier.padding(14.dp), content = content)
+    }
+}
+
+@Composable
+private fun ProviderChoiceButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    uiColors: ApiPresetEditColors,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) uiColors.accent else uiColors.cardBackground)
+            .border(
+                border = BorderStroke(
+                    1.dp,
+                    if (selected) uiColors.accent else uiColors.inputBorder.copy(alpha = 0.9f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.White else uiColors.textSecondary,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun ParameterRow(
     label: String,
     enabled: Boolean,
     onEnabledChange: (Boolean) -> Unit,
     value: String,
     onValueChange: (String) -> Unit,
-    txt: Color,
+    colors: ApiPresetEditColors,
     readOnly: Boolean = false,
     isDropdown: Boolean = false,
     dropdownOptions: List<String> = emptyList()
 ) {
     var expanded by remember { mutableStateOf(false) }
-    
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, fontSize = 14.sp, color = txt)
-        }
-        
+    val valueFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = colors.textPrimary,
+        unfocusedTextColor = colors.textPrimary,
+        disabledTextColor = colors.textPrimary,
+        cursorColor = colors.accent,
+        focusedBorderColor = colors.accent,
+        unfocusedBorderColor = colors.inputBorder,
+        disabledBorderColor = colors.inputBorder,
+        focusedContainerColor = colors.inputBackground,
+        unfocusedContainerColor = colors.inputBackground,
+        disabledContainerColor = colors.inputBackground
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.weight(1f),
+            fontSize = 15.sp,
+            color = if (enabled) colors.textPrimary else colors.textSecondary
+        )
+
         if (!readOnly && enabled) {
             if (isDropdown) {
-                Box(modifier = Modifier.width(120.dp)) {
+                Box(modifier = Modifier.width(136.dp)) {
                     OutlinedTextField(
                         value = value,
                         onValueChange = {},
-                        modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                        modifier = Modifier.fillMaxWidth(),
                         readOnly = true,
                         enabled = false,
                         singleLine = true,
-                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            disabledTextColor = txt,
-                            disabledBorderColor = Color.Gray
-                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                        colors = valueFieldColors,
                         trailingIcon = {
-                            Text("▼", fontSize = 10.sp, color = Color.Gray,
-                                modifier = Modifier.clickable { expanded = !expanded })
+                            Text("▼", fontSize = 10.sp, color = colors.textHint)
                         }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clickable { expanded = true }
                     )
                     DropdownMenu(
                         expanded = expanded,
                         onDismissRequest = { expanded = false },
-                        modifier = Modifier.width(120.dp)
+                        modifier = Modifier.width(136.dp)
                     ) {
                         dropdownOptions.forEach { option ->
                             DropdownMenuItem(
@@ -811,27 +967,40 @@ fun ParameterRow(
                 OutlinedTextField(
                     value = value,
                     onValueChange = onValueChange,
-                    modifier = Modifier.width(120.dp),
+                    modifier = Modifier.width(136.dp),
                     singleLine = true,
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = txt,
-                        unfocusedTextColor = txt
-                    )
+                    shape = RoundedCornerShape(12.dp),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                    colors = valueFieldColors
                 )
             }
+            Spacer(modifier = Modifier.width(10.dp))
         } else if (readOnly && enabled) {
-            Text(value, fontSize = 14.sp, color = Color.Gray, modifier = Modifier.padding(end = 8.dp))
+            Text(
+                value,
+                fontSize = 14.sp,
+                color = colors.textSecondary,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        } else {
+            Text(
+                "未启用",
+                fontSize = 12.sp,
+                color = colors.textHint,
+                modifier = Modifier.padding(end = 8.dp)
+            )
         }
-        
+
         Switch(
             checked = enabled,
             onCheckedChange = onEnabledChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = Color(0xFF34C759),
+                checkedTrackColor = colors.success,
+                checkedBorderColor = Color.Transparent,
                 uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color.Gray
+                uncheckedTrackColor = colors.inputBorder,
+                uncheckedBorderColor = Color.Transparent
             )
         )
     }
