@@ -2,7 +2,9 @@ package com.WangWangPhone.ui
 
 import android.content.Context
 import android.net.Uri
+import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.SpannedString
 import android.text.method.LinkMovementMethod
 import android.util.Log
 import android.widget.TextView
@@ -68,7 +70,12 @@ private val markdownHtmlRenderer: HtmlRenderer by lazy(LazyThreadSafetyMode.NONE
 private fun renderMarkdownToSpanned(markdown: String): Spanned {
     val document = markdownParser.parse(markdown)
     val html = markdownHtmlRenderer.render(document)
-    return HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY)
+    val raw = HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_COMPACT)
+    val builder = SpannableStringBuilder(raw)
+    while (builder.isNotEmpty() && (builder.last() == '\n' || builder.last() == '\r')) {
+        builder.delete(builder.length - 1, builder.length)
+    }
+    return SpannedString(builder)
 }
 
 @Composable
@@ -187,7 +194,7 @@ fun PersonaBuilderChatScreen(
         }
 
         val conversationHistory = baseMessages.map {
-            mapOf("role" to it.role, "content" to it.content)
+            mapOf("role" to it.role, "content" to sanitizePersonaMessageForHistory(it.content))
         }
 
         try {
@@ -604,7 +611,8 @@ private fun MessageActionItem(title: String, onClick: () -> Unit) {
 private fun MarkdownBubbleText(
     markdown: String,
     color: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onLongPress: (() -> Unit)? = null
 ) {
     val typography = MaterialTheme.typography.bodyMedium
     val textSizeSp = if (typography.fontSize.isUnspecified) 14f else typography.fontSize.value
@@ -619,6 +627,14 @@ private fun MarkdownBubbleText(
                 movementMethod = LinkMovementMethod.getInstance()
                 setLineSpacing(0f, 1.25f)
                 includeFontPadding = false
+                isLongClickable = onLongPress != null
+                setTextIsSelectable(false)
+                if (onLongPress != null) {
+                    setOnLongClickListener {
+                        onLongPress()
+                        true
+                    }
+                }
             }
         },
         update = { tv ->
@@ -626,7 +642,72 @@ private fun MarkdownBubbleText(
             tv.textSize = textSizeSp
             tv.setTextColor(textColor)
             tv.setLinkTextColor(textColor)
+            tv.isLongClickable = onLongPress != null
+            if (onLongPress != null) {
+                tv.setOnLongClickListener {
+                    onLongPress()
+                    true
+                }
+            } else {
+                tv.setOnLongClickListener(null)
+            }
         }
+    )
+}
+
+private data class PersonaBubbleContent(
+    val mainText: String,
+    val thoughtText: String
+)
+
+private fun sanitizePersonaMessageForHistory(raw: String): String {
+    val parsed = parsePersonaBubbleContent(raw)
+    return when {
+        parsed.mainText.isNotBlank() -> parsed.mainText
+        parsed.thoughtText.isNotBlank() -> parsed.thoughtText
+        else -> raw.trim()
+    }
+}
+
+private fun parsePersonaBubbleContent(raw: String): PersonaBubbleContent {
+    if (raw.isBlank()) {
+        return PersonaBubbleContent(mainText = "", thoughtText = "")
+    }
+
+    val normalized = raw
+        .replace("<thinking>", "<think>", ignoreCase = true)
+        .replace("</thinking>", "</think>", ignoreCase = true)
+
+    val main = StringBuilder()
+    val thought = StringBuilder()
+    var cursor = 0
+
+    while (cursor < normalized.length) {
+        val openIdx = normalized.indexOf("<think>", cursor, ignoreCase = true)
+        if (openIdx < 0) {
+            main.append(normalized.substring(cursor))
+            break
+        }
+
+        main.append(normalized.substring(cursor, openIdx))
+        val thoughtStart = openIdx + "<think>".length
+        val closeIdx = normalized.indexOf("</think>", thoughtStart, ignoreCase = true)
+        if (closeIdx < 0) {
+            thought.append(normalized.substring(thoughtStart))
+            break
+        }
+
+        val thoughtChunk = normalized.substring(thoughtStart, closeIdx)
+        if (thoughtChunk.isNotBlank()) {
+            if (thought.isNotEmpty()) thought.append("\n")
+            thought.append(thoughtChunk.trim())
+        }
+        cursor = closeIdx + "</think>".length
+    }
+
+    return PersonaBubbleContent(
+        mainText = main.toString().trim(),
+        thoughtText = thought.toString().trim()
     )
 }
 
@@ -637,6 +718,8 @@ fun MessageBubble(
     onLongPress: ((PersonaMessage) -> Unit)? = null
 ) {
     val isUser = message.role == "user"
+    val parsedContent = remember(message.content) { parsePersonaBubbleContent(message.content) }
+    var thoughtExpanded by remember(message.id, message.content) { mutableStateOf(false) }
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -669,11 +752,51 @@ fun MessageBubble(
                 }
             )
         ) {
-            MarkdownBubbleText(
-                markdown = message.content,
-                modifier = Modifier.padding(12.dp),
-                color = textColor
-            )
+            Column(modifier = Modifier.padding(12.dp)) {
+                if (!isUser && parsedContent.thoughtText.isNotBlank()) {
+                    Text(
+                        text = if (thoughtExpanded) "收起思维链" else "展开思维链",
+                        color = textColor.copy(alpha = 0.78f),
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { thoughtExpanded = !thoughtExpanded }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+
+                    if (thoughtExpanded) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        MarkdownBubbleText(
+                            markdown = parsedContent.thoughtText,
+                            color = textColor.copy(alpha = 0.88f),
+                            onLongPress = if (onLongPress != null) {
+                                { onLongPress(message) }
+                            } else null
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Divider(color = textColor.copy(alpha = 0.18f))
+                        Spacer(modifier = Modifier.height(8.dp))
+                    } else {
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                }
+
+                val displayMain = when {
+                    parsedContent.mainText.isNotBlank() -> parsedContent.mainText
+                    parsedContent.thoughtText.isNotBlank() -> "（仅包含思维链，展开可查看）"
+                    else -> ""
+                }
+
+                if (displayMain.isNotEmpty()) {
+                    MarkdownBubbleText(
+                        markdown = displayMain,
+                        color = textColor,
+                        onLongPress = if (onLongPress != null) {
+                            { onLongPress(message) }
+                        } else null
+                    )
+                }
+            }
         }
     }
 }

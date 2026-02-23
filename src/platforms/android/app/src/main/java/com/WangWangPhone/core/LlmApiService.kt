@@ -361,7 +361,21 @@ class LlmApiService {
                     val choices = json.optJSONArray("choices")
                     if (choices != null && choices.length() > 0) {
                         val delta = choices.getJSONObject(0).optJSONObject("delta")
-                        delta?.optString("content")
+                        if (delta != null) {
+                            val chunkBuilder = StringBuilder()
+                            val reasoning = delta.optString("reasoning_content")
+                                .ifBlank { delta.optString("reasoning") }
+                            if (reasoning.isNotBlank()) {
+                                chunkBuilder.append("<think>").append(reasoning).append("</think>")
+                            }
+                            val content = delta.optString("content")
+                            if (content.isNotBlank()) {
+                                chunkBuilder.append(content)
+                            }
+                            chunkBuilder.toString().ifBlank { null }
+                        } else {
+                            null
+                        }
                     } else null
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to parse SSE chunk: $line", e)
@@ -542,7 +556,19 @@ class LlmApiService {
                         val content = candidates.getJSONObject(0).optJSONObject("content")
                         val parts = content?.optJSONArray("parts")
                         if (parts != null && parts.length() > 0) {
-                            parts.getJSONObject(0).optString("text")
+                            val chunkBuilder = StringBuilder()
+                            for (i in 0 until parts.length()) {
+                                val part = parts.optJSONObject(i) ?: continue
+                                val text = part.optString("text")
+                                if (text.isBlank()) continue
+                                val isThought = part.optBoolean("thought", false)
+                                if (isThought) {
+                                    chunkBuilder.append("<think>").append(text).append("</think>")
+                                } else {
+                                    chunkBuilder.append(text)
+                                }
+                            }
+                            chunkBuilder.toString().ifBlank { null }
                         } else null
                     } else null
                 } catch (e: Exception) {

@@ -395,9 +395,19 @@ class LlmApiService {
                    let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
                    let choices = json["choices"] as? [[String: Any]],
                    let firstChoice = choices.first,
-                   let delta = firstChoice["delta"] as? [String: Any],
-                   let content = delta["content"] as? String {
-                    continuation.yield(content)
+                   let delta = firstChoice["delta"] as? [String: Any] {
+                    var chunk = ""
+                    if let reasoning = (delta["reasoning_content"] as? String) ?? (delta["reasoning"] as? String),
+                       !reasoning.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        chunk += "<think>\(reasoning)</think>"
+                    }
+                    if let content = delta["content"] as? String,
+                       !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        chunk += content
+                    }
+                    if !chunk.isEmpty {
+                        continuation.yield(chunk)
+                    }
                 }
             }
         }
@@ -479,10 +489,30 @@ class LlmApiService {
                    let candidates = json["candidates"] as? [[String: Any]],
                    let firstCandidate = candidates.first,
                    let content = firstCandidate["content"] as? [String: Any],
-                   let parts = content["parts"] as? [[String: Any]],
-                   let firstPart = parts.first,
-                   let text = firstPart["text"] as? String {
-                    continuation.yield(text)
+                   let parts = content["parts"] as? [[String: Any]] {
+                    var chunk = ""
+                    for part in parts {
+                        guard let text = part["text"] as? String,
+                              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                            continue
+                        }
+                        let isThought: Bool
+                        if let thoughtBool = part["thought"] as? Bool {
+                            isThought = thoughtBool
+                        } else if let thoughtNum = part["thought"] as? NSNumber {
+                            isThought = thoughtNum.boolValue
+                        } else {
+                            isThought = false
+                        }
+                        if isThought {
+                            chunk += "<think>\(text)</think>"
+                        } else {
+                            chunk += text
+                        }
+                    }
+                    if !chunk.isEmpty {
+                        continuation.yield(chunk)
+                    }
                 }
             }
         }

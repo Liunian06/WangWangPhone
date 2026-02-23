@@ -62,10 +62,11 @@ struct PersonaBuilderChatView: View {
                         ForEach(messages, id: \.id) { message in
                             MessageBubble(message: message)
                                 .id(message.id)
-                                .onLongPressGesture {
+                                .contentShape(Rectangle())
+                                .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
                                     selectedMessage = message
                                     showActionSheet = true
-                                }
+                                })
                         }
                         
                         // 流式响应中的消息
@@ -248,7 +249,9 @@ struct PersonaBuilderChatView: View {
                     systemPrompt = "你是一个专业的角色人设构建助手，帮助用户通过对话构建完整的角色人设。"
                 }
                 
-                let conversationHistory = messages.map { ["role": $0.role, "content": $0.content] }
+                let conversationHistory = messages.map {
+                    ["role": $0.role, "content": sanitizeMessageForHistory($0.content)]
+                }
                 
                 // 使用流式API
                 let stream = LlmApiService.shared.sendChatRequestStream(
@@ -318,7 +321,9 @@ struct PersonaBuilderChatView: View {
                     systemPrompt = "你是一个专业的角色人设构建助手，帮助用户通过对话构建完整的角色人设。"
                 }
                 
-                let conversationHistory = messages.map { ["role": $0.role, "content": $0.content] }
+                let conversationHistory = messages.map {
+                    ["role": $0.role, "content": sanitizeMessageForHistory($0.content)]
+                }
                 
                 let stream = LlmApiService.shared.sendChatRequestStream(
                     preset: preset,
@@ -354,24 +359,113 @@ struct PersonaBuilderChatView: View {
     }
 }
 
+private struct ParsedPersonaContent {
+    let mainText: String
+    let thoughtText: String
+}
+
+private func sanitizeMessageForHistory(_ raw: String) -> String {
+    let parsed = parsePersonaContent(raw)
+    if !parsed.mainText.isEmpty {
+        return parsed.mainText
+    }
+    if !parsed.thoughtText.isEmpty {
+        return parsed.thoughtText
+    }
+    return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func parsePersonaContent(_ raw: String) -> ParsedPersonaContent {
+    if raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        return ParsedPersonaContent(mainText: "", thoughtText: "")
+    }
+
+    let normalized = raw
+        .replacingOccurrences(of: "<thinking>", with: "<think>", options: .caseInsensitive)
+        .replacingOccurrences(of: "</thinking>", with: "</think>", options: .caseInsensitive)
+
+    var main = ""
+    var thought = ""
+    var cursor = normalized.startIndex
+
+    while cursor < normalized.endIndex {
+        guard let openRange = normalized.range(of: "<think>", options: .caseInsensitive, range: cursor..<normalized.endIndex) else {
+            main += String(normalized[cursor..<normalized.endIndex])
+            break
+        }
+
+        main += String(normalized[cursor..<openRange.lowerBound])
+        let thoughtStart = openRange.upperBound
+        guard let closeRange = normalized.range(of: "</think>", options: .caseInsensitive, range: thoughtStart..<normalized.endIndex) else {
+            thought += String(normalized[thoughtStart..<normalized.endIndex])
+            cursor = normalized.endIndex
+            break
+        }
+
+        let chunk = String(normalized[thoughtStart..<closeRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+        if !chunk.isEmpty {
+            if !thought.isEmpty {
+                thought += "\n"
+            }
+            thought += chunk
+        }
+        cursor = closeRange.upperBound
+    }
+
+    return ParsedPersonaContent(
+        mainText: main.trimmingCharacters(in: .whitespacesAndNewlines),
+        thoughtText: thought.trimmingCharacters(in: .whitespacesAndNewlines)
+    )
+}
+
 struct MessageBubble: View {
     let message: PersonaMessage
+    @State private var thoughtExpanded = false
+
+    private var parsed: ParsedPersonaContent {
+        parsePersonaContent(message.content)
+    }
     
     var body: some View {
-        HStack {
+        HStack(alignment: .top) {
             if message.role == "user" {
-                Spacer()
+                Spacer(minLength: 40)
             }
-            
-            Text(message.content)
-                .padding(12)
-                .background(message.role == "user" ? Color.blue : Color(UIColor.secondarySystemBackground))
-                .foregroundColor(message.role == "user" ? .white : .primary)
-                .cornerRadius(12)
-                .frame(maxWidth: 280, alignment: message.role == "user" ? .trailing : .leading)
+
+            VStack(alignment: .leading, spacing: 8) {
+                if message.role == "assistant", !parsed.thoughtText.isEmpty {
+                    Button(thoughtExpanded ? "收起思维链" : "展开思维链") {
+                        thoughtExpanded.toggle()
+                    }
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                    if thoughtExpanded {
+                        Text(parsed.thoughtText)
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Divider()
+                    }
+                }
+
+                let displayMain = parsed.mainText.isEmpty && !parsed.thoughtText.isEmpty
+                    ? "（仅包含思维链，展开可查看）"
+                    : parsed.mainText
+
+                if !displayMain.isEmpty {
+                    Text(displayMain)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(12)
+            .background(message.role == "user" ? Color.blue : Color(UIColor.secondarySystemBackground))
+            .foregroundColor(message.role == "user" ? .white : .primary)
+            .cornerRadius(12)
+            .frame(maxWidth: 280, alignment: message.role == "user" ? .trailing : .leading)
             
             if message.role == "assistant" {
-                Spacer()
+                Spacer(minLength: 40)
             }
         }
     }
