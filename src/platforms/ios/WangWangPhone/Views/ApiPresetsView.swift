@@ -1,5 +1,7 @@
 import SwiftUI
 
+private let apiPresetAccentColor = Color(red: 0.13, green: 0.66, blue: 0.35)
+
 struct ApiPresetsView: View {
     @Binding var showApiPresets: Bool
     @Binding var showChatApiPresets: Bool
@@ -66,6 +68,7 @@ struct ApiPresetsView: View {
                 }
             }
         }
+        .tint(apiPresetAccentColor)
     }
 }
 
@@ -106,7 +109,7 @@ struct ApiPresetListView: View {
                                             Spacer()
                                             Text(preset.provider.uppercased())
                                                 .font(.system(size: 12))
-                                                .foregroundColor(Color(red: 0.0, green: 0.48, blue: 1.0))
+                                                .foregroundColor(apiPresetAccentColor)
                                         }
                                         Text("模型: \(preset.model)")
                                             .font(.system(size: 12))
@@ -187,6 +190,7 @@ struct ApiPresetListView: View {
                 )
             }
         }
+        .tint(apiPresetAccentColor)
     }
     
     private func loadPresets() {
@@ -221,6 +225,8 @@ struct ApiPresetEditView: View {
     @State private var topK = "40"
     @State private var thinkingLevelEnabled = false
     @State private var thinkingLevel = "1"
+    @State private var enableThinkingEnabled = true
+    @State private var enableThinkingValue = true
     @State private var thinkingBudgetEnabled = false
     @State private var thinkingBudget = "1000"
     @State private var thinkingEffortEnabled = false
@@ -384,16 +390,31 @@ struct ApiPresetEditView: View {
                     )
                     
                     ParameterToggleRow(
-                        label: "Top K",
-                        isEnabled: $topKEnabled,
-                        value: $topK,
-                        keyboardType: .numberPad
-                    )
-                    
-                    ParameterToggleRow(
                         label: "思考级别",
                         isEnabled: $thinkingLevelEnabled,
                         value: $thinkingLevel,
+                        keyboardType: .numberPad
+                    )
+
+                    HStack {
+                        Text("启用思考")
+                        Spacer()
+                        if enableThinkingEnabled {
+                            Picker("", selection: $enableThinkingValue) {
+                                Text("True").tag(true)
+                                Text("False").tag(false)
+                            }
+                            .pickerStyle(MenuPickerStyle())
+                            .frame(width: 100)
+                        }
+                        Toggle("", isOn: $enableThinkingEnabled)
+                            .labelsHidden()
+                    }
+
+                    ParameterToggleRow(
+                        label: "Top K",
+                        isEnabled: $topKEnabled,
+                        value: $topK,
                         keyboardType: .numberPad
                     )
                     
@@ -457,7 +478,7 @@ struct ApiPresetEditView: View {
                                     .foregroundColor(.primary)
                             } else {
                                 Text("测试连通性")
-                                    .foregroundColor(name.isEmpty || apiKey.isEmpty ? .gray : .blue)
+                                    .foregroundColor(name.isEmpty || apiKey.isEmpty ? .gray : apiPresetAccentColor)
                             }
                         }
                         .frame(maxWidth: .infinity, alignment: .center)
@@ -507,7 +528,7 @@ struct ApiPresetEditView: View {
                             .foregroundColor(.white)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .padding(.vertical, 8)
-                            .background(name.isEmpty || apiKey.isEmpty ? Color.gray : Color.blue)
+                            .background(name.isEmpty || apiKey.isEmpty ? Color.gray : apiPresetAccentColor)
                             .cornerRadius(8)
                     }
                     .disabled(name.isEmpty || apiKey.isEmpty)
@@ -558,7 +579,7 @@ struct ApiPresetEditView: View {
                                     Spacer()
                                     if model == modelName {
                                         Image(systemName: "checkmark")
-                                            .foregroundColor(.blue)
+                                            .foregroundColor(apiPresetAccentColor)
                                     }
                                 }
                             }
@@ -576,6 +597,7 @@ struct ApiPresetEditView: View {
                 }
             }
         }
+        .tint(apiPresetAccentColor)
     }
     
     private func buildExtraParams() -> String {
@@ -585,8 +607,9 @@ struct ApiPresetEditView: View {
         if temperatureEnabled { params["temperature"] = Double(temperature) ?? 1.0 }
         if maxTokensEnabled { params["max_tokens"] = Int(maxTokens) ?? 64000 }
         if topPEnabled { params["top_p"] = Double(topP) ?? 1.0 }
-        if topKEnabled { params["top_k"] = Int(topK) ?? 40 }
         if thinkingLevelEnabled { params["thinking_level"] = Int(thinkingLevel) ?? 1 }
+        if enableThinkingEnabled { params["enable_thinking"] = enableThinkingValue }
+        if topKEnabled { params["top_k"] = Int(topK) ?? 40 }
         if thinkingBudgetEnabled { params["thinking_budget"] = Int(thinkingBudget) ?? 1000 }
         if thinkingEffortEnabled { params["thinking_effort"] = thinkingEffort }
         

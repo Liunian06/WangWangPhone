@@ -69,19 +69,51 @@ class LlmApiService {
         suspend fun testConnection(preset: ApiPreset): Pair<Boolean, String> = withContext(Dispatchers.IO) {
             val service = LlmApiService()
             try {
-                val result = service.sendChatRequestInternal(
-                    preset,
-                    listOf(mapOf("role" to "user", "content" to "你好，你是什么模型？你是哪个公司研发的？")),
-                    ""
+                val testMessages = listOf(
+                    mapOf("role" to "user", "content" to "你好，你是什么模型？你是哪个公司研发的？")
                 )
-                if (result != null) {
-                    Pair(true, result)
+                if (shouldUseStreamForTest(preset.extraParams)) {
+                    val maxLength = 4000
+                    val responseBuilder = StringBuilder()
+                    var truncated = false
+                    service.sendChatRequestStreamInternal(preset, testMessages, "") { chunk ->
+                        if (chunk.isBlank() || truncated) return@sendChatRequestStreamInternal
+                        val remaining = maxLength - responseBuilder.length
+                        if (remaining <= 0) {
+                            truncated = true
+                            return@sendChatRequestStreamInternal
+                        }
+                        if (chunk.length <= remaining) {
+                            responseBuilder.append(chunk)
+                        } else {
+                            responseBuilder.append(chunk.substring(0, remaining))
+                            truncated = true
+                        }
+                    }
+                    val result = responseBuilder.toString().trim()
+                    if (result.isNotEmpty()) {
+                        Pair(
+                            true,
+                            if (truncated) "$result\n...(测试输出已截断)" else result
+                        )
+                    } else {
+                        Pair(false, "API返回空响应")
+                    }
                 } else {
-                    Pair(false, "API返回空响应")
+                    val result = service.sendChatRequestInternal(preset, testMessages, "")
+                    if (result.isNotBlank()) Pair(true, result) else Pair(false, "API返回空响应")
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Connection test failed", e)
                 Pair(false, "连接失败: ${e.message}")
+            }
+        }
+
+        private fun shouldUseStreamForTest(extraParams: String): Boolean {
+            return try {
+                JSONObject(extraParams).optBoolean("stream", false)
+            } catch (_: Exception) {
+                false
             }
         }
     }
@@ -235,7 +267,6 @@ class LlmApiService {
     ): String {
         val requestBody = JSONObject().apply {
             put("model", preset.model)
-            put("stream", stream)
             put("messages", JSONArray().apply {
                 // 添加系统消息
                 if (systemPrompt.isNotEmpty()) {
@@ -256,11 +287,13 @@ class LlmApiService {
                 val keys = extraParams.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
+                    if (key == "stream") continue
                     put(key, extraParams[key])
                 }
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to parse extra params: ${preset.extraParams}", e)
             }
+            put("stream", stream)
         }
         
         val request = Request.Builder()
@@ -302,6 +335,7 @@ class LlmApiService {
                 val keys = extraParams.keys()
                 while (keys.hasNext()) {
                     val key = keys.next()
+                    if (key == "stream") continue
                     put(key, extraParams[key])
                 }
             } catch (e: Exception) {
@@ -410,7 +444,11 @@ class LlmApiService {
         }
         
         val endpoint = if (stream) "streamGenerateContent" else "generateContent"
-        val url = "${preset.baseUrl}/models/${preset.model}:$endpoint?key=${preset.apiKey}&alt=sse"
+        val url = if (stream) {
+            "${preset.baseUrl}/models/${preset.model}:$endpoint?key=${preset.apiKey}&alt=sse"
+        } else {
+            "${preset.baseUrl}/models/${preset.model}:$endpoint?key=${preset.apiKey}"
+        }
         val request = Request.Builder()
             .url(url)
             .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
@@ -532,7 +570,7 @@ class LlmApiService {
                 throw Exception("API返回空响应")
             }
             
-            return parseResponse(responseBody, request.url.toString())
+            return parseResponse(responseBody)
         } catch (e: IOException) {
             throw Exception("网络错误: ${e.message}", e)
         } finally {
@@ -581,35 +619,90 @@ class LlmApiService {
     /**
      * 解析API响应
      */
-    private fun parseResponse(responseBody: String, url: String): String {
+    private fun parseResponse(responseBody: String): String {
+        val trimmed = responseBody.trim()
+        if (trimmed.isEmpty()) {
+            throw Exception("API返回空响应")
+        }
         try {
-            val json = JSONObject(responseBody)
-            
-            if (url.contains("openai")) {
-                // OpenAI 格式
-                val choices = json.optJSONArray("choices")
-                if (choices != null && choices.length() > 0) {
-                    val message = choices.getJSONObject(0).getJSONObject("message")
-                    return message.getString("content").trim()
+            if (trimmed.startsWith("data:")) {
+                return parseSseResponse(trimmed)
+            }
+            return parseJsonResponse(JSONObject(trimmed))
+        } catch (jsonError: Exception) {
+            if (trimmed.contains("\ndata:") || trimmed.startsWith("data:")) {
+                try {
+                    return parseSseResponse(trimmed)
+                } catch (_: Exception) {
+                    // 保留原始错误并在下方抛出
                 }
-                throw Exception("OpenAI API响应格式错误: 没有choices字段")
-            } else if (url.contains("generativelanguage.googleapis.com")) {
-                // Gemini 格式
-                val candidates = json.optJSONArray("candidates")
-                if (candidates != null && candidates.length() > 0) {
-                    val content = candidates.getJSONObject(0).getJSONObject("content")
-                    val parts = content.getJSONArray("parts")
-                    if (parts.length() > 0) {
-                        return parts.getJSONObject(0).getString("text").trim()
+            }
+            throw Exception("解析API响应失败: ${jsonError.message}\n响应内容: $responseBody", jsonError)
+        }
+    }
+
+    private fun parseJsonResponse(json: JSONObject): String {
+        extractContentFromJson(json)?.let { return it }
+        throw Exception("未识别的响应格式: 缺少可读文本字段")
+    }
+
+    private fun parseSseResponse(responseBody: String): String {
+        val contentBuilder = StringBuilder()
+        responseBody.lineSequence().forEach { rawLine ->
+            val line = rawLine.trim()
+            if (!line.startsWith("data:")) return@forEach
+            val data = line.removePrefix("data:").trim()
+            if (data.isEmpty() || data == "[DONE]") return@forEach
+            val chunk = runCatching {
+                extractContentFromJson(JSONObject(data))
+            }.getOrNull()
+            if (!chunk.isNullOrBlank()) {
+                contentBuilder.append(chunk)
+            }
+        }
+        val merged = contentBuilder.toString().trim()
+        if (merged.isEmpty()) {
+            throw Exception("SSE响应中未解析到文本内容")
+        }
+        return merged
+    }
+
+    private fun extractContentFromJson(json: JSONObject): String? {
+        val choices = json.optJSONArray("choices")
+        if (choices != null && choices.length() > 0) {
+            val firstChoice = choices.optJSONObject(0)
+            val message = firstChoice?.optJSONObject("message")
+            val messageContent = message?.optString("content")?.trim()
+            if (!messageContent.isNullOrEmpty()) {
+                return messageContent
+            }
+            val delta = firstChoice?.optJSONObject("delta")
+            val deltaContent = delta?.optString("content")?.trim()
+            if (!deltaContent.isNullOrEmpty()) {
+                return deltaContent
+            }
+        }
+
+        val candidates = json.optJSONArray("candidates")
+        if (candidates != null && candidates.length() > 0) {
+            val content = candidates.optJSONObject(0)?.optJSONObject("content")
+            val parts = content?.optJSONArray("parts")
+            if (parts != null && parts.length() > 0) {
+                val text = StringBuilder()
+                for (i in 0 until parts.length()) {
+                    val partText = parts.optJSONObject(i)?.optString("text").orEmpty()
+                    if (partText.isNotBlank()) {
+                        text.append(partText)
                     }
                 }
-                throw Exception("Gemini API响应格式错误: 没有candidates或parts字段")
-            } else {
-                throw Exception("未知的API格式")
+                val mergedText = text.toString().trim()
+                if (mergedText.isNotEmpty()) {
+                    return mergedText
+                }
             }
-        } catch (e: Exception) {
-            throw Exception("解析API响应失败: ${e.message}\n响应内容: $responseBody", e)
         }
+
+        return null
     }
     
     /**

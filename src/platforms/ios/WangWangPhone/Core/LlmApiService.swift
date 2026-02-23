@@ -493,13 +493,98 @@ class LlmApiService {
     // MARK: - 测试连通性
     
     func testConnection(preset: ApiPreset, completion: @escaping (Bool, String) -> Void) {
-        callLlmApi(preset: preset, userMessage: "你好，你是什么模型？你是哪个公司研发的？", aiPersona: "", userPersona: "") { response in
+        let prompt = "你好，你是什么模型？你是哪个公司研发的？"
+        if shouldUseStreamForTest(extraParams: preset.extraParams) {
+            Task {
+                do {
+                    let maxLength = 4000
+                    var content = ""
+                    var truncated = false
+                    let stream = sendChatRequestStream(
+                        preset: preset,
+                        messages: [["role": "user", "content": prompt]],
+                        systemPrompt: ""
+                    )
+                    for try await chunk in stream {
+                        if chunk.isEmpty || truncated { continue }
+                        let remaining = maxLength - content.count
+                        if remaining <= 0 {
+                            truncated = true
+                            continue
+                        }
+                        if chunk.count <= remaining {
+                            content += chunk
+                        } else {
+                            content += String(chunk.prefix(remaining))
+                            truncated = true
+                        }
+                    }
+
+                    let result = content.trimmingCharacters(in: .whitespacesAndNewlines)
+                    DispatchQueue.main.async {
+                        if result.isEmpty {
+                            completion(false, "API返回空响应")
+                        } else {
+                            completion(true, truncated ? "\(result)\n...(测试输出已截断)" : result)
+                        }
+                    }
+                } catch {
+                    DispatchQueue.main.async {
+                        completion(false, "连接失败: \(error.localizedDescription)")
+                    }
+                }
+            }
+            return
+        }
+
+        let handleResult: (LlmApiResponse) -> Void = { response in
             if response.isError {
                 completion(false, response.errorMessage ?? "连接失败")
+            } else if response.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                completion(false, "API返回空响应")
             } else {
                 completion(true, response.content)
             }
         }
+
+        switch preset.provider {
+        case "openai":
+            callOpenAIApi(
+                preset: preset,
+                systemPrompt: "",
+                userMessage: prompt,
+                completion: handleResult
+            )
+        case "gemini":
+            callGeminiApi(
+                preset: preset,
+                systemPrompt: "",
+                userMessage: prompt,
+                completion: handleResult
+            )
+        default:
+            completion(false, "不支持的API提供商: \(preset.provider)")
+        }
+    }
+
+    private func shouldUseStreamForTest(extraParams: String) -> Bool {
+        guard
+            let data = extraParams.data(using: .utf8),
+            let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else {
+            return false
+        }
+        if let boolValue = dict["stream"] as? Bool {
+            return boolValue
+        }
+        if let numberValue = dict["stream"] as? NSNumber {
+            return numberValue.boolValue
+        }
+        if let stringValue = dict["stream"] as? String {
+            let normalized = stringValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            return normalized == "true" || normalized == "1"
+        }
+        return false
     }
     
     // MARK: - 获取模型列表

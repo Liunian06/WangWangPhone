@@ -40,11 +40,12 @@ fun ApiPresetsScreen(
     val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     val card = if (isDark) Color(0xFF2C2C2E) else Color.White
     val txt = if (isDark) Color.White else Color.Black
+    val accent = if (isDark) Color(0xFF32C766) else Color(0xFF20A85A)
     
     Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
         Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
             contentAlignment = Alignment.CenterStart) {
-            Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
+            Text("返回", color = accent, modifier = Modifier.clickable { onBack() })
             Text("API预设", modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
         }
         
@@ -102,6 +103,7 @@ fun ApiPresetListScreen(type: String, title: String, onBack: () -> Unit) {
     val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     val card = if (isDark) Color(0xFF2C2C2E) else Color.White
     val txt = if (isDark) Color.White else Color.Black
+    val accent = if (isDark) Color(0xFF32C766) else Color(0xFF20A85A)
     val context = LocalContext.current
     val dbHelper = remember { ApiPresetDbHelper(context) }
     var presets by remember { mutableStateOf<List<ApiPreset>>(emptyList()) }
@@ -140,9 +142,9 @@ fun ApiPresetListScreen(type: String, title: String, onBack: () -> Unit) {
         Column(modifier = Modifier.fillMaxSize().background(bg).statusBarsPadding()) {
             Box(modifier = Modifier.fillMaxWidth().height(56.dp).background(card).padding(horizontal = 16.dp),
                 contentAlignment = Alignment.CenterStart) {
-                Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
+                Text("返回", color = accent, modifier = Modifier.clickable { onBack() })
                 Text(title, modifier = Modifier.align(Alignment.Center), fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = txt)
-                Text("添加", color = Color(0xFF007AFF), modifier = Modifier.align(Alignment.CenterEnd).clickable {
+                Text("添加", color = accent, modifier = Modifier.align(Alignment.CenterEnd).clickable {
                     editingPreset = null
                     showEditScreen = true
                 })
@@ -164,7 +166,7 @@ fun ApiPresetListScreen(type: String, title: String, onBack: () -> Unit) {
                             Column {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                     Text(preset.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = txt)
-                                    Text(preset.provider.uppercase(), fontSize = 12.sp, color = Color(0xFF007AFF))
+                                    Text(preset.provider.uppercase(), fontSize = 12.sp, color = accent)
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text("模型: ${preset.model}", fontSize = 12.sp, color = Color.Gray)
@@ -218,6 +220,8 @@ fun ApiPresetEditScreen(
     var topK by remember { mutableStateOf("40") }
     var thinkingLevelEnabled by remember { mutableStateOf(false) }
     var thinkingLevel by remember { mutableStateOf("1") }
+    var enableThinkingEnabled by remember { mutableStateOf(true) }
+    var enableThinkingValue by remember { mutableStateOf(true) }
     var thinkingBudgetEnabled by remember { mutableStateOf(false) }
     var thinkingBudget by remember { mutableStateOf("1000") }
     var thinkingEffortEnabled by remember { mutableStateOf(false) }
@@ -231,7 +235,8 @@ fun ApiPresetEditScreen(
         val extraParams = buildExtraParams(
             streamEnabled, streamValue, temperatureEnabled, temperature,
             maxTokensEnabled, maxTokens, topPEnabled, topP,
-            topKEnabled, topK, thinkingLevelEnabled, thinkingLevel,
+            thinkingLevelEnabled, thinkingLevel, enableThinkingEnabled, enableThinkingValue,
+            topKEnabled, topK,
             thinkingBudgetEnabled, thinkingBudget, thinkingEffortEnabled, thinkingEffort
         )
         ApiPreset(
@@ -537,22 +542,35 @@ fun ApiPresetEditScreen(
                             Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
 
                             ParameterRow(
-                                label = "Top K",
-                                enabled = topKEnabled,
-                                onEnabledChange = { topKEnabled = it },
-                                value = topK,
-                                onValueChange = { if (it.all { c -> c.isDigit() }) topK = it },
+                                label = "思考级别",
+                                enabled = thinkingLevelEnabled,
+                                onEnabledChange = { thinkingLevelEnabled = it },
+                                value = thinkingLevel,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) thinkingLevel = it },
                                 colors = uiColors
                             )
 
                             Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
 
                             ParameterRow(
-                                label = "思考级别",
-                                enabled = thinkingLevelEnabled,
-                                onEnabledChange = { thinkingLevelEnabled = it },
-                                value = thinkingLevel,
-                                onValueChange = { if (it.all { c -> c.isDigit() }) thinkingLevel = it },
+                                label = "启用思考",
+                                enabled = enableThinkingEnabled,
+                                onEnabledChange = { enableThinkingEnabled = it },
+                                value = if (enableThinkingValue) "True" else "False",
+                                onValueChange = { enableThinkingValue = it == "True" },
+                                colors = uiColors,
+                                isDropdown = true,
+                                dropdownOptions = listOf("True", "False")
+                            )
+
+                            Divider(modifier = Modifier.padding(vertical = 12.dp), color = dividerColor)
+
+                            ParameterRow(
+                                label = "Top K",
+                                enabled = topKEnabled,
+                                onEnabledChange = { topKEnabled = it },
+                                value = topK,
+                                onValueChange = { if (it.all { c -> c.isDigit() }) topK = it },
                                 colors = uiColors
                             )
 
@@ -802,7 +820,7 @@ private fun apiPresetEditColors(isDark: Boolean): ApiPresetEditColors {
             textPrimary = Color(0xFFF4F6FF),
             textSecondary = Color(0xFFBAC1CE),
             textHint = Color(0xFF80899B),
-            accent = Color(0xFF2F8CFF),
+            accent = Color(0xFF32C766),
             success = Color(0xFF32C766),
             error = Color(0xFFFF5E57),
             disabledAction = Color(0xFF3A3F4D)
@@ -820,7 +838,7 @@ private fun apiPresetEditColors(isDark: Boolean): ApiPresetEditColors {
             textPrimary = Color(0xFF1C2433),
             textSecondary = Color(0xFF5F6A7C),
             textHint = Color(0xFF8D97A8),
-            accent = Color(0xFF0A7CFF),
+            accent = Color(0xFF20A85A),
             success = Color(0xFF20A85A),
             error = Color(0xFFD33A32),
             disabledAction = Color(0xFFC0C8D8)
@@ -1009,7 +1027,8 @@ private fun ParameterRow(
 private fun buildExtraParams(
     streamEnabled: Boolean, streamValue: Boolean, temperatureEnabled: Boolean, temperature: String,
     maxTokensEnabled: Boolean, maxTokens: String, topPEnabled: Boolean, topP: String,
-    topKEnabled: Boolean, topK: String, thinkingLevelEnabled: Boolean, thinkingLevel: String,
+    thinkingLevelEnabled: Boolean, thinkingLevel: String, enableThinkingEnabled: Boolean, enableThinkingValue: Boolean,
+    topKEnabled: Boolean, topK: String,
     thinkingBudgetEnabled: Boolean, thinkingBudget: String, thinkingEffortEnabled: Boolean, thinkingEffort: String
 ): String {
     val params = mutableMapOf<String, Any>()
@@ -1018,8 +1037,9 @@ private fun buildExtraParams(
     if (temperatureEnabled) params["temperature"] = temperature.toFloatOrNull() ?: 1.0f
     if (maxTokensEnabled) params["max_tokens"] = maxTokens.toIntOrNull() ?: 64000
     if (topPEnabled) params["top_p"] = topP.toFloatOrNull() ?: 1.0f
-    if (topKEnabled) params["top_k"] = topK.toIntOrNull() ?: 40
     if (thinkingLevelEnabled) params["thinking_level"] = thinkingLevel.toIntOrNull() ?: 1
+    if (enableThinkingEnabled) params["enable_thinking"] = enableThinkingValue
+    if (topKEnabled) params["top_k"] = topK.toIntOrNull() ?: 40
     if (thinkingBudgetEnabled) params["thinking_budget"] = thinkingBudget.toIntOrNull() ?: 1000
     if (thinkingEffortEnabled) params["thinking_effort"] = thinkingEffort
     
