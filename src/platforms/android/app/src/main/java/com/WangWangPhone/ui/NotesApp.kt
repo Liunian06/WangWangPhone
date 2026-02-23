@@ -222,26 +222,32 @@ fun NotesAppScreen(onClose: () -> Unit) {
             }
 
             // Bottom Bar
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp)
                     .background(Color(0xFFF9F9F9).copy(alpha = 0.94f))
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
             ) {
-                Text(
-                    "${notes.size} 个备忘录",
-                    fontSize = 12.sp,
-                    color = Color.Gray
-                )
-                Text("📝", fontSize = 24.sp, modifier = Modifier.clickable {
-                    val newNote = Note(java.util.UUID.randomUUID().toString(), "", "", "刚刚")
-                    selectedNote = newNote
-                    editTitle = ""
-                    editContent = ""
-                })
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(80.dp)
+                        .padding(horizontal = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${notes.size} 个备忘录",
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                    Text("📝", fontSize = 24.sp, modifier = Modifier.clickable {
+                        val newNote = Note(java.util.UUID.randomUUID().toString(), "", "", "刚刚")
+                        selectedNote = newNote
+                        editTitle = ""
+                        editContent = ""
+                    })
+                }
             }
         }
     } else {

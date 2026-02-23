@@ -2,7 +2,10 @@ package com.WangWangPhone.ui
 
 import android.content.Context
 import android.net.Uri
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
 import android.util.Log
+import android.widget.TextView
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,6 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
@@ -27,22 +32,44 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.isUnspecified
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.text.HtmlCompat
 import com.WangWangPhone.core.ApiPresetDbHelper
 import com.WangWangPhone.core.ContactDbHelper
 import com.WangWangPhone.core.LlmApiService
 import com.WangWangPhone.core.PersonaCardDbHelper
 import com.WangWangPhone.core.PersonaMessage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.commonmark.parser.Parser
+import org.commonmark.renderer.html.HtmlRenderer
 import kotlin.random.Random
+
+private val markdownParser: Parser by lazy(LazyThreadSafetyMode.NONE) {
+    Parser.builder().build()
+}
+
+private val markdownHtmlRenderer: HtmlRenderer by lazy(LazyThreadSafetyMode.NONE) {
+    HtmlRenderer.builder().softbreak("<br />").build()
+}
+
+private fun renderMarkdownToSpanned(markdown: String): Spanned {
+    val document = markdownParser.parse(markdown)
+    val html = markdownHtmlRenderer.render(document)
+    return HtmlCompat.fromHtml(html, HtmlCompat.FROM_HTML_MODE_LEGACY)
+}
 
 @Composable
 fun PersonaBuilderAppScreen(onClose: () -> Unit) {
@@ -99,7 +126,7 @@ fun PersonaBuilderChatScreen(
 
     var personaCard by remember { mutableStateOf<com.WangWangPhone.core.PersonaCard?>(null) }
     var messages by remember { mutableStateOf<List<PersonaMessage>>(emptyList()) }
-    var inputText by remember { mutableStateOf("") }
+    var inputText by remember { mutableStateOf(TextFieldValue("")) }
     var isLoading by remember { mutableStateOf(false) }
     var streamingContent by remember { mutableStateOf("") }
     var actionMessage by remember { mutableStateOf<PersonaMessage?>(null) }
@@ -202,10 +229,10 @@ fun PersonaBuilderChatScreen(
     }
 
     fun sendMessage() {
-        if (inputText.isBlank() || isLoading) return
+        if (inputText.text.isBlank() || isLoading) return
 
-        val userMessage = inputText.trim()
-        inputText = ""
+        val userMessage = inputText.text.trim()
+        inputText = TextFieldValue("")
 
         coroutineScope.launch {
             isLoading = true
@@ -348,7 +375,7 @@ fun PersonaBuilderChatScreen(
                     Spacer(modifier = Modifier.width(12.dp))
                     FilledIconButton(
                         onClick = { sendMessage() },
-                        enabled = inputText.isNotBlank() && !isLoading,
+                        enabled = inputText.text.isNotBlank() && !isLoading,
                         modifier = Modifier.size(48.dp)
                     ) {
                         if (isLoading && streamingContent.isEmpty()) {
@@ -573,6 +600,36 @@ private fun MessageActionItem(title: String, onClick: () -> Unit) {
     )
 }
 
+@Composable
+private fun MarkdownBubbleText(
+    markdown: String,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val typography = MaterialTheme.typography.bodyMedium
+    val textSizeSp = if (typography.fontSize.isUnspecified) 14f else typography.fontSize.value
+    val textColor = color.toArgb()
+    val spannedText = remember(markdown) { renderMarkdownToSpanned(markdown) }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx ->
+            TextView(ctx).apply {
+                linksClickable = true
+                movementMethod = LinkMovementMethod.getInstance()
+                setLineSpacing(0f, 1.25f)
+                includeFontPadding = false
+            }
+        },
+        update = { tv ->
+            tv.text = spannedText
+            tv.textSize = textSizeSp
+            tv.setTextColor(textColor)
+            tv.setLinkTextColor(textColor)
+        }
+    )
+}
+
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MessageBubble(
@@ -596,6 +653,12 @@ fun MessageBubble(
             Modifier.widthIn(max = 320.dp)
         }
 
+        val textColor = if (isUser) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        }
+
         Card(
             modifier = bubbleModifier,
             colors = CardDefaults.cardColors(
@@ -606,15 +669,10 @@ fun MessageBubble(
                 }
             )
         ) {
-            Text(
-                text = message.content,
+            MarkdownBubbleText(
+                markdown = message.content,
                 modifier = Modifier.padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isUser) {
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
-                }
+                color = textColor
             )
         }
     }

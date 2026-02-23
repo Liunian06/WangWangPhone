@@ -924,40 +924,47 @@ fun ChatTabBar(currentTab: String, onTabChange: (String) -> Unit, conversations:
 
     val bg = if (WeTheme.isDark) Color(0xFF191919) else Color(0xFFF7F7F7)
 
-    Row(
-        modifier = Modifier.fillMaxWidth().height(56.dp).background(bg),
-        verticalAlignment = Alignment.CenterVertically
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(bg)
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
     ) {
-        tabs.forEach { item ->
-            val isActive = currentTab == item.id
-            val color = if (isActive) WeTheme.TabTextSelected else WeTheme.TabTextNormal
-            
-            Column(
-                modifier = Modifier.weight(1f).clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null
-                ) { onTabChange(item.id) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    val iconName = if (isActive) item.iconSelected else item.iconNormal
-                    WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
-                    
-                    if (item.id == "messages" && totalUnread > 0) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(y = 4.dp)
-                                .size(0.dp)
-                                .wrapContentSize(unbounded = true, align = Alignment.Center)
-                        ) {
-                            TabUnreadBadge(count = totalUnread)
+        Row(
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            tabs.forEach { item ->
+                val isActive = currentTab == item.id
+                val color = if (isActive) WeTheme.TabTextSelected else WeTheme.TabTextNormal
+                
+                Column(
+                    modifier = Modifier.weight(1f).clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onTabChange(item.id) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        val iconName = if (isActive) item.iconSelected else item.iconNormal
+                        WeIcon(iconName, item.fallback, modifier = Modifier.size(28.dp), tint = if (isActive) Color.Unspecified else WeTheme.TabTextNormal)
+                        
+                        if (item.id == "messages" && totalUnread > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(y = 4.dp)
+                                    .size(0.dp)
+                                    .wrapContentSize(unbounded = true, align = Alignment.Center)
+                            ) {
+                                TabUnreadBadge(count = totalUnread)
+                            }
                         }
                     }
+                    Spacer(Modifier.height(2.dp))
+                    Text(item.label, fontSize = 10.sp, color = color, fontWeight = FontWeight.Medium)
                 }
-                Spacer(Modifier.height(2.dp))
-                Text(item.label, fontSize = 10.sp, color = color, fontWeight = FontWeight.Medium)
             }
         }
     }
@@ -1720,11 +1727,17 @@ fun ChatDetailScreen(
 
         // Input bar
         Divider(color = WeTheme.Separator, thickness = 0.5.dp)
-        Row(
-            modifier = Modifier.fillMaxWidth().background(if (WeTheme.isDark) Color(0xFF191919) else Color(0xFFF7F7F7)).padding(10.dp, 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (WeTheme.isDark) Color(0xFF191919) else Color(0xFFF7F7F7))
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
         ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(10.dp, 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
             WeIcon("ic_chat_voice", "🎙️", modifier = Modifier.size(28.dp), tint = WeTheme.TextPrimary)
             BasicTextField(
                 value = inputText,
@@ -1817,6 +1830,7 @@ fun ChatDetailScreen(
                  WeIcon("ic_chat_add", "⊕", modifier = Modifier.size(28.dp).clickable {
                  }, tint = WeTheme.TextPrimary)
              }
+            }
         }
     }
 

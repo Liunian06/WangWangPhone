@@ -43,7 +43,11 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
@@ -143,6 +147,10 @@ const val GRID_ROWS = 7
 const val TOTAL_CELLS = GRID_COLUMNS * GRID_ROWS
 
 data class WeatherInfo(val temp: String, val description: String, val icon: String, val range: String)
+
+private val homeIconLabelTextStyle = TextStyle(
+    platformStyle = PlatformTextStyle(includeFontPadding = true)
+)
 
 suspend fun fetchLocation(): String { delay(500); return "广州" }
 suspend fun fetchWeather(city: String): WeatherInfo {
@@ -731,6 +739,26 @@ fun HomeScreenContent(
         return lx in 0f..dockAreaSize.width.toFloat() && ly in 0f..dockAreaSize.height.toFloat()
     }
 
+    fun getDockSlotFromGlobal(gx: Float): Int {
+        if (dockAreaSize.width <= 0) return 0
+        val dockWidth = dockAreaSize.width.toFloat()
+        val clampedX = (gx - dockAreaOffset.x).coerceIn(0f, (dockWidth - 1f).coerceAtLeast(0f))
+        val slotWidth = dockWidth / maxDockApps.toFloat()
+        return (clampedX / slotWidth).toInt().coerceIn(0, maxDockApps - 1)
+    }
+
+    fun getDockItemIndexFromGlobal(gx: Float, gy: Float): Int {
+        if (!isOverDock(gx, gy) || dockApps.isEmpty()) return -1
+        val slot = getDockSlotFromGlobal(gx)
+        return if (slot < dockApps.size) slot else -1
+    }
+
+    fun getDockDropIndexFromGlobal(gx: Float, isDockSource: Boolean): Int {
+        if (dockApps.isEmpty()) return 0
+        val slot = getDockSlotFromGlobal(gx)
+        return if (isDockSource) slot.coerceIn(0, dockApps.size - 1) else slot.coerceIn(0, dockApps.size)
+    }
+
     if (isEditMode) BackHandler { isEditMode = false; saveCurrentLayout() }
 
     // Pager state
@@ -787,17 +815,11 @@ fun HomeScreenContent(
                 var isDockItem = false
 
                 // 检查 Dock
-                if (isOverDock(touchX, touchY)) {
-                    val relX = touchX - dockAreaOffset.x
-                    // 粗略估算 index，假设间隔 85f
-                    val index = ((relX) / 85f).toInt()
-                    if (index in 0 until dockApps.size) {
-                        if (touchY >= dockAreaOffset.y && touchY <= dockAreaOffset.y + dockAreaSize.height) {
-                            startItem = dockApps[index]
-                            startDockIndex = index
-                            isDockItem = true
-                        }
-                    }
+                val dockIndex = getDockItemIndexFromGlobal(touchX, touchY)
+                if (dockIndex in dockApps.indices) {
+                    startItem = dockApps[dockIndex]
+                    startDockIndex = dockIndex
+                    isDockItem = true
                 }
                 
                 // 检查 Grid (如果不在 Dock)
@@ -924,14 +946,20 @@ fun HomeScreenContent(
                                 val targetPage = if (currentPage < allPages.size) allPages[currentPage] else null
 
                                 if (isOverDock(dragOverlayX, dragOverlayY) && currentItem is AppIcon) {
-                                    if (dockApps.size < maxDockApps) {
-                                        if (dragSource == "grid") sourcePage?.remove(dragSourceCellIndex)
-                                        else if (dragSource == "dock") dockApps.removeAt(dragSourceDockIndex)
-                                        dockApps.add(currentItem)
-                                    } else if (dragSource == "dock") {
-                                        // 简单实现：放回原位，暂不支持 Dock 内排序
-                                        // dockApps.removeAt(dragSourceDockIndex)
-                                        // dockApps.add(...)
+                                    val dropDockIndex = getDockDropIndexFromGlobal(
+                                        gx = dragOverlayX,
+                                        isDockSource = dragSource == "dock"
+                                    )
+                                    if (dragSource == "dock") {
+                                        if (dragSourceDockIndex in dockApps.indices) {
+                                            val movedApp = dockApps.removeAt(dragSourceDockIndex)
+                                            val insertIndex = dropDockIndex.coerceIn(0, dockApps.size)
+                                            dockApps.add(insertIndex, movedApp)
+                                        }
+                                    } else if (dragSource == "grid" && dockApps.size < maxDockApps) {
+                                        sourcePage?.remove(dragSourceCellIndex)
+                                        val insertIndex = dropDockIndex.coerceIn(0, dockApps.size)
+                                        dockApps.add(insertIndex, currentItem)
                                     }
                                 } else if (highlightCellIndex != -1 && targetPage != null) {
                                     val targetCell = highlightCellIndex
@@ -969,7 +997,7 @@ fun HomeScreenContent(
                                     if (canPlace) {
                                         // 移除源
                                         if (dragSource == "grid") sourcePage?.remove(dragSourceCellIndex)
-                                        else dockApps.removeAt(dragSourceDockIndex)
+                                        else if (dragSourceDockIndex in dockApps.indices) dockApps.removeAt(dragSourceDockIndex)
                                         
                                         // 移除目标区域旧 items
                                         if (needSwap) {
@@ -1041,7 +1069,12 @@ fun HomeScreenContent(
             else Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2C2C2C)))
         } else Box(modifier = Modifier.fillMaxSize().background(Color(0xFF2C2C2C)))
 
-        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+        ) {
             // 注意：拖拽浮层已移至顶层 Box，不在 Column 内
 
             // HorizontalPager - 多页网格区域
@@ -1114,26 +1147,53 @@ fun HomeScreenContent(
                                 if (item is WidgetItem) {
                                     WidgetContent(widgetType = item.widgetType, modifier = Modifier.fillMaxSize().padding(8.dp))
                                 } else if (item is AppIcon) {
+                                    val itemWidthDp = with(density) { itemWidth.toDp() }
+                                    val itemHeightDp = with(density) { itemHeight.toDp() }
+                                    val iconSize = minOf(
+                                        60.dp,
+                                        (itemWidthDp - 8.dp).coerceAtLeast(36.dp),
+                                        (itemHeightDp - 22.dp).coerceAtLeast(36.dp)
+                                    )
+                                    val emojiFontSize = when {
+                                        iconSize >= 56.dp -> 48.sp
+                                        iconSize >= 50.dp -> 42.sp
+                                        iconSize >= 44.dp -> 38.sp
+                                        else -> 34.sp
+                                    }
                                     Column(
                                         horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.padding(vertical = 4.dp)
+                                        verticalArrangement = Arrangement.Top,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(top = 4.dp, bottom = 2.dp)
                                     ) {
-                                        Box(modifier = Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                                        Box(modifier = Modifier.size(iconSize), contentAlignment = Alignment.Center) {
                                             val customIconPath = customIcons[item.id]
                                             if (customIconPath != null) {
                                                 val bitmap = remember(customIconPath) { android.graphics.BitmapFactory.decodeFile(customIconPath) }
                                                 if (bitmap != null) {
                                                     Image(bitmap = bitmap.asImageBitmap(), contentDescription = item.name,
-                                                        modifier = Modifier.size(60.dp).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
+                                                        modifier = Modifier.size(iconSize).clip(RoundedCornerShape(12.dp)), contentScale = ContentScale.Crop)
                                                 }
                                             } else if (item.useImage) {
                                                 val resId = context.resources.getIdentifier(item.icon, "drawable", context.packageName)
                                                 if (resId != 0) Image(painter = androidx.compose.ui.res.painterResource(id = resId),
-                                                    contentDescription = item.name, modifier = Modifier.size(60.dp))
-                                            } else Text(item.icon, fontSize = 48.sp)
+                                                    contentDescription = item.name, modifier = Modifier.size(iconSize))
+                                            } else Text(item.icon, fontSize = emojiFontSize)
                                         }
-                                        Spacer(modifier = Modifier.height(5.dp))
-                                        Text(item.name, color = Color.White, fontSize = 12.sp)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = item.name,
+                                            color = Color.White,
+                                            fontSize = 12.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 2.dp),
+                                            style = homeIconLabelTextStyle
+                                        )
                                     }
                                 }
                             }

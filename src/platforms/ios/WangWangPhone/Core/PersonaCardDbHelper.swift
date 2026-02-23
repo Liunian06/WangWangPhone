@@ -220,4 +220,35 @@ class PersonaCardDbHelper {
         
         sqlite3_finalize(statement)
     }
+    
+    func updateMessageContent(cardId: Int64, messageId: Int64, newContent: String) -> Bool {
+        let query = "UPDATE persona_messages SET content = ? WHERE card_id = ? AND id = ?"
+        var statement: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, (newContent as NSString).utf8String, -1, nil)
+            sqlite3_bind_int64(statement, 2, cardId)
+            sqlite3_bind_int64(statement, 3, messageId)
+            
+            let result = sqlite3_step(statement) == SQLITE_DONE
+            sqlite3_finalize(statement)
+            return result
+        }
+        
+        sqlite3_finalize(statement)
+        return false
+    }
+    
+    func deleteMessagesAfter(cardId: Int64, messageId: Int64) {
+        let query = "DELETE FROM persona_messages WHERE card_id = ? AND id > ?"
+        var statement: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_int64(statement, 1, cardId)
+            sqlite3_bind_int64(statement, 2, messageId)
+            sqlite3_step(statement)
+        }
+        
+        sqlite3_finalize(statement)
+    }
 }

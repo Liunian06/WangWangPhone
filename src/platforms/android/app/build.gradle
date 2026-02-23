@@ -118,4 +118,5 @@ dependencies {
     // Network dependencies for LLM API
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
     implementation 'org.json:json:20231013'
+    implementation 'org.commonmark:commonmark:0.22.0'
 }

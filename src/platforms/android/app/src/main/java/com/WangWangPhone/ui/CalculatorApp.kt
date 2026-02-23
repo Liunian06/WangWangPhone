@@ -80,7 +80,8 @@ fun CalculatorAppScreen(onClose: () -> Unit) {
             .fillMaxSize()
             .background(Color.Black)
             .statusBarsPadding()
-            .padding(bottom = 20.dp)
+            .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+            .padding(bottom = 8.dp)
     ) {
         // Display
         Box(
@@ -160,7 +161,7 @@ fun CalculatorAppScreen(onClose: () -> Unit) {
         }
         
         // Home Indicator
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         Box(modifier = Modifier
             .width(120.dp).height(5.dp).clip(CircleShape)
             .background(Color.White.copy(alpha = 0.8f))

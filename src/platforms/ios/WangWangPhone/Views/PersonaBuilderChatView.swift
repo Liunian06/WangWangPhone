@@ -9,6 +9,15 @@ struct PersonaBuilderChatView: View {
     @State private var inputText = ""
     @State private var isLoading = false
     @State private var streamingContent = ""
+    @State private var selectedMessage: PersonaMessage?
+    @State private var showActionSheet = false
+    @State private var editingMessage: PersonaMessage?
+    @State private var editingText = ""
+    @State private var showEditDialog = false
+    @State private var showBacktrackAlert = false
+    @State private var pendingBacktrackMessage: PersonaMessage?
+    
+    @AppStorage("backtrack_warning_shown") private var hasShownBacktrackWarning = false
     
     private let dbHelper = PersonaCardDbHelper()
     private let presetDbHelper = ApiPresetDbHelper()
@@ -53,6 +62,10 @@ struct PersonaBuilderChatView: View {
                         ForEach(messages, id: \.id) { message in
                             MessageBubble(message: message)
                                 .id(message.id)
+                                .onLongPressGesture {
+                                    selectedMessage = message
+                                    showActionSheet = true
+                                }
                         }
                         
                         // 流式响应中的消息
@@ -126,6 +139,53 @@ struct PersonaBuilderChatView: View {
         .navigationBarHidden(true)
         .onAppear {
             loadData()
+        }
+        .confirmationDialog("消息操作", isPresented: $showActionSheet, presenting: selectedMessage) { message in
+            Button("复制") {
+                UIPasteboard.general.string = message.content
+            }
+            Button("编辑") {
+                editingMessage = message
+                editingText = message.content
+                showEditDialog = true
+            }
+            Button("回溯") {
+                if hasShownBacktrackWarning {
+                    executeBacktrack(message: message)
+                } else {
+                    pendingBacktrackMessage = message
+                    showBacktrackAlert = true
+                }
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .alert("编辑消息", isPresented: $showEditDialog) {
+            TextField("消息内容", text: $editingText, axis: .vertical)
+                .lineLimit(3...8)
+            Button("保存") {
+                guard let message = editingMessage, !editingText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+                if dbHelper.updateMessageContent(cardId: cardId, messageId: message.id, newContent: editingText) {
+                    messages = dbHelper.getMessages(cardId: cardId)
+                }
+                editingMessage = nil
+            }
+            Button("取消", role: .cancel) {
+                editingMessage = nil
+            }
+        }
+        .alert("首次回溯提示", isPresented: $showBacktrackAlert) {
+            Button("继续") {
+                hasShownBacktrackWarning = true
+                if let message = pendingBacktrackMessage {
+                    executeBacktrack(message: message)
+                }
+                pendingBacktrackMessage = nil
+            }
+            Button("取消", role: .cancel) {
+                pendingBacktrackMessage = nil
+            }
+        } message: {
+            Text("回溯会清除该消息之后的所有消息，并从该消息作为最后一条重新生成回复。")
         }
     }
     
@@ -230,6 +290,63 @@ struct PersonaBuilderChatView: View {
                 _ = dbHelper.addMessage(errorMsg)
                 messages = dbHelper.getMessages(cardId: cardId)
                 streamingContent = ""
+            }
+            
+            isLoading = false
+        }
+    }
+    
+    private func executeBacktrack(message: PersonaMessage) {
+        guard !isLoading else { return }
+        
+        Task {
+            isLoading = true
+            streamingContent = ""
+            
+            do {
+                guard let card = personaCard else { return }
+                guard let preset = presetDbHelper.getPresetById(card.apiPresetId) else { return }
+                
+                dbHelper.deleteMessagesAfter(cardId: cardId, messageId: message.id)
+                messages = dbHelper.getMessages(cardId: cardId)
+                
+                let systemPrompt: String
+                if let promptPath = Bundle.main.path(forResource: "角色人设设计", ofType: "txt", inDirectory: "prompt"),
+                   let promptContent = try? String(contentsOfFile: promptPath, encoding: .utf8) {
+                    systemPrompt = promptContent
+                } else {
+                    systemPrompt = "你是一个专业的角色人设构建助手，帮助用户通过对话构建完整的角色人设。"
+                }
+                
+                let conversationHistory = messages.map { ["role": $0.role, "content": $0.content] }
+                
+                let stream = LlmApiService.shared.sendChatRequestStream(
+                    preset: preset,
+                    messages: conversationHistory,
+                    systemPrompt: systemPrompt
+                )
+                
+                for try await chunk in stream {
+                    await MainActor.run {
+                        streamingContent += chunk
+                    }
+                }
+                
+                if !streamingContent.isEmpty {
+                    let assistantMsg = PersonaMessage(
+                        id: -1,
+                        cardId: cardId,
+                        role: "assistant",
+                        content: streamingContent,
+                        timestamp: Int64(Date().timeIntervalSince1970 * 1000)
+                    )
+                    _ = dbHelper.addMessage(assistantMsg)
+                    dbHelper.updateCardTimestamp(cardId)
+                    messages = dbHelper.getMessages(cardId: cardId)
+                    streamingContent = ""
+                }
+            } catch {
+                print("回溯失败: \(error)")
             }
             
             isLoading = false

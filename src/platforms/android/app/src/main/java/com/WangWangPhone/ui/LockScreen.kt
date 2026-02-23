@@ -102,7 +102,8 @@ fun LockScreen(onUnlock: () -> Unit, lockWallpaperPath: String? = null) {
             text = "向上滑动解锁",
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 50.dp),
+                .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
+                .padding(bottom = 16.dp),
             color = Color.White.copy(alpha = 0.6f),
             fontSize = 16.sp
         )
