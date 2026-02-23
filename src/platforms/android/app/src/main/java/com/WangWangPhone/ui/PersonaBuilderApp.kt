@@ -33,16 +33,337 @@ import androidx.compose.ui.unit.sp
 import com.WangWangPhone.core.ApiPresetDbHelper
 import com.WangWangPhone.core.ContactDbHelper
 import com.WangWangPhone.core.LlmApiService
+import com.WangWangPhone.core.PersonaCardDbHelper
+import com.WangWangPhone.core.PersonaMessage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.launch
-
-data class PersonaMessage(
-    val role: String, // "user" or "assistant"
-    val content: String,
-    val timestamp: Long = System.currentTimeMillis()
-)
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PersonaBuilderAppScreen(onClose: () -> Unit) {
+    val context = LocalContext.current
+    val dbHelper = remember { PersonaCardDbHelper(context) }
+    val presetDbHelper = remember { ApiPresetDbHelper(context) }
+    
+    var showCardList by remember { mutableStateOf(true) }
+    var selectedCardId by remember { mutableStateOf<Long?>(null) }
+    
+    if (showCardList) {
+        PersonaCardListScreen(
+            dbHelper = dbHelper,
+            presetDbHelper = presetDbHelper,
+            onCardSelected = { cardId ->
+                selectedCardId = cardId
+                showCardList = false
+            },
+            onBack = onClose
+        )
+    } else {
+        selectedCardId?.let { cardId ->
+            PersonaBuilderChatScreen(
+                cardId = cardId,
+                onBack = {
+                    showCardList = true
+                    selectedCardId = null
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun PersonaBuilderChatScreen(cardId: Long, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val isDark = isSystemInDarkTheme()
+    val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+    val card = if (isDark) Color(0xFF2C2C2E) else Color.White
+    val txt = if (isDark) Color.White else Color.Black
+    
+    val context = LocalContext.current
+    val dbHelper = remember { PersonaCardDbHelper(context) }
+    val presetDbHelper = remember { ApiPresetDbHelper(context) }
+    val clipboardManager = LocalClipboardManager.current
+    val coroutineScope = rememberCoroutineScope()
+    val listState = rememberLazyListState()
+    
+    var personaCard by remember { mutableStateOf<com.WangWangPhone.core.PersonaCard?>(null) }
+    var messages by remember { mutableStateOf<List<PersonaMessage>>(emptyList()) }
+    var inputText by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
+    var streamingContent by remember { mutableStateOf("") }
+    
+    // 加载人设卡和历史消息
+    LaunchedEffect(cardId) {
+        withContext(Dispatchers.IO) {
+            personaCard = dbHelper.getCardById(cardId)
+            messages = dbHelper.getMessages(cardId)
+            
+            // 如果没有消息，添加欢迎消息
+            if (messages.isEmpty()) {
+                val welcomeMsg = PersonaMessage(
+                    cardId = cardId,
+                    role = "assistant",
+                    content = "你好！我是神笔马良，专门帮你构建角色人设。\n\n我会通过几个问题来了解你想创建的角色：\n1. 角色的基本信息（姓名、年龄、职业等）\n2. 性格特点\n3. 说话风格\n4. 背景故事\n\n请告诉我，你想创建什么样的角色？",
+                    timestamp = System.currentTimeMillis()
+                )
+                dbHelper.addMessage(welcomeMsg)
+                messages = listOf(welcomeMsg)
+            }
+        }
+    }
+    
+    // 自动滚动到底部
+    LaunchedEffect(messages.size, streamingContent) {
+        if (messages.isNotEmpty() || streamingContent.isNotEmpty()) {
+            listState.animateScrollToItem(
+                if (streamingContent.isNotEmpty()) messages.size else messages.size - 1
+            )
+        }
+    }
+    
+    fun sendMessage() {
+        if (inputText.isBlank() || isLoading) return
+        
+        val userMessage = inputText.trim()
+        inputText = ""
+        
+        coroutineScope.launch {
+            isLoading = true
+            streamingContent = ""
+            
+            try {
+                val card = personaCard
+                if (card == null) {
+                    android.widget.Toast.makeText(context, "人设卡不存在", android.widget.Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                
+                val preset = withContext(Dispatchers.IO) {
+                    presetDbHelper.getPresetById(card.apiPresetId)
+                }
+                
+                if (preset == null) {
+                    android.widget.Toast.makeText(context, "API预设不存在", android.widget.Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                
+                // 保存用户消息
+                val userMsg = PersonaMessage(
+                    cardId = cardId,
+                    role = "user",
+                    content = userMessage,
+                    timestamp = System.currentTimeMillis()
+                )
+                withContext(Dispatchers.IO) {
+                    dbHelper.addMessage(userMsg)
+                }
+                messages = messages + userMsg
+                
+                // 加载系统提示词
+                val systemPrompt = try {
+                    context.assets.open("prompt/角色人设设计.txt").bufferedReader().use { it.readText() }
+                } catch (e: Exception) {
+                    Log.e("PersonaBuilder", "Failed to load prompt file", e)
+                    "你是一个专业的角色人设构建助手，帮助用户通过对话构建完整的角色人设。"
+                }
+                
+                val conversationHistory = messages.map {
+                    mapOf("role" to it.role, "content" to it.content)
+                }
+                
+                // 使用流式API
+                LlmApiService.sendChatRequestStream(
+                    preset = preset,
+                    messages = conversationHistory,
+                    systemPrompt = systemPrompt
+                ).catch { e ->
+                    Log.e("PersonaBuilder", "Stream error", e)
+                    streamingContent = ""
+                    val errorMsg = PersonaMessage(
+                        cardId = cardId,
+                        role = "assistant",
+                        content = "发送失败: ${e.message}",
+                        timestamp = System.currentTimeMillis()
+                    )
+                    withContext(Dispatchers.IO) {
+                        dbHelper.addMessage(errorMsg)
+                    }
+                    messages = messages + errorMsg
+                }.collect { chunk ->
+                    streamingContent += chunk
+                }
+                
+                // 流式响应完成，保存完整消息
+                if (streamingContent.isNotEmpty()) {
+                    val assistantMsg = PersonaMessage(
+                        cardId = cardId,
+                        role = "assistant",
+                        content = streamingContent,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    withContext(Dispatchers.IO) {
+                        dbHelper.addMessage(assistantMsg)
+                        dbHelper.updateCardTimestamp(cardId)
+                    }
+                    messages = messages + assistantMsg
+                    streamingContent = ""
+                }
+                
+            } catch (e: Exception) {
+                Log.e("PersonaBuilder", "Send message error", e)
+                streamingContent = ""
+                val errorMsg = PersonaMessage(
+                    cardId = cardId,
+                    role = "assistant",
+                    content = "发送失败: ${e.message}",
+                    timestamp = System.currentTimeMillis()
+                )
+                withContext(Dispatchers.IO) {
+                    dbHelper.addMessage(errorMsg)
+                }
+                messages = messages + errorMsg
+            } finally {
+                isLoading = false
+            }
+        }
+    }
+    
+    Box(modifier = Modifier.fillMaxSize().background(bg)) {
+        Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
+            // 顶部栏
+            Box(
+                modifier = Modifier.fillMaxWidth().height(56.dp).background(card)
+                    .padding(horizontal = 16.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text("返回", color = Color(0xFF007AFF), modifier = Modifier.clickable { onBack() })
+                Text(
+                    personaCard?.name ?: "加载中...",
+                    modifier = Modifier.align(Alignment.Center),
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 18.sp,
+                    color = txt
+                )
+            }
+            
+            // 消息列表
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                state = listState
+            ) {
+                items(messages) { message ->
+                    MessageBubble(message = message, isDark = isDark, card = card, txt = txt)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                
+                // 流式响应中的消息
+                if (streamingContent.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .widthIn(max = 280.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(card)
+                                    .padding(12.dp)
+                            ) {
+                                Text(
+                                    text = streamingContent,
+                                    color = txt,
+                                    fontSize = 14.sp,
+                                    lineHeight = 20.sp
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+                
+                if (isLoading && streamingContent.isEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(card)
+                                    .padding(12.dp)
+                            ) {
+                                Text("正在思考...", color = txt.copy(alpha = 0.6f), fontSize = 14.sp)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+            }
+            
+            // 输入框
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .background(card)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextField(
+                    value = inputText,
+                    onValueChange = { inputText = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("输入消息...", color = txt.copy(alpha = 0.5f)) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = bg,
+                        unfocusedContainerColor = bg,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedTextColor = txt,
+                        unfocusedTextColor = txt
+                    ),
+                    shape = RoundedCornerShape(20.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier.size(40.dp).clip(CircleShape)
+                        .background(if (inputText.isBlank() || isLoading) Color.Gray else Color(0xFF007AFF))
+                        .clickable(enabled = inputText.isNotBlank() && !isLoading) { sendMessage() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("↑", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun MessageBubble(message: PersonaMessage, isDark: Boolean, card: Color, txt: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = if (message.role == "user") Arrangement.End else Arrangement.Start
+    ) {
+        Box(
+            modifier = Modifier
+                .widthIn(max = 280.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (message.role == "user") Color(0xFF007AFF)
+                    else card
+                )
+                .padding(12.dp)
+        ) {
+            Text(
+                text = message.content,
+                color = if (message.role == "user") Color.White else txt,
+                fontSize = 14.sp,
+                lineHeight = 20.sp
+            )
+        }
+    }
+}
     BackHandler { onClose() }
     val isDark = isSystemInDarkTheme()
     val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)

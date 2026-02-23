@@ -300,6 +300,196 @@ class LlmApiService {
         }
     }
     
+    // MARK: - 流式聊天请求
+    
+    func sendChatRequestStream(
+        preset: ApiPreset,
+        messages: [[String: String]],
+        systemPrompt: String
+    ) -> AsyncThrowingStream<String, Error> {
+        return AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    switch preset.provider {
+                    case "openai":
+                        try await callOpenAIStreamApi(
+                            preset: preset,
+                            messages: messages,
+                            systemPrompt: systemPrompt,
+                            continuation: continuation
+                        )
+                    case "gemini":
+                        try await callGeminiStreamApi(
+                            preset: preset,
+                            messages: messages,
+                            systemPrompt: systemPrompt,
+                            continuation: continuation
+                        )
+                    default:
+                        continuation.finish(throwing: NSError(
+                            domain: "LlmApiService",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "不支持的API提供商: \(preset.provider)"]
+                        ))
+                    }
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+    
+    private func callOpenAIStreamApi(
+        preset: ApiPreset,
+        messages: [[String: String]],
+        systemPrompt: String,
+        continuation: AsyncThrowingStream<String, Error>.Continuation
+    ) async throws {
+        guard let url = URL(string: "\(preset.baseUrl)/chat/completions") else {
+            throw NSError(domain: "LlmApiService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的API URL"])
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(preset.apiKey)", forHTTPHeaderField: "Authorization")
+        
+        var params: [String: Any] = [:]
+        if let extraParamsData = preset.extraParams.data(using: .utf8),
+           let extraParamsDict = try? JSONSerialization.jsonObject(with: extraParamsData) as? [String: Any] {
+            params = extraParamsDict
+        }
+        
+        var apiMessages: [[String: Any]] = [["role": "system", "content": systemPrompt]]
+        for msg in messages {
+            apiMessages.append(msg)
+        }
+        
+        var requestBody: [String: Any] = [
+            "model": preset.model,
+            "messages": apiMessages,
+            "stream": true
+        ]
+        
+        for (key, value) in params where key != "stream" {
+            requestBody[key] = value
+        }
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LlmApiService", code: -1, userInfo: [NSLocalizedDescriptionKey: "HTTP错误"])
+        }
+        
+        for try await line in bytes.lines {
+            if line.hasPrefix("data: ") {
+                let data = line.dropFirst(6)
+                if data == "[DONE]" {
+                    continuation.finish()
+                    return
+                }
+                
+                if let jsonData = data.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                   let choices = json["choices"] as? [[String: Any]],
+                   let firstChoice = choices.first,
+                   let delta = firstChoice["delta"] as? [String: Any],
+                   let content = delta["content"] as? String {
+                    continuation.yield(content)
+                }
+            }
+        }
+        
+        continuation.finish()
+    }
+    
+    private func callGeminiStreamApi(
+        preset: ApiPreset,
+        messages: [[String: String]],
+        systemPrompt: String,
+        continuation: AsyncThrowingStream<String, Error>.Continuation
+    ) async throws {
+        guard var urlComponents = URLComponents(string: "\(preset.baseUrl)/models/\(preset.model):streamGenerateContent") else {
+            throw NSError(domain: "LlmApiService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的API URL"])
+        }
+        
+        urlComponents.queryItems = [URLQueryItem(name: "key", value: preset.apiKey), URLQueryItem(name: "alt", value: "sse")]
+        
+        guard let url = urlComponents.url else {
+            throw NSError(domain: "LlmApiService", code: -1, userInfo: [NSLocalizedDescriptionKey: "无效的API URL"])
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        var params: [String: Any] = [:]
+        if let extraParamsData = preset.extraParams.data(using: .utf8),
+           let extraParamsDict = try? JSONSerialization.jsonObject(with: extraParamsData) as? [String: Any] {
+            params = extraParamsDict
+        }
+        
+        var fullPrompt = systemPrompt
+        for msg in messages {
+            if let role = msg["role"], let content = msg["content"] {
+                fullPrompt += "\n\n\(role): \(content)"
+            }
+        }
+        
+        var requestBody: [String: Any] = [
+            "contents": [
+                ["role": "user", "parts": [["text": fullPrompt]]]
+            ]
+        ]
+        
+        var generationConfig: [String: Any] = [:]
+        if let temperature = params["temperature"] as? Double {
+            generationConfig["temperature"] = temperature
+        }
+        if let maxTokens = params["max_tokens"] as? Int {
+            generationConfig["maxOutputTokens"] = maxTokens
+        }
+        if let topP = params["top_p"] as? Double {
+            generationConfig["topP"] = topP
+        }
+        if let topK = params["top_k"] as? Int {
+            generationConfig["topK"] = topK
+        }
+        
+        if !generationConfig.isEmpty {
+            requestBody["generationConfig"] = generationConfig
+        }
+        
+        request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        
+        let (bytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LlmApiService", code: -1, userInfo: [NSLocalizedDescriptionKey: "HTTP错误"])
+        }
+        
+        for try await line in bytes.lines {
+            if line.hasPrefix("data: ") {
+                let data = line.dropFirst(6)
+                
+                if let jsonData = data.data(using: .utf8),
+                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+                   let candidates = json["candidates"] as? [[String: Any]],
+                   let firstCandidate = candidates.first,
+                   let content = firstCandidate["content"] as? [String: Any],
+                   let parts = content["parts"] as? [[String: Any]],
+                   let firstPart = parts.first,
+                   let text = firstPart["text"] as? String {
+                    continuation.yield(text)
+                }
+            }
+        }
+        
+        continuation.finish()
+    }
+    
     // MARK: - 测试连通性
     
     func testConnection(preset: ApiPreset, completion: @escaping (Bool, String) -> Void) {

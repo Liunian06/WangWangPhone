@@ -1120,7 +1120,7 @@ struct HomeScreen: View {
                     .transition(.move(edge: .trailing)).zIndex(9)
             }
             if showPersonaBuilderApp {
-                PersonaBuilderApp(isPresented: $showPersonaBuilderApp)
+                PersonaCardListView()
                     .transition(.move(edge: .trailing)).zIndex(10)
             }
         }

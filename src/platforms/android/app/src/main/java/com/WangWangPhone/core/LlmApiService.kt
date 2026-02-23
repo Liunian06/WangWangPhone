@@ -2,12 +2,15 @@ package com.WangWangPhone.core
 
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withContext
 import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedReader
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -29,8 +32,22 @@ class LlmApiService {
             systemPrompt: String
         ): String = withContext(Dispatchers.IO) {
             val service = LlmApiService()
-            val result = service.sendChatRequestInternal(preset, messages, systemPrompt)
-            result ?: throw Exception("API 返回空响应")
+            service.sendChatRequestInternal(preset, messages, systemPrompt)
+        }
+        
+        /**
+         * 发送流式聊天请求
+         * @return Flow<String> 流式返回每个token
+         */
+        fun sendChatRequestStream(
+            preset: ApiPreset,
+            messages: List<Map<String, String>>,
+            systemPrompt: String
+        ): Flow<String> = flow {
+            val service = LlmApiService()
+            service.sendChatRequestStreamInternal(preset, messages, systemPrompt) { chunk ->
+                emit(chunk)
+            }
         }
         
         /**
@@ -82,26 +99,41 @@ class LlmApiService {
         preset: ApiPreset,
         messages: List<Map<String, String>>,
         systemPrompt: String
-    ): String? = withContext(Dispatchers.IO) {
-        try {
-            val messageHistory = messages.map { msg ->
-                JSONObject().apply {
-                    put("role", msg["role"] ?: "user")
-                    put("content", msg["content"] ?: "")
-                }
+    ): String = withContext(Dispatchers.IO) {
+        val messageHistory = messages.map { msg ->
+            JSONObject().apply {
+                put("role", msg["role"] ?: "user")
+                put("content", msg["content"] ?: "")
             }
-            
-            when (preset.provider) {
-                "openai" -> sendOpenAiRequest(preset, systemPrompt, messageHistory)
-                "gemini" -> sendGeminiRequest(preset, systemPrompt, messageHistory)
-                else -> {
-                    Log.e(TAG, "Unsupported provider: ${preset.provider}")
-                    null
-                }
+        }
+        
+        when (preset.provider) {
+            "openai" -> sendOpenAiRequest(preset, systemPrompt, messageHistory, false)
+            "gemini" -> sendGeminiRequest(preset, systemPrompt, messageHistory, false)
+            else -> throw Exception("不支持的API提供商: ${preset.provider}")
+        }
+    }
+    
+    /**
+     * 发送流式聊天请求（内部方法）
+     */
+    private suspend fun sendChatRequestStreamInternal(
+        preset: ApiPreset,
+        messages: List<Map<String, String>>,
+        systemPrompt: String,
+        onChunk: suspend (String) -> Unit
+    ) = withContext(Dispatchers.IO) {
+        val messageHistory = messages.map { msg ->
+            JSONObject().apply {
+                put("role", msg["role"] ?: "user")
+                put("content", msg["content"] ?: "")
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error sending chat request", e)
-            null
+        }
+        
+        when (preset.provider) {
+            "openai" -> sendOpenAiRequestStream(preset, systemPrompt, messageHistory, onChunk)
+            "gemini" -> sendGeminiRequestStream(preset, systemPrompt, messageHistory, onChunk)
+            else -> throw Exception("不支持的API提供商: ${preset.provider}")
         }
     }
     
@@ -198,18 +230,22 @@ class LlmApiService {
     private fun sendOpenAiRequest(
         preset: ApiPreset,
         systemPrompt: String,
-        messages: List<JSONObject>
-    ): String? {
+        messages: List<JSONObject>,
+        stream: Boolean = false
+    ): String {
         val requestBody = JSONObject().apply {
             put("model", preset.model)
+            put("stream", stream)
             put("messages", JSONArray().apply {
                 // 添加系统消息
-                put(
-                    JSONObject().apply {
-                        put("role", "system")
-                        put("content", systemPrompt)
-                    }
-                )
+                if (systemPrompt.isNotEmpty()) {
+                    put(
+                        JSONObject().apply {
+                            put("role", "system")
+                            put("content", systemPrompt)
+                        }
+                    )
+                }
                 // 添加对话历史
                 messages.forEach { put(it) }
             })
@@ -238,13 +274,78 @@ class LlmApiService {
     }
     
     /**
+     * 发送OpenAI流式API请求
+     */
+    private suspend fun sendOpenAiRequestStream(
+        preset: ApiPreset,
+        systemPrompt: String,
+        messages: List<JSONObject>,
+        onChunk: suspend (String) -> Unit
+    ) {
+        val requestBody = JSONObject().apply {
+            put("model", preset.model)
+            put("stream", true)
+            put("messages", JSONArray().apply {
+                if (systemPrompt.isNotEmpty()) {
+                    put(
+                        JSONObject().apply {
+                            put("role", "system")
+                            put("content", systemPrompt)
+                        }
+                    )
+                }
+                messages.forEach { put(it) }
+            })
+            
+            try {
+                val extraParams = JSONObject(preset.extraParams)
+                val keys = extraParams.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    put(key, extraParams[key])
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to parse extra params: ${preset.extraParams}", e)
+            }
+        }
+        
+        val request = Request.Builder()
+            .url("${preset.baseUrl}/chat/completions")
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+            .addHeader("Authorization", "Bearer ${preset.apiKey}")
+            .addHeader("Content-Type", "application/json")
+            .build()
+            
+        executeStreamRequest(request, onChunk) { line ->
+            // 解析OpenAI SSE格式
+            if (line.startsWith("data: ")) {
+                val data = line.substring(6)
+                if (data == "[DONE]") return@executeStreamRequest null
+                
+                try {
+                    val json = JSONObject(data)
+                    val choices = json.optJSONArray("choices")
+                    if (choices != null && choices.length() > 0) {
+                        val delta = choices.getJSONObject(0).optJSONObject("delta")
+                        delta?.optString("content")
+                    } else null
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse SSE chunk: $line", e)
+                    null
+                }
+            } else null
+        }
+    }
+    
+    /**
      * 发送Gemini API请求
      */
     private fun sendGeminiRequest(
         preset: ApiPreset,
         systemPrompt: String,
-        messages: List<JSONObject>
-    ): String? {
+        messages: List<JSONObject>,
+        stream: Boolean = false
+    ): String {
         // Gemini API 使用不同的格式
         val contents = JSONArray()
         
@@ -308,7 +409,8 @@ class LlmApiService {
             })
         }
         
-        val url = "${preset.baseUrl}/models/${preset.model}:generateContent?key=${preset.apiKey}"
+        val endpoint = if (stream) "streamGenerateContent" else "generateContent"
+        val url = "${preset.baseUrl}/models/${preset.model}:$endpoint?key=${preset.apiKey}&alt=sse"
         val request = Request.Builder()
             .url(url)
             .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
@@ -319,27 +421,158 @@ class LlmApiService {
     }
     
     /**
+     * 发送Gemini流式API请求
+     */
+    private suspend fun sendGeminiRequestStream(
+        preset: ApiPreset,
+        systemPrompt: String,
+        messages: List<JSONObject>,
+        onChunk: suspend (String) -> Unit
+    ) {
+        val contents = JSONArray()
+        
+        var firstUserMessage = true
+        for (msg in messages) {
+            val role = msg.getString("role")
+            val content = msg.getString("content")
+            
+            if (role == "user") {
+                val modifiedContent = if (firstUserMessage && systemPrompt.isNotEmpty()) {
+                    "$systemPrompt\n\n用户消息：$content"
+                } else {
+                    content
+                }
+                firstUserMessage = false
+                
+                contents.put(
+                    JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", modifiedContent) })
+                        })
+                    }
+                )
+            } else if (role == "assistant") {
+                contents.put(
+                    JSONObject().apply {
+                        put("role", "model")
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().apply { put("text", content) })
+                        })
+                    }
+                )
+            }
+        }
+        
+        val requestBody = JSONObject().apply {
+            put("contents", contents)
+            put("generationConfig", JSONObject().apply {
+                try {
+                    val extraParams = JSONObject(preset.extraParams)
+                    val keys = extraParams.keys()
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        val value = extraParams[key]
+                        if (key in listOf("temperature", "max_tokens", "top_p", "top_k")) {
+                            when (key) {
+                                "max_tokens" -> put("maxOutputTokens", value)
+                                else -> put(key, value)
+                            }
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse extra params for Gemini", e)
+                }
+            })
+        }
+        
+        val url = "${preset.baseUrl}/models/${preset.model}:streamGenerateContent?key=${preset.apiKey}&alt=sse"
+        val request = Request.Builder()
+            .url(url)
+            .post(requestBody.toString().toRequestBody("application/json".toMediaType()))
+            .addHeader("Content-Type", "application/json")
+            .build()
+            
+        executeStreamRequest(request, onChunk) { line ->
+            // 解析Gemini SSE格式
+            if (line.startsWith("data: ")) {
+                val data = line.substring(6)
+                try {
+                    val json = JSONObject(data)
+                    val candidates = json.optJSONArray("candidates")
+                    if (candidates != null && candidates.length() > 0) {
+                        val content = candidates.getJSONObject(0).optJSONObject("content")
+                        val parts = content?.optJSONArray("parts")
+                        if (parts != null && parts.length() > 0) {
+                            parts.getJSONObject(0).optString("text")
+                        } else null
+                    } else null
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to parse Gemini SSE chunk: $line", e)
+                    null
+                }
+            } else null
+        }
+    }
+    
+    /**
      * 执行HTTP请求并解析响应
      */
-    private fun executeRequest(request: Request): String? {
+    private fun executeRequest(request: Request): String {
         var response: Response? = null
-        return try {
+        try {
             response = client.newCall(request).execute()
             if (!response.isSuccessful) {
-                Log.e(TAG, "API request failed: ${response.code} - ${response.body?.string()}")
-                return null
+                val errorBody = response.body?.string() ?: "无响应内容"
+                throw Exception("API请求失败 (HTTP ${response.code}): $errorBody")
             }
             
             val responseBody = response.body?.string()
             if (responseBody.isNullOrEmpty()) {
-                Log.e(TAG, "Empty response body")
-                return null
+                throw Exception("API返回空响应")
             }
             
-            parseResponse(responseBody, request.url.toString())
+            return parseResponse(responseBody, request.url.toString())
         } catch (e: IOException) {
-            Log.e(TAG, "Network error", e)
-            null
+            throw Exception("网络错误: ${e.message}", e)
+        } finally {
+            response?.close()
+        }
+    }
+    
+    /**
+     * 执行流式HTTP请求
+     * @param parseChunk 解析每一行SSE数据的函数，返回null表示跳过该行
+     */
+    private suspend fun executeStreamRequest(
+        request: Request,
+        onChunk: suspend (String) -> Unit,
+        parseChunk: (String) -> String?
+    ) {
+        var response: Response? = null
+        try {
+            response = client.newCall(request).execute()
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string() ?: "无响应内容"
+                throw Exception("API请求失败 (HTTP ${response.code}): $errorBody")
+            }
+            
+            val reader = response.body?.byteStream()?.bufferedReader()
+                ?: throw Exception("无法读取响应流")
+            
+            reader.use {
+                var line: String?
+                while (it.readLine().also { line = it } != null) {
+                    line?.let { l ->
+                        val chunk = parseChunk(l)
+                        if (chunk != null && chunk.isNotEmpty()) {
+                            onChunk(chunk)
+                        }
+                    }
+                }
+            }
+        } catch (e: IOException) {
+            throw Exception("网络错误: ${e.message}", e)
         } finally {
             response?.close()
         }
@@ -348,40 +581,34 @@ class LlmApiService {
     /**
      * 解析API响应
      */
-    private fun parseResponse(responseBody: String, url: String): String? {
-        return try {
+    private fun parseResponse(responseBody: String, url: String): String {
+        try {
             val json = JSONObject(responseBody)
             
             if (url.contains("openai")) {
                 // OpenAI 格式
-                val choices = json.getJSONArray("choices")
-                if (choices.length() > 0) {
+                val choices = json.optJSONArray("choices")
+                if (choices != null && choices.length() > 0) {
                     val message = choices.getJSONObject(0).getJSONObject("message")
-                    message.getString("content").trim()
-                } else {
-                    null
+                    return message.getString("content").trim()
                 }
+                throw Exception("OpenAI API响应格式错误: 没有choices字段")
             } else if (url.contains("generativelanguage.googleapis.com")) {
                 // Gemini 格式
-                val candidates = json.getJSONArray("candidates")
-                if (candidates.length() > 0) {
+                val candidates = json.optJSONArray("candidates")
+                if (candidates != null && candidates.length() > 0) {
                     val content = candidates.getJSONObject(0).getJSONObject("content")
                     val parts = content.getJSONArray("parts")
                     if (parts.length() > 0) {
-                        parts.getJSONObject(0).getString("text").trim()
-                    } else {
-                        null
+                        return parts.getJSONObject(0).getString("text").trim()
                     }
-                } else {
-                    null
                 }
+                throw Exception("Gemini API响应格式错误: 没有candidates或parts字段")
             } else {
-                Log.e(TAG, "Unknown API format")
-                null
+                throw Exception("未知的API格式")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error parsing response: $responseBody", e)
-            null
+            throw Exception("解析API响应失败: ${e.message}\n响应内容: $responseBody", e)
         }
     }
     
