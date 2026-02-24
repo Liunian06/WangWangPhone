@@ -298,6 +298,26 @@ struct PersonaBuilderChatView: View {
             isLoading = false
         }
     }
+
+    private func resolveBacktrackCheckpoint(target: PersonaMessage, currentMessages: [PersonaMessage]) -> PersonaMessage? {
+        if target.id > 0, let byId = currentMessages.first(where: { $0.id == target.id }) {
+            return byId
+        }
+
+        if let uiIndex = messages.firstIndex(where: {
+            $0.id == target.id &&
+            $0.role == target.role &&
+            $0.content == target.content &&
+            $0.timestamp == target.timestamp
+        }), currentMessages.indices.contains(uiIndex) {
+            return currentMessages[uiIndex]
+        }
+
+        let candidates = currentMessages.filter {
+            $0.role == target.role && $0.content == target.content
+        }
+        return candidates.min(by: { abs($0.timestamp - target.timestamp) < abs($1.timestamp - target.timestamp) })
+    }
     
     private func executeBacktrack(message: PersonaMessage) {
         guard !isLoading else { return }
@@ -311,14 +331,15 @@ struct PersonaBuilderChatView: View {
                 guard let preset = presetDbHelper.getPresetById(card.apiPresetId) else { return }
 
                 let currentMessages = dbHelper.getMessages(cardId: cardId)
-                guard let checkpoint = currentMessages.first(where: { $0.id == message.id }) else {
+                guard let checkpoint = resolveBacktrackCheckpoint(target: message, currentMessages: currentMessages) else {
                     print("checkpoint message not found")
                     isLoading = false
                     return
                 }
 
                 dbHelper.deleteMessagesAfter(cardId: cardId, messageId: checkpoint.id)
-                messages = dbHelper.getMessages(cardId: cardId)
+                let checkpointMessages = dbHelper.getMessages(cardId: cardId)
+                messages = checkpointMessages
                 
                 let systemPrompt: String
                 if let promptPath = Bundle.main.path(forResource: "角色人设设计", ofType: "txt", inDirectory: "prompt"),
@@ -328,7 +349,7 @@ struct PersonaBuilderChatView: View {
                     systemPrompt = "你是一个专业的角色人设构建助手，帮助用户通过对话构建完整的角色人设。"
                 }
                 
-                let conversationHistory = messages.map {
+                let conversationHistory = checkpointMessages.map {
                     ["role": $0.role, "content": sanitizeMessageForHistory($0.content)]
                 }
                 

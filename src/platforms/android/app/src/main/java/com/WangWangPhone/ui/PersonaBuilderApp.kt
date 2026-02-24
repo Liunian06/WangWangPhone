@@ -239,7 +239,9 @@ fun PersonaBuilderChatScreen(
                 withContext(Dispatchers.IO) {
                     dbHelper.saveMessage(assistantMsg.cardId, assistantMsg.role, assistantMsg.content)
                 }
-                messages = messages + assistantMsg
+                messages = withContext(Dispatchers.IO) {
+                    dbHelper.getMessages(cardId)
+                }
                 streamingContent = ""
             }
         } catch (e: Exception) {
@@ -254,7 +256,9 @@ fun PersonaBuilderChatScreen(
             withContext(Dispatchers.IO) {
                 dbHelper.saveMessage(errorMsg.cardId, errorMsg.role, errorMsg.content)
             }
-            messages = messages + errorMsg
+            messages = withContext(Dispatchers.IO) {
+                dbHelper.getMessages(cardId)
+            }
         }
     }
 
@@ -285,7 +289,9 @@ fun PersonaBuilderChatScreen(
                     dbHelper.saveMessage(userMsg.cardId, userMsg.role, userMsg.content)
                 }
 
-                val updatedMessages = messages + userMsg
+                val updatedMessages = withContext(Dispatchers.IO) {
+                    dbHelper.getMessages(cardId)
+                }
                 messages = updatedMessages
                 streamAssistantReply(updatedMessages, selectedCard)
             } catch (e: Exception) {
@@ -300,10 +306,33 @@ fun PersonaBuilderChatScreen(
                 withContext(Dispatchers.IO) {
                     dbHelper.saveMessage(errorMsg.cardId, errorMsg.role, errorMsg.content)
                 }
-                messages = messages + errorMsg
+                messages = withContext(Dispatchers.IO) {
+                    dbHelper.getMessages(cardId)
+                }
             } finally {
                 isLoading = false
             }
+        }
+    }
+
+    fun resolveBacktrackCheckpoint(
+        target: PersonaMessage,
+        currentMessages: List<PersonaMessage>
+    ): PersonaMessage? {
+        if (target.id > 0L) {
+            currentMessages.firstOrNull { it.id == target.id }?.let { return it }
+        }
+
+        val uiIndex = messages.indexOf(target)
+        if (uiIndex in currentMessages.indices) {
+            return currentMessages[uiIndex]
+        }
+
+        val candidates = currentMessages.filter {
+            it.role == target.role && it.content == target.content
+        }
+        return candidates.minByOrNull { candidate ->
+            kotlin.math.abs(candidate.timestamp - target.timestamp)
         }
     }
 
@@ -320,9 +349,11 @@ fun PersonaBuilderChatScreen(
             isLoading = true
             streamingContent = ""
             try {
-                val checkpoint = withContext(Dispatchers.IO) {
-                    dbHelper.getMessages(cardId).firstOrNull { it.id == target.id }
-                } ?: throw IllegalStateException("checkpoint message not found")
+                val currentMessages = withContext(Dispatchers.IO) {
+                    dbHelper.getMessages(cardId)
+                }
+                val checkpoint = resolveBacktrackCheckpoint(target, currentMessages)
+                    ?: throw IllegalStateException("checkpoint message not found")
 
                 withContext(Dispatchers.IO) {
                     dbHelper.deleteMessagesAfter(cardId, checkpoint.id)
