@@ -1395,8 +1395,10 @@ struct HomeScreen: View {
     private func formatWindKmph(_ raw: String) -> String {
         let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         if cleaned.isEmpty || cleaned == "--" { return "--" }
-        if cleaned.lowercased().contains("km/h") { return cleaned }
-        return "\(cleaned) km/h"
+        if cleaned.lowercased().contains("km/h") {
+            return cleaned.replacingOccurrences(of: "km/h", with: "公里/小时", options: [.caseInsensitive])
+        }
+        return "\(cleaned) 公里/小时"
     }
 
     private func buildRangeText(maxTemp: String, minTemp: String, windKmph: String) -> String {

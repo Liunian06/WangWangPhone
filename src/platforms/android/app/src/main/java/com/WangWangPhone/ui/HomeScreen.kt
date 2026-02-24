@@ -275,7 +275,11 @@ private fun mapWeatherIcon(description: String): String {
 private fun formatWindKmph(raw: String): String {
     val cleaned = raw.trim()
     if (cleaned.isEmpty() || cleaned == "--") return "--"
-    return if (cleaned.contains("km/h", ignoreCase = true)) cleaned else "$cleaned km/h"
+    return if (cleaned.contains("km/h", ignoreCase = true)) {
+        cleaned.replace("km/h", "公里/小时", ignoreCase = true)
+    } else {
+        "$cleaned 公里/小时"
+    }
 }
 
 private fun buildRangeText(maxTemp: String, minTemp: String, windKmph: String): String {
