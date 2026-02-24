@@ -192,6 +192,7 @@ class LayoutDbHelper(context: Context) : SQLiteOpenHelper(
 
                 // 3. 清除天气缓存
                 weatherCacheDbHelper.clearAllWeatherCache()
+                weatherCacheDbHelper.saveManualLocation(null)
 
                 // 4. 重置用户资料
                 userProfileDbHelper.resetToDefault()

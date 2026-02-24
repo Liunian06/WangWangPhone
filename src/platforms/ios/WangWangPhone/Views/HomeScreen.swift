@@ -1,4 +1,4 @@
-
+import Foundation
 import SwiftUI
 
 protocol GridItem {
@@ -1180,45 +1180,196 @@ struct HomeScreen: View {
     /// 2. 如果没有缓存，则请求网络并保存到数据库
     func loadWeatherData() {
         let weatherCache = WeatherCacheManager.shared
-        
-        // 先获取城市（模拟定位）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let currentCity = "广州"
-            self.city = currentCity
-            
-            // 查询今天的缓存
+
+        Task {
+            let currentCity = await resolveCurrentCity(weatherCache: weatherCache)
+            await MainActor.run {
+                self.city = currentCity
+            }
+
             if let cached = weatherCache.getTodayWeatherCache(city: currentCity) {
-                // 今天已经请求过，直接使用缓存
-                self.weather = WeatherInfo(
-                    temp: cached.temp,
-                    description: cached.description,
-                    icon: cached.icon,
-                    range: cached.range
-                )
+                await MainActor.run {
+                    self.weather = WeatherInfo(
+                        temp: cached.temp,
+                        description: cached.description,
+                        icon: cached.icon,
+                        range: cached.range
+                    )
+                }
                 print("WeatherCache: 使用今日缓存 - \(currentCity)")
             } else {
-                // 没有缓存，请求网络（模拟）
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    let freshWeather = WeatherInfo(temp: "25°", description: "多云", icon: "⛅", range: "H:29° L:21°")
+                let freshWeather = await fetchWeather(city: currentCity)
+                    ?? WeatherInfo(temp: "--", description: "天气未知", icon: "❓", range: "风力 --")
+
+                await MainActor.run {
                     self.weather = freshWeather
-                    
-                    // 保存到数据库
-                    let record = WeatherCacheRecord(
-                        city: currentCity,
-                        temp: freshWeather.temp,
-                        description: freshWeather.description,
-                        icon: freshWeather.icon,
-                        range: freshWeather.range,
-                        requestDate: WeatherCacheManager.getTodayDateString(),
-                        updatedAt: 0
-                    )
-                    _ = weatherCache.saveWeatherCache(record)
-                    
-                    // 清除过期缓存
-                    weatherCache.clearExpiredCache()
-                    print("WeatherCache: 已请求并缓存 - \(currentCity)")
                 }
+
+                let record = WeatherCacheRecord(
+                    city: currentCity,
+                    temp: freshWeather.temp,
+                    description: freshWeather.description,
+                    icon: freshWeather.icon,
+                    range: freshWeather.range,
+                    requestDate: WeatherCacheManager.getTodayDateString(),
+                    updatedAt: 0
+                )
+                _ = weatherCache.saveWeatherCache(record)
+                _ = weatherCache.clearExpiredCache()
+                print("WeatherCache: 已请求并缓存 - \(currentCity)")
             }
+        }
+    }
+
+    private func resolveCurrentCity(weatherCache: WeatherCacheManager) async -> String {
+        if let manualCity = weatherCache.getManualLocation(), !manualCity.isEmpty {
+            return manualCity
+        }
+        if let cachedCity = weatherCache.getCachedLocation(), !cachedCity.isEmpty {
+            return cachedCity
+        }
+        if let cityFromIp = await fetchCityFromIp(), !cityFromIp.isEmpty {
+            _ = weatherCache.saveLocationCache(city: cityFromIp)
+            return cityFromIp
+        }
+        return "北京"
+    }
+
+    private func fetchCityFromIp() async -> String? {
+        guard let url = URL(string: "https://myip.ipip.net/") else { return nil }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("WangWangPhone/1.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                return nil
+            }
+            let text = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+            return parseCityFromIpResponse(text)
+        } catch {
+            print("Location fetch failed: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func parseCityFromIpResponse(_ responseText: String) -> String? {
+        let ignoreKeywords: Set<String> = ["中国", "电信", "移动", "联通", "铁通", "教育网", "鹏博士", "宽带", "公司", "网络"]
+        let source: String
+        if let range = responseText.range(of: "来自于：") {
+            source = String(responseText[range.upperBound...])
+        } else if let range = responseText.range(of: "来自于:") {
+            source = String(responseText[range.upperBound...])
+        } else {
+            source = responseText
+        }
+
+        let separators = CharacterSet.whitespacesAndNewlines.union(CharacterSet(charactersIn: "，,:："))
+        let tokens = source
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        for token in tokens.reversed() {
+            let cleaned = sanitizeCityName(token)
+            if cleaned.isEmpty { continue }
+            if ignoreKeywords.contains(cleaned) { continue }
+            if cleaned.range(of: #"^\d+\.\d+\.\d+\.\d+$"#, options: .regularExpression) != nil { continue }
+            return cleaned
+        }
+        return nil
+    }
+
+    private func sanitizeCityName(_ city: String) -> String {
+        city
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "特别行政区", with: "")
+            .replacingOccurrences(of: "自治区", with: "")
+            .replacingOccurrences(of: "市", with: "")
+    }
+
+    private func cityToPinyin(_ city: String) -> String {
+        let cleaned = sanitizeCityName(city)
+        let latin = cleaned.applyingTransform(.toLatin, reverse: false) ?? cleaned
+        let noTone = latin.folding(options: [.diacriticInsensitive, .widthInsensitive], locale: Locale(identifier: "zh_CN"))
+        let letters = noTone.replacingOccurrences(of: "[^A-Za-z\\s]", with: " ", options: .regularExpression)
+        let compact = letters
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined()
+            .lowercased()
+        return compact.isEmpty ? cleaned.lowercased() : compact
+    }
+
+    private func normalizeTemperature(_ raw: String) -> String {
+        if let range = raw.range(of: #"[-+]?\d+"#, options: .regularExpression) {
+            let number = raw[range].replacingOccurrences(of: "+", with: "")
+            return "\(number)°"
+        }
+        return raw.replacingOccurrences(of: " ", with: "")
+    }
+
+    private func weatherIcon(for description: String) -> String {
+        let text = description.lowercased()
+        if text.contains("thunder") || text.contains("storm") { return "⛈️" }
+        if text.contains("snow") || text.contains("sleet") { return "❄️" }
+        if text.contains("rain") || text.contains("drizzle") || text.contains("shower") { return "🌧️" }
+        if text.contains("fog") || text.contains("mist") || text.contains("haze") { return "🌫️" }
+        if text.contains("cloud") || text.contains("overcast") { return "⛅" }
+        if text.contains("sun") || text.contains("clear") { return "☀️" }
+        return "🌤️"
+    }
+
+    private func buildRangeText(wind: String, forecastTemps: [String]) -> String {
+        let windText = wind.isEmpty ? "--" : wind
+        if forecastTemps.isEmpty { return "风力 \(windText)" }
+        let compactTemps = forecastTemps.prefix(3).map { normalizeTemperature($0) }
+        return "风力 \(windText) | 预报 \(compactTemps.joined(separator: "/"))"
+    }
+
+    private func fetchWeather(city: String) async -> WeatherInfo? {
+        let cityPinyin = cityToPinyin(city)
+        guard let encodedCity = cityPinyin.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "https://goweather.herokuapp.com/weather/\(encodedCity)") else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("WangWangPhone/1.0", forHTTPHeaderField: "User-Agent")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                return nil
+            }
+
+            guard let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+
+            let description = (jsonObject["description"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "天气未知"
+            let wind = (jsonObject["wind"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
+            let temperature = (jsonObject["temperature"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
+
+            let forecastTemps = (jsonObject["forecast"] as? [[String: Any]])?
+                .compactMap { ($0["temperature"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty } ?? []
+
+            return WeatherInfo(
+                temp: normalizeTemperature(temperature),
+                description: description.isEmpty ? "天气未知" : description,
+                icon: weatherIcon(for: description),
+                range: buildRangeText(wind: wind, forecastTemps: forecastTemps)
+            )
+        } catch {
+            print("Weather fetch failed: \(error.localizedDescription)")
+            return nil
         }
     }
     

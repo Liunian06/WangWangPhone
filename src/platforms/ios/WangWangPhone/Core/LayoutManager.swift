@@ -156,6 +156,7 @@ class LayoutManager {
         
         // 3. 清除天气缓存
         _ = WeatherCacheManager.shared.clearAllCache()
+        _ = WeatherCacheManager.shared.saveManualLocation(nil)
         
         // 4. 重置用户资料
         _ = UserProfileManager.shared.resetToDefault()

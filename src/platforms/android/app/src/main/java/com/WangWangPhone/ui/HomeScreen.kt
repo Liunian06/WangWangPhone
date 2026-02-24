@@ -1,5 +1,6 @@
 package com.WangWangPhone.ui
 
+import android.icu.text.Transliterator
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -62,9 +63,15 @@ import com.WangWangPhone.core.UserProfileDbHelper
 import com.WangWangPhone.core.WallpaperDbHelper
 import com.WangWangPhone.core.WallpaperType
 import com.WangWangPhone.core.WeatherCacheDbHelper
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
+import java.net.URLEncoder
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -152,9 +159,162 @@ private val homeIconLabelTextStyle = TextStyle(
     platformStyle = PlatformTextStyle(includeFontPadding = true)
 )
 
-suspend fun fetchLocation(): String { delay(500); return "广州" }
+private val weatherHttpClient by lazy { OkHttpClient() }
+
+private val locationIgnoreKeywords = setOf(
+    "中国", "电信", "移动", "联通", "铁通", "教育网", "鹏博士", "宽带", "公司", "网络", "网络服务商"
+)
+
+private fun sanitizeCityName(rawCity: String): String {
+    return rawCity.trim()
+        .removeSuffix("市")
+        .removeSuffix("特别行政区")
+        .replace("自治区", "")
+}
+
+private fun parseCityFromIpResponse(responseText: String): String? {
+    val fromPart = when {
+        responseText.contains("来自于：") -> responseText.substringAfter("来自于：")
+        responseText.contains("来自于:") -> responseText.substringAfter("来自于:")
+        else -> responseText
+    }
+
+    val tokens = fromPart
+        .replace("，", " ")
+        .replace(",", " ")
+        .replace("：", " ")
+        .replace(":", " ")
+        .trim()
+        .split(Regex("\\s+"))
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
+    for (i in tokens.size - 1 downTo 0) {
+        val token = tokens[i]
+        val normalized = sanitizeCityName(token)
+        if (normalized.isBlank()) continue
+        if (normalized in locationIgnoreKeywords) continue
+        if (normalized.matches(Regex("\\d+\\.\\d+\\.\\d+\\.\\d+"))) continue
+        return normalized
+    }
+    return null
+}
+
+private fun cityToPinyin(city: String): String {
+    val cleaned = sanitizeCityName(city)
+    return try {
+        val transliterator = Transliterator.getInstance("Han-Latin; Latin-ASCII")
+        transliterator.transliterate(cleaned)
+            .replace(Regex("[^A-Za-z\\s]"), " ")
+            .trim()
+            .split(Regex("\\s+"))
+            .filter { it.isNotBlank() }
+            .joinToString("")
+            .lowercase(Locale.ROOT)
+    } catch (_: Exception) {
+        cleaned.lowercase(Locale.ROOT)
+    }
+}
+
+private fun normalizeTemperature(rawTemp: String): String {
+    val match = Regex("[-+]?\\d+").find(rawTemp)
+    return if (match != null) "${match.value.replace("+", "")}°" else rawTemp.replace(" ", "")
+}
+
+private fun mapWeatherIcon(description: String): String {
+    val text = description.lowercase(Locale.ROOT)
+    return when {
+        "thunder" in text || "storm" in text -> "⛈️"
+        "snow" in text || "sleet" in text -> "❄️"
+        "rain" in text || "drizzle" in text || "shower" in text -> "🌧️"
+        "fog" in text || "mist" in text || "haze" in text -> "🌫️"
+        "cloud" in text || "overcast" in text -> "⛅"
+        "sun" in text || "clear" in text -> "☀️"
+        else -> "🌤️"
+    }
+}
+
+private fun buildRangeText(wind: String, forecastTemps: List<String>): String {
+    val windText = wind.ifBlank { "--" }
+    if (forecastTemps.isEmpty()) return "风力 $windText"
+    val compactTemps = forecastTemps.take(3).map { normalizeTemperature(it) }
+    return "风力 $windText | 预报 ${compactTemps.joinToString("/")}"
+}
+
+suspend fun fetchLocation(weatherCacheDbHelper: WeatherCacheDbHelper): String {
+    weatherCacheDbHelper.getManualLocation()?.let { return it }
+    weatherCacheDbHelper.getCachedLocation()?.let { return it }
+
+    val onlineCity = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("https://myip.ipip.net/")
+                .header("User-Agent", "WangWangPhone/1.0")
+                .build()
+
+            weatherHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext null
+                val body = response.body?.string().orEmpty()
+                parseCityFromIpResponse(body)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    if (!onlineCity.isNullOrBlank()) {
+        weatherCacheDbHelper.saveLocationCache(onlineCity)
+        return onlineCity
+    }
+    return "北京"
+}
+
 suspend fun fetchWeather(city: String): WeatherInfo {
-    delay(500); return WeatherInfo("25°", "多云", "⛅", "最高 29° 最低 21°")
+    val fallback = WeatherInfo("--", "天气未知", "❓", "风力 --")
+
+    return withContext(Dispatchers.IO) {
+        try {
+            val pinyinCity = cityToPinyin(city).ifBlank { sanitizeCityName(city) }
+            val encodedCity = URLEncoder.encode(pinyinCity, "UTF-8")
+            val request = Request.Builder()
+                .url("https://goweather.herokuapp.com/weather/$encodedCity")
+                .header("User-Agent", "WangWangPhone/1.0")
+                .build()
+
+            weatherHttpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext fallback
+                val body = response.body?.string().orEmpty()
+                val json = JSONObject(body)
+
+                val description = json.optString("description", "天气未知").ifBlank { "天气未知" }
+                val wind = json.optString("wind", "--")
+                val temperature = json.optString("temperature", "--")
+
+                val forecastTemps = mutableListOf<String>()
+                val forecast = json.optJSONArray("forecast")
+                if (forecast != null) {
+                    for (i in 0 until forecast.length()) {
+                        val item = forecast.optJSONObject(i) ?: continue
+                        val temp = item.optString("temperature", "")
+                        if (temp.isNotBlank()) {
+                            forecastTemps.add(temp)
+                        }
+                    }
+                }
+
+                WeatherInfo(
+                    temp = normalizeTemperature(temperature),
+                    description = description,
+                    icon = mapWeatherIcon(description),
+                    range = buildRangeText(wind, forecastTemps)
+                )
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            fallback
+        }
+    }
 }
 
 /**
@@ -170,7 +330,7 @@ fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
     val weatherCacheDbHelper = remember { com.WangWangPhone.core.WeatherCacheDbHelper(context) }
 
     LaunchedEffect(Unit) {
-        city = fetchLocation()
+        city = fetchLocation(weatherCacheDbHelper)
         if (city.isNotEmpty() && city != "...") {
             // 先查缓存
             val cached = weatherCacheDbHelper.getTodayWeatherCache(city)

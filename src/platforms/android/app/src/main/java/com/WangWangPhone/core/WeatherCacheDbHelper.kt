@@ -33,7 +33,7 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
 ) {
     companion object {
         private const val DATABASE_NAME = "wangwang_weather_cache.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         private const val TABLE_WEATHER = "weather_cache"
         private const val COLUMN_ID = "id"
@@ -45,6 +45,17 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
         private const val COLUMN_REQUEST_DATE = "request_date"
         private const val COLUMN_UPDATED_AT = "updated_at"
 
+        private const val TABLE_AI_SETTINGS = "ai_settings"
+        private const val COLUMN_SETTING_KEY = "setting_key"
+        private const val COLUMN_SETTING_VALUE = "setting_value"
+
+        private const val TABLE_LOCATION_CACHE = "location_cache"
+        private const val COLUMN_LOCATION_CITY = "city"
+        private const val COLUMN_LOCATION_TIMESTAMP = "updated_at"
+
+        private const val KEY_MANUAL_LOCATION = "manualLocation"
+        private const val LOCATION_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000L
+
         /**
          * 获取今天的日期字符串 (yyyy-MM-dd)
          */
@@ -55,7 +66,7 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
     }
 
     override fun onCreate(db: SQLiteDatabase) {
-        val createTableSQL = """
+        val createWeatherTableSQL = """
             CREATE TABLE $TABLE_WEATHER (
                 $COLUMN_ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 $COLUMN_CITY TEXT NOT NULL,
@@ -68,12 +79,131 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
                 UNIQUE($COLUMN_CITY, $COLUMN_REQUEST_DATE)
             )
         """.trimIndent()
-        db.execSQL(createTableSQL)
+        val createSettingsTableSQL = """
+            CREATE TABLE $TABLE_AI_SETTINGS (
+                $COLUMN_SETTING_KEY TEXT PRIMARY KEY,
+                $COLUMN_SETTING_VALUE TEXT NOT NULL
+            )
+        """.trimIndent()
+        val createLocationCacheTableSQL = """
+            CREATE TABLE $TABLE_LOCATION_CACHE (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                $COLUMN_LOCATION_CITY TEXT NOT NULL,
+                $COLUMN_LOCATION_TIMESTAMP INTEGER NOT NULL
+            )
+        """.trimIndent()
+
+        db.execSQL(createWeatherTableSQL)
+        db.execSQL(createSettingsTableSQL)
+        db.execSQL(createLocationCacheTableSQL)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         db.execSQL("DROP TABLE IF EXISTS $TABLE_WEATHER")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_AI_SETTINGS")
+        db.execSQL("DROP TABLE IF EXISTS $TABLE_LOCATION_CACHE")
         onCreate(db)
+    }
+
+    /**
+     * 获取手动设置的位置（manualLocation）
+     */
+    fun getManualLocation(): String? {
+        return try {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_AI_SETTINGS,
+                arrayOf(COLUMN_SETTING_VALUE),
+                "$COLUMN_SETTING_KEY = ?",
+                arrayOf(KEY_MANUAL_LOCATION),
+                null,
+                null,
+                "1"
+            )
+            cursor.use {
+                if (it.moveToFirst()) {
+                    it.getString(0)?.trim()?.takeIf { value -> value.isNotEmpty() }
+                } else null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * 保存手动位置设置，为 null 或空字符串时会清空设置
+     */
+    fun saveManualLocation(location: String?): Boolean {
+        return try {
+            val db = writableDatabase
+            val cleaned = location?.trim().orEmpty()
+            if (cleaned.isEmpty()) {
+                db.delete(TABLE_AI_SETTINGS, "$COLUMN_SETTING_KEY = ?", arrayOf(KEY_MANUAL_LOCATION))
+                true
+            } else {
+                val values = ContentValues().apply {
+                    put(COLUMN_SETTING_KEY, KEY_MANUAL_LOCATION)
+                    put(COLUMN_SETTING_VALUE, cleaned)
+                }
+                db.insertWithOnConflict(TABLE_AI_SETTINGS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+                true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 获取定位缓存（默认 24 小时有效）
+     */
+    fun getCachedLocation(maxAgeMs: Long = LOCATION_CACHE_MAX_AGE_MS): String? {
+        return try {
+            val db = readableDatabase
+            val cursor = db.query(
+                TABLE_LOCATION_CACHE,
+                arrayOf(COLUMN_LOCATION_CITY, COLUMN_LOCATION_TIMESTAMP),
+                "id = 1",
+                null,
+                null,
+                null,
+                "1"
+            )
+            cursor.use {
+                if (it.moveToFirst()) {
+                    val city = it.getString(0)?.trim().orEmpty()
+                    val timestamp = it.getLong(1)
+                    val notExpired = System.currentTimeMillis() - timestamp <= maxAgeMs
+                    if (city.isNotEmpty() && notExpired) city else null
+                } else null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * 保存定位缓存
+     */
+    fun saveLocationCache(city: String): Boolean {
+        return try {
+            val cleaned = city.trim()
+            if (cleaned.isEmpty()) return false
+
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put("id", 1)
+                put(COLUMN_LOCATION_CITY, cleaned)
+                put(COLUMN_LOCATION_TIMESTAMP, System.currentTimeMillis())
+            }
+            db.insertWithOnConflict(TABLE_LOCATION_CACHE, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     /**
@@ -145,6 +275,8 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
             val db = writableDatabase
             val today = getTodayDateString()
             db.delete(TABLE_WEATHER, "$COLUMN_REQUEST_DATE != ?", arrayOf(today))
+            val expireBefore = System.currentTimeMillis() - LOCATION_CACHE_MAX_AGE_MS
+            db.delete(TABLE_LOCATION_CACHE, "$COLUMN_LOCATION_TIMESTAMP < ?", arrayOf(expireBefore.toString()))
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -159,6 +291,7 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
         return try {
             val db = writableDatabase
             db.delete(TABLE_WEATHER, null, null)
+            db.delete(TABLE_LOCATION_CACHE, null, null)
             true
         } catch (e: Exception) {
             e.printStackTrace()
@@ -171,5 +304,19 @@ class WeatherCacheDbHelper(context: Context) : SQLiteOpenHelper(
      */
     fun clearAllWeatherCache(): Boolean {
         return clearAllCache()
+    }
+
+    /**
+     * 清除所有定位缓存
+     */
+    fun clearAllLocationCache(): Boolean {
+        return try {
+            val db = writableDatabase
+            db.delete(TABLE_LOCATION_CACHE, null, null)
+            true
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 }

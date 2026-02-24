@@ -23,6 +23,8 @@ class WeatherCacheManager {
     private var db: OpaquePointer?
     private var isInitialized = false
     private let dbName = "wangwang_weather_cache.db"
+    private let manualLocationKey = "manualLocation"
+    private let locationCacheMaxAgeSeconds: Int64 = 24 * 60 * 60
     
     // MARK: - 初始化
     private init() {
@@ -128,6 +130,108 @@ class WeatherCacheManager {
         }
         return nil
     }
+
+    /// 获取手动设置的位置（manualLocation）
+    func getManualLocation() -> String? {
+        guard let db = db else { return nil }
+
+        let sql = """
+            SELECT setting_value
+            FROM ai_settings
+            WHERE setting_key = ?
+            LIMIT 1;
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+
+        sqlite3_bind_text(stmt, 1, (manualLocationKey as NSString).utf8String, -1, nil)
+        if sqlite3_step(stmt) == SQLITE_ROW, let text = sqlite3_column_text(stmt, 0) {
+            let location = String(cString: text).trimmingCharacters(in: .whitespacesAndNewlines)
+            return location.isEmpty ? nil : location
+        }
+        return nil
+    }
+
+    /// 保存手动设置的位置。传入 nil 或空字符串时会删除 manualLocation
+    @discardableResult
+    func saveManualLocation(_ location: String?) -> Bool {
+        guard let db = db else { return false }
+
+        let cleaned = (location ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.isEmpty {
+            let deleteSql = "DELETE FROM ai_settings WHERE setting_key = ?;"
+            var deleteStmt: OpaquePointer?
+            guard sqlite3_prepare_v2(db, deleteSql, -1, &deleteStmt, nil) == SQLITE_OK else { return false }
+            sqlite3_bind_text(deleteStmt, 1, (manualLocationKey as NSString).utf8String, -1, nil)
+            let result = sqlite3_step(deleteStmt)
+            sqlite3_finalize(deleteStmt)
+            return result == SQLITE_DONE
+        }
+
+        let insertSql = """
+            INSERT OR REPLACE INTO ai_settings (setting_key, setting_value)
+            VALUES (?, ?);
+        """
+        var insertStmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, insertSql, -1, &insertStmt, nil) == SQLITE_OK else { return false }
+        sqlite3_bind_text(insertStmt, 1, (manualLocationKey as NSString).utf8String, -1, nil)
+        sqlite3_bind_text(insertStmt, 2, (cleaned as NSString).utf8String, -1, nil)
+        let result = sqlite3_step(insertStmt)
+        sqlite3_finalize(insertStmt)
+        return result == SQLITE_DONE
+    }
+
+    /// 获取定位缓存（默认 24 小时有效）
+    func getCachedLocation(maxAgeSeconds: Int64? = nil) -> String? {
+        guard let db = db else { return nil }
+
+        let ttl = maxAgeSeconds ?? locationCacheMaxAgeSeconds
+        let sql = """
+            SELECT city, updated_at
+            FROM location_cache
+            WHERE id = 1
+            LIMIT 1;
+        """
+
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return nil }
+        defer { sqlite3_finalize(stmt) }
+
+        if sqlite3_step(stmt) == SQLITE_ROW,
+           let cityText = sqlite3_column_text(stmt, 0) {
+            let city = String(cString: cityText).trimmingCharacters(in: .whitespacesAndNewlines)
+            let updatedAt = sqlite3_column_int64(stmt, 1)
+            let now = Int64(Date().timeIntervalSince1970)
+            let notExpired = now - updatedAt <= ttl
+            if !city.isEmpty && notExpired {
+                return city
+            }
+        }
+
+        return nil
+    }
+
+    /// 保存定位缓存
+    @discardableResult
+    func saveLocationCache(city: String) -> Bool {
+        guard let db = db else { return false }
+
+        let cleaned = city.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.isEmpty { return false }
+
+        let sql = """
+            INSERT OR REPLACE INTO location_cache (id, city, updated_at)
+            VALUES (1, ?, strftime('%s', 'now'));
+        """
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else { return false }
+        sqlite3_bind_text(stmt, 1, (cleaned as NSString).utf8String, -1, nil)
+        let result = sqlite3_step(stmt)
+        sqlite3_finalize(stmt)
+        return result == SQLITE_DONE
+    }
     
     /// 清除过期缓存（非今天的数据）
     @discardableResult
@@ -148,7 +252,15 @@ class WeatherCacheManager {
     /// 清除所有缓存
     @discardableResult
     func clearAllCache() -> Bool {
-        return executeSQL("DELETE FROM weather_cache;")
+        let weatherOK = executeSQL("DELETE FROM weather_cache;")
+        let locationOK = executeSQL("DELETE FROM location_cache;")
+        return weatherOK && locationOK
+    }
+
+    /// 清除定位缓存
+    @discardableResult
+    func clearAllLocationCache() -> Bool {
+        return executeSQL("DELETE FROM location_cache;")
     }
     
     // MARK: - 私有方法
@@ -164,7 +276,7 @@ class WeatherCacheManager {
     }
     
     private func createTables() -> Bool {
-        let sql = """
+        let weatherSql = """
             CREATE TABLE IF NOT EXISTS weather_cache (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 city TEXT NOT NULL,
@@ -177,7 +289,23 @@ class WeatherCacheManager {
                 UNIQUE(city, request_date)
             );
         """
-        return executeSQL(sql)
+        let settingsSql = """
+            CREATE TABLE IF NOT EXISTS ai_settings (
+                setting_key TEXT PRIMARY KEY,
+                setting_value TEXT NOT NULL
+            );
+        """
+        let locationSql = """
+            CREATE TABLE IF NOT EXISTS location_cache (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                city TEXT NOT NULL,
+                updated_at INTEGER NOT NULL
+            );
+        """
+
+        return executeSQL(weatherSql)
+            && executeSQL(settingsSql)
+            && executeSQL(locationSql)
     }
     
     @discardableResult
