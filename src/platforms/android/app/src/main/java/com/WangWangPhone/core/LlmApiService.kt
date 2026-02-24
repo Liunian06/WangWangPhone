@@ -583,6 +583,7 @@ class LlmApiService {
      * 执行HTTP请求并解析响应
      */
     private fun executeRequest(request: Request): String {
+        ApiRequestKeepAlive.onRequestStarted()
         var response: Response? = null
         try {
             response = client.newCall(request).execute()
@@ -601,6 +602,7 @@ class LlmApiService {
             throw Exception("网络错误: ${e.message}", e)
         } finally {
             response?.close()
+            ApiRequestKeepAlive.onRequestFinished()
         }
     }
     
@@ -613,6 +615,7 @@ class LlmApiService {
         onChunk: suspend (String) -> Unit,
         parseChunk: (String) -> String?
     ) {
+        ApiRequestKeepAlive.onRequestStarted()
         var response: Response? = null
         try {
             response = client.newCall(request).execute()
@@ -639,6 +642,7 @@ class LlmApiService {
             throw Exception("网络错误: ${e.message}", e)
         } finally {
             response?.close()
+            ApiRequestKeepAlive.onRequestFinished()
         }
     }
     

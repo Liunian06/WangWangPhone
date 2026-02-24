@@ -739,24 +739,31 @@ fun HomeScreenContent(
         return lx in 0f..dockAreaSize.width.toFloat() && ly in 0f..dockAreaSize.height.toFloat()
     }
 
-    fun getDockSlotFromGlobal(gx: Float): Int {
-        if (dockAreaSize.width <= 0) return 0
+    fun getDockSlotFromGlobal(gx: Float, slotCount: Int = maxDockApps): Int {
+        if (dockAreaSize.width <= 0 || slotCount <= 0) return 0
         val dockWidth = dockAreaSize.width.toFloat()
         val clampedX = (gx - dockAreaOffset.x).coerceIn(0f, (dockWidth - 1f).coerceAtLeast(0f))
-        val slotWidth = dockWidth / maxDockApps.toFloat()
-        return (clampedX / slotWidth).toInt().coerceIn(0, maxDockApps - 1)
+        val slotWidth = dockWidth / slotCount.toFloat()
+        return (clampedX / slotWidth).toInt().coerceIn(0, slotCount - 1)
     }
 
     fun getDockItemIndexFromGlobal(gx: Float, gy: Float): Int {
         if (!isOverDock(gx, gy) || dockApps.isEmpty()) return -1
-        val slot = getDockSlotFromGlobal(gx)
-        return if (slot < dockApps.size) slot else -1
+        return getDockSlotFromGlobal(gx, dockApps.size)
     }
 
     fun getDockDropIndexFromGlobal(gx: Float, isDockSource: Boolean): Int {
-        if (dockApps.isEmpty()) return 0
-        val slot = getDockSlotFromGlobal(gx)
-        return if (isDockSource) slot.coerceIn(0, dockApps.size - 1) else slot.coerceIn(0, dockApps.size)
+        val slotCount = when {
+            dockApps.isEmpty() -> 1
+            isDockSource -> dockApps.size
+            else -> dockApps.size + 1
+        }
+        val slot = getDockSlotFromGlobal(gx, slotCount)
+        return if (isDockSource) {
+            slot.coerceIn(0, (dockApps.size - 1).coerceAtLeast(0))
+        } else {
+            slot.coerceIn(0, dockApps.size)
+        }
     }
 
     if (isEditMode) BackHandler { isEditMode = false; saveCurrentLayout() }

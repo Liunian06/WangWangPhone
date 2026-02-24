@@ -204,7 +204,7 @@ struct PersonaBuilderChatView: View {
                 timestamp: Int64(Date().timeIntervalSince1970 * 1000)
             )
             _ = dbHelper.addMessage(welcomeMsg)
-            messages = [welcomeMsg]
+            messages = dbHelper.getMessages(cardId: cardId)
         }
     }
     
@@ -309,8 +309,15 @@ struct PersonaBuilderChatView: View {
             do {
                 guard let card = personaCard else { return }
                 guard let preset = presetDbHelper.getPresetById(card.apiPresetId) else { return }
-                
-                dbHelper.deleteMessagesAfter(cardId: cardId, messageId: message.id)
+
+                let currentMessages = dbHelper.getMessages(cardId: cardId)
+                guard let checkpoint = currentMessages.first(where: { $0.id == message.id }) else {
+                    print("checkpoint message not found")
+                    isLoading = false
+                    return
+                }
+
+                dbHelper.deleteMessagesAfter(cardId: cardId, messageId: checkpoint.id)
                 messages = dbHelper.getMessages(cardId: cardId)
                 
                 let systemPrompt: String

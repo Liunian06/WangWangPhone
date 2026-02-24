@@ -181,7 +181,7 @@ fun PersonaBuilderChatScreen(
                     timestamp = System.currentTimeMillis()
                 )
                 dbHelper.saveMessage(welcomeMsg.cardId, welcomeMsg.role, welcomeMsg.content)
-                messages = listOf(welcomeMsg)
+                messages = dbHelper.getMessages(cardId)
             }
         }
     }
@@ -320,8 +320,12 @@ fun PersonaBuilderChatScreen(
             isLoading = true
             streamingContent = ""
             try {
+                val checkpoint = withContext(Dispatchers.IO) {
+                    dbHelper.getMessages(cardId).firstOrNull { it.id == target.id }
+                } ?: throw IllegalStateException("checkpoint message not found")
+
                 withContext(Dispatchers.IO) {
-                    dbHelper.deleteMessagesAfter(cardId, target.id)
+                    dbHelper.deleteMessagesAfter(cardId, checkpoint.id)
                 }
                 val checkpointMessages = withContext(Dispatchers.IO) {
                     dbHelper.getMessages(cardId)

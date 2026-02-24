@@ -91,12 +91,14 @@ class LlmApiService {
         
         // 移除流式输出参数（我们使用同步请求）
         requestBody["stream"] = false
-        
+        BackgroundRequestKeepAlive.shared.begin()
+
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: requestBody, options: [])
             request.httpBody = jsonData
             
             let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                defer { BackgroundRequestKeepAlive.shared.end() }
                 if let error = error {
                     DispatchQueue.main.async {
                         completion(LlmApiResponse(
@@ -155,6 +157,7 @@ class LlmApiService {
             }
             task.resume()
         } catch {
+            BackgroundRequestKeepAlive.shared.end()
             completion(LlmApiResponse(
                 content: "",
                 isError: true,
@@ -226,12 +229,14 @@ class LlmApiService {
         if !generationConfig.isEmpty {
             requestBody["generationConfig"] = generationConfig
         }
-        
+
+        BackgroundRequestKeepAlive.shared.begin()
         do {
             let jsonData = try JSONSerialization.data(withJSONObject: requestBody, options: [])
             request.httpBody = jsonData
             
             let task = URLSession.shared.dataTask(with: request) { data, response, error in
+                defer { BackgroundRequestKeepAlive.shared.end() }
                 if let error = error {
                     DispatchQueue.main.async {
                         completion(LlmApiResponse(
@@ -292,6 +297,7 @@ class LlmApiService {
             }
             task.resume()
         } catch {
+            BackgroundRequestKeepAlive.shared.end()
             completion(LlmApiResponse(
                 content: "",
                 isError: true,
@@ -376,6 +382,8 @@ class LlmApiService {
         }
         
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        BackgroundRequestKeepAlive.shared.begin()
+        defer { BackgroundRequestKeepAlive.shared.end() }
         
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         
@@ -473,6 +481,8 @@ class LlmApiService {
         }
         
         request.httpBody = try JSONSerialization.data(withJSONObject: requestBody)
+        BackgroundRequestKeepAlive.shared.begin()
+        defer { BackgroundRequestKeepAlive.shared.end() }
         
         let (bytes, response) = try await URLSession.shared.bytes(for: request)
         

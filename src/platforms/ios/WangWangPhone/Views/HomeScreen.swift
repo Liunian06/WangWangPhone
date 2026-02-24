@@ -395,7 +395,16 @@ struct PageGridView: View {
                     if let currentItem = draggingItem?.item {
                         if isDraggingOverDock && dockApps.count < maxDockApps && currentItem is AppIconData {
                             gridPositions.removeValue(forKey: cellIndex)
-                            dockApps.append(currentItem as! AppIconData)
+                            if case .second(true, let drag) = value, let drag = drag {
+                                let dockPadding: CGFloat = 15
+                                let dockWidth = max(1, UIScreen.main.bounds.width - dockPadding * 2)
+                                let slotWidth = dockWidth / CGFloat(maxDockApps)
+                                let slot = Int(((drag.location.x - dockPadding) / slotWidth).rounded(.down))
+                                let insertIndex = max(0, min(dockApps.count, slot))
+                                dockApps.insert(currentItem as! AppIconData, at: insertIndex)
+                            } else {
+                                dockApps.append(currentItem as! AppIconData)
+                            }
                         } else if highlightCellIndex != -1 {
                             let targetCell = highlightCellIndex
                             // 计算覆盖区域
@@ -507,6 +516,7 @@ struct DraggableDockIconView: View {
     @Binding var draggingItem: AnyGridItem?
     @Binding var draggingOffset: CGSize
     let currentPage: Int
+    let maxDockApps: Int
     let colorScheme: ColorScheme
     let customIcons: [String: UIImage]
     var isActivated: Bool
@@ -616,20 +626,24 @@ struct DraggableDockIconView: View {
                         let movedApp = dockApps.remove(at: dockIndex)
                         var placed = false
                         // 尝试放入当前页面
-                        if currentPage < gridPositions.count {
-                            for i in 0..<totalCells {
-                                if gridPositions[currentPage][i] == nil {
-                                    gridPositions[currentPage][i] = AnyGridItem(item: movedApp)
-                                    placed = true
-                                    break
+                        let preferredPages = [currentPage] + (0..<gridPositions.count).filter { $0 != currentPage }
+                        for page in preferredPages {
+                            if page < gridPositions.count {
+                                for i in 0..<totalCells {
+                                    if gridPositions[page][i] == nil {
+                                        gridPositions[page][i] = AnyGridItem(item: movedApp)
+                                        placed = true
+                                        break
+                                    }
                                 }
                             }
+                            if placed { break }
                         }
                         if !placed {
                             dockApps.insert(movedApp, at: dockIndex)
                         }
                     } else {
-                        let dockCellWidth: CGFloat = 85
+                        let dockCellWidth: CGFloat = max(72, (UIScreen.main.bounds.width - 78) / CGFloat(maxDockApps))
                         let colOffset = Int(round(finalTranslation.width / dockCellWidth))
                         if colOffset != 0 {
                             let targetIdx = max(0, min(dockApps.count - 1, dockIndex + colOffset))
@@ -959,37 +973,45 @@ struct HomeScreen: View {
                         Text("拖拽应用到此处").font(.caption).foregroundColor(.white.opacity(0.5))
                     }
                     
-                    HStack(spacing: 25) {
-                        ForEach(Array(dockApps.enumerated()), id: \.element.id) { dockIndex, app in
-                            DraggableDockIconView(
-                                app: app, dockIndex: dockIndex,
-                                isEditMode: $isEditMode,
-                                gridPositions: $allPages,
-                                dockApps: $dockApps,
-                                draggingItem: $draggingItem,
-                                draggingOffset: $draggingOffset,
-                                currentPage: currentPage,
-                                colorScheme: colorScheme,
-                                customIcons: customIcons,
-                                isActivated: isActivated,
-                                onActivationAlert: { showActivationAlert = true },
-                                onTap: {
-                                    if !isEditMode {
-                                        if app.id == "settings" { showSettings = true }
-                                        else if app.id == "chat" { showChatApp = true }
-                                    }
-                                },
-                                onBrowserClick: { showBrowserApp = true },
-                                onCalculatorClick: { showCalculatorApp = true },
-                                onWeatherClick: { showWeatherApp = true },
-                                onCalendarClick: { showCalendarApp = true },
-                                onCameraClick: { showCameraApp = true },
-                                onNotesClick: { showNotesApp = true },
-                                onPersonaBuilderClick: { showPersonaBuilderApp = true },
-                                onLayoutChanged: { saveLayout() }
-                            )
+                    HStack(spacing: 0) {
+                        ForEach(0..<maxDockApps, id: \.self) { slotIndex in
+                            ZStack {
+                                if slotIndex < dockApps.count {
+                                    let app = dockApps[slotIndex]
+                                    DraggableDockIconView(
+                                        app: app, dockIndex: slotIndex,
+                                        isEditMode: $isEditMode,
+                                        gridPositions: $allPages,
+                                        dockApps: $dockApps,
+                                        draggingItem: $draggingItem,
+                                        draggingOffset: $draggingOffset,
+                                        currentPage: currentPage,
+                                        maxDockApps: maxDockApps,
+                                        colorScheme: colorScheme,
+                                        customIcons: customIcons,
+                                        isActivated: isActivated,
+                                        onActivationAlert: { showActivationAlert = true },
+                                        onTap: {
+                                            if !isEditMode {
+                                                if app.id == "settings" { showSettings = true }
+                                                else if app.id == "chat" { showChatApp = true }
+                                            }
+                                        },
+                                        onBrowserClick: { showBrowserApp = true },
+                                        onCalculatorClick: { showCalculatorApp = true },
+                                        onWeatherClick: { showWeatherApp = true },
+                                        onCalendarClick: { showCalendarApp = true },
+                                        onCameraClick: { showCameraApp = true },
+                                        onNotesClick: { showNotesApp = true },
+                                        onPersonaBuilderClick: { showPersonaBuilderApp = true },
+                                        onLayoutChanged: { saveLayout() }
+                                    )
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
                         }
                     }
+                    .padding(.horizontal, 24)
                 }
                 .padding(.bottom, 20)
             }
