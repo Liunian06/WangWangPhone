@@ -77,7 +77,7 @@ struct PersonaBuilderChatView: View {
                                 role: "assistant",
                                 content: streamingContent,
                                 timestamp: Int64(Date().timeIntervalSince1970 * 1000)
-                            ))
+                            ), isStreaming: true)
                             .id(-1)
                         }
                         
@@ -500,6 +500,7 @@ private func parsePersonaContent(_ raw: String) -> ParsedPersonaContent {
 
 struct MessageBubble: View {
     let message: PersonaMessage
+    let isStreaming: Bool = false
     @State private var thoughtExpanded = false
 
     private var parsed: ParsedPersonaContent {
@@ -521,7 +522,11 @@ struct MessageBubble: View {
                             Image(systemName: "lightbulb")
                                 .font(.system(size: 15, weight: .semibold))
                                 .foregroundColor(.secondary)
-                            Text(thoughtExpanded ? "思考中（点击收起）" : "已深度思考（点击展开）")
+                            Text(
+                                isStreaming
+                                ? (thoughtExpanded ? "思考中（点击收起）" : "思考中（点击展开）")
+                                : (thoughtExpanded ? "思考中（点击收起）" : "已深度思考（点击展开）")
+                            )
                                 .font(.subheadline.weight(.semibold))
                                 .foregroundColor(.primary)
                             Spacer(minLength: 6)
@@ -559,7 +564,7 @@ struct MessageBubble: View {
                 }
 
                 let displayMain = parsed.mainText.isEmpty && !parsed.thoughtText.isEmpty
-                    ? "（仅包含思维链，展开可查看）"
+                    ? (isStreaming ? "模型正在思考中，回复生成后会自动显示" : "（仅包含思维链，展开可查看）")
                     : parsed.mainText
 
                 if !displayMain.isEmpty {

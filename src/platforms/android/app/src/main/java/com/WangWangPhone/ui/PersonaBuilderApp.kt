@@ -483,7 +483,8 @@ fun PersonaBuilderChatScreen(
                             role = "assistant",
                             content = streamingContent,
                             timestamp = System.currentTimeMillis()
-                        )
+                        ),
+                        isStreaming = true
                     )
                 }
             }
@@ -775,6 +776,7 @@ private fun parsePersonaBubbleContent(raw: String): PersonaBubbleContent {
 @Composable
 fun MessageBubble(
     message: PersonaMessage,
+    isStreaming: Boolean = false,
     onLongPress: ((PersonaMessage) -> Unit)? = null
 ) {
     val isUser = message.role == "user"
@@ -829,8 +831,13 @@ fun MessageBubble(
                         ) {
                             Text("💡", fontSize = 14.sp)
                             Spacer(modifier = Modifier.width(8.dp))
+                            val thoughtHeaderText = if (isStreaming) {
+                                if (thoughtExpanded) "思考中（点击收起）" else "思考中（点击展开）"
+                            } else {
+                                if (thoughtExpanded) "思考中（点击收起）" else "已深度思考（点击展开）"
+                            }
                             Text(
-                                text = if (thoughtExpanded) "思考中（点击收起）" else "已深度思考（点击展开）",
+                                text = thoughtHeaderText,
                                 color = textColor.copy(alpha = 0.92f),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold
@@ -871,7 +878,10 @@ fun MessageBubble(
 
                 val displayMain = when {
                     parsedContent.mainText.isNotBlank() -> parsedContent.mainText
-                    parsedContent.thoughtText.isNotBlank() -> "（仅包含思维链，展开可查看）"
+                    parsedContent.thoughtText.isNotBlank() -> {
+                        if (isStreaming) "模型正在思考中，回复生成后会自动显示"
+                        else "（仅包含思维链，展开可查看）"
+                    }
                     else -> ""
                 }
 
