@@ -177,7 +177,7 @@ fun PersonaBuilderChatScreen(
                 val welcomeMsg = PersonaMessage(
                     cardId = cardId,
                     role = "assistant",
-                    content = "你好！我是神笔马良，专门帮你构建角色人设。\n\n我会通过几个问题来了解你想创建的角色：\n1. 角色的基本信息（姓名、年龄、职业等）\n2. 性格特点\n3. 说话风格\n4. 背景故事\n\n请告诉我，你想创建什么样的角色？",
+                    content = "你好，我是神笔马良，你的人设架构师。\n\n我不会一上来就给你一份“空模板”人设，而是按「提问-构想-确认」一步步把角色做立体。\n除非你明确说“生成最终人设”，我都只会持续完善细节。\n\n我们会重点补全这四层：\n1. 角色锚点：姓名、年龄、身份/职业\n2. 感官与外在：五官、体态、声音、穿搭\n3. 核心人格：驱动力、矛盾点、隐藏弱点\n4. 人生轨迹：关键转折、关系网络、当下困境\n\n先从第一步开始：你最想先确定这个角色的哪一个锚点？",
                     timestamp = System.currentTimeMillis()
                 )
                 dbHelper.saveMessage(welcomeMsg.cardId, welcomeMsg.role, welcomeMsg.content)
