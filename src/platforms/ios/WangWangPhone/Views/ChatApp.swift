@@ -683,7 +683,7 @@ struct MomentsTabView: View {
                                     VStack(alignment: .leading, spacing: 4) {
                                         if !m.likes.isEmpty {
                                             HStack(spacing: 4) {
-                                                WeIcon(name: "ic_like", fallback: "♡", size: 14, color: momentPrimaryColor)
+                                                WeIcon(name: "ic_like", fallback: "♡", size: 18, color: momentPrimaryColor)
                                                 Text(m.likes.joined(separator: "，")).font(.system(size: 13)).foregroundColor(momentPrimaryColor)
                                             }
                                         }

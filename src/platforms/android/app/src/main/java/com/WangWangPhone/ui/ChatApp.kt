@@ -1460,7 +1460,7 @@ fun MomentsTab(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        WeIcon("ic_like", "♡", modifier = Modifier.size(14.dp), tint = momentPrimaryColor)
+                                        WeIcon("ic_like", "♡", modifier = Modifier.size(18.dp), tint = momentPrimaryColor)
                                         Text(m.likes.joinToString("，"), fontSize = 13.sp, color = momentPrimaryColor)
                                     }
                                 }
