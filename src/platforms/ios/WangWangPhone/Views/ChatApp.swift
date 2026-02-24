@@ -599,12 +599,14 @@ struct MomentsTabView: View {
     @State private var editingText = ""
 
     var body: some View {
-        let momentPrimaryColor = WeTheme.dynamicColor(light: Color(red: 0.34, green: 0.42, blue: 0.58), dark: .white)
-        let momentContentColor = WeTheme.dynamicColor(light: Color(hex: 0x191919), dark: .white)
+        let momentListBackground = WeTheme.codeBackground
+        let momentCellBackground = WeTheme.dynamicColor(light: .white, dark: Color(hex: 0x111111))
+        let momentPrimaryColor = WeTheme.dynamicColor(light: Color(red: 0.34, green: 0.42, blue: 0.58), dark: Color(hex: 0x8795B3))
+        let momentContentColor = WeTheme.dynamicColor(light: Color(hex: 0x191919), dark: Color(hex: 0xD3D3D3))
         let momentActionBackground = WeTheme.dynamicColor(light: Color(white: 0.97), dark: Color(hex: 0x2A2A2A))
         let momentAvatarBackground = WeTheme.dynamicColor(light: Color(white: 0.96), dark: Color(hex: 0x2C2C2C))
-        let momentTimeColor = WeTheme.dynamicColor(light: Color(white: 0.7), dark: .white)
-        let momentSignatureColor = WeTheme.dynamicColor(light: Color(hex: 0x999999), dark: .white)
+        let momentTimeColor = WeTheme.dynamicColor(light: Color(white: 0.7), dark: Color(hex: 0x666666))
+        let momentSignatureColor = WeTheme.dynamicColor(light: Color(hex: 0x999999), dark: Color(hex: 0x666666))
 
         ScrollView {
             VStack(spacing: 0) {
@@ -630,7 +632,7 @@ struct MomentsTabView: View {
                             .frame(height: coverHeight)
                             .onTapGesture { showCoverPicker = true }
 
-                            WeTheme.codeBackgroundCell.frame(height: avatarOverlap)
+                            momentCellBackground.frame(height: avatarOverlap)
                         }
 
                         // 昵称 + 头像
@@ -658,7 +660,7 @@ struct MomentsTabView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(WeTheme.codeBackgroundCell)
+                    .background(momentCellBackground)
                     .onTapGesture {
                         editingText = userSignature
                         showSignatureAlert = true
@@ -698,12 +700,12 @@ struct MomentsTabView: View {
                                 }
                             }
                         }
-                    }.padding(12).background(WeTheme.codeBackgroundCell)
+                    }.padding(12).background(momentCellBackground)
                     Divider().overlay(WeTheme.codeSeparator)
                 }
             }
         }
-        .background(WeTheme.codeBackground)
+        .background(momentListBackground)
         .sheet(isPresented: $showCoverPicker) {
             ImagePicker(isPresented: $showCoverPicker) { image in
                 UserProfileManager.shared.updateCover(image)

@@ -1311,14 +1311,14 @@ fun MomentsTab(
     // 编辑对话框状态
     var showNicknameDialog by remember { mutableStateOf(false) }
     var showSignatureDialog by remember { mutableStateOf(false) }
-    val momentCellBackground = WeTheme.BackgroundCell
+    val momentCellBackground = if (WeTheme.isDark) WeTheme.Background else WeTheme.BackgroundCell
     val momentListBackground = WeTheme.Background
-    val momentPrimaryColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFF576B95)
-    val momentContentColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFF191919)
+    val momentPrimaryColor = if (WeTheme.isDark) Color(0xFF8795B3) else Color(0xFF576B95)
+    val momentContentColor = if (WeTheme.isDark) Color(0xFFD3D3D3) else Color(0xFF191919)
     val momentAvatarBackground = if (WeTheme.isDark) Color(0xFF2C2C2C) else Color(0xFFF5F5F5)
     val momentActionBackground = if (WeTheme.isDark) Color(0xFF2A2A2A) else Color(0xFFF7F7F7)
-    val momentTimeColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFFB2B2B2)
-    val momentSignatureColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFF999999)
+    val momentTimeColor = if (WeTheme.isDark) Color(0xFF666666) else Color(0xFFB2B2B2)
+    val momentSignatureColor = if (WeTheme.isDark) Color(0xFF666666) else Color(0xFF999999)
     val momentDividerColor = WeTheme.Separator
 
     if (showNicknameDialog) {
