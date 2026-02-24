@@ -1313,11 +1313,12 @@ fun MomentsTab(
     var showSignatureDialog by remember { mutableStateOf(false) }
     val momentCellBackground = WeTheme.BackgroundCell
     val momentListBackground = WeTheme.Background
-    val momentPrimaryColor = if (WeTheme.isDark) Color(0xFF8795B3) else Color(0xFF576B95)
+    val momentPrimaryColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFF576B95)
+    val momentContentColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFF191919)
     val momentAvatarBackground = if (WeTheme.isDark) Color(0xFF2C2C2C) else Color(0xFFF5F5F5)
     val momentActionBackground = if (WeTheme.isDark) Color(0xFF2A2A2A) else Color(0xFFF7F7F7)
-    val momentTimeColor = if (WeTheme.isDark) Color(0xFF666666) else Color(0xFFB2B2B2)
-    val momentSignatureColor = if (WeTheme.isDark) Color(0xFF666666) else Color(0xFF999999)
+    val momentTimeColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFFB2B2B2)
+    val momentSignatureColor = if (WeTheme.isDark) Color(0xFFFFFFFF) else Color(0xFF999999)
     val momentDividerColor = WeTheme.Separator
 
     if (showNicknameDialog) {
@@ -1440,7 +1441,7 @@ fun MomentsTab(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(m.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = momentPrimaryColor)
                         Spacer(Modifier.height(4.dp))
-                        Text(m.content, fontSize = 15.sp, lineHeight = 22.sp)
+                        Text(m.content, fontSize = 15.sp, lineHeight = 22.sp, color = momentContentColor)
                         Spacer(Modifier.height(8.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -1469,7 +1470,7 @@ fun MomentsTab(
                                 m.comments.forEach { (name, text) ->
                                     Row {
                                         Text(name, fontSize = 13.sp, color = momentPrimaryColor, fontWeight = FontWeight.Medium)
-                                        Text("：$text", fontSize = 13.sp)
+                                        Text("：$text", fontSize = 13.sp, color = momentContentColor)
                                     }
                                 }
                             }

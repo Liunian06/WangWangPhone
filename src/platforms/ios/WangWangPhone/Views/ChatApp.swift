@@ -599,10 +599,12 @@ struct MomentsTabView: View {
     @State private var editingText = ""
 
     var body: some View {
-        let momentPrimaryColor = WeTheme.dynamicColor(light: Color(red: 0.34, green: 0.42, blue: 0.58), dark: Color(hex: 0x8795B3))
+        let momentPrimaryColor = WeTheme.dynamicColor(light: Color(red: 0.34, green: 0.42, blue: 0.58), dark: .white)
+        let momentContentColor = WeTheme.dynamicColor(light: Color(hex: 0x191919), dark: .white)
         let momentActionBackground = WeTheme.dynamicColor(light: Color(white: 0.97), dark: Color(hex: 0x2A2A2A))
         let momentAvatarBackground = WeTheme.dynamicColor(light: Color(white: 0.96), dark: Color(hex: 0x2C2C2C))
-        let momentTimeColor = WeTheme.dynamicColor(light: Color(white: 0.7), dark: Color(hex: 0x666666))
+        let momentTimeColor = WeTheme.dynamicColor(light: Color(white: 0.7), dark: .white)
+        let momentSignatureColor = WeTheme.dynamicColor(light: Color(hex: 0x999999), dark: .white)
 
         ScrollView {
             VStack(spacing: 0) {
@@ -651,7 +653,7 @@ struct MomentsTabView: View {
                         Spacer()
                         Text(userSignature)
                             .font(.system(size: 13))
-                            .foregroundColor(WeTheme.codeTextSecondary)
+                            .foregroundColor(momentSignatureColor)
                             .lineLimit(1)
                     }
                     .padding(.horizontal, 16)
@@ -670,7 +672,7 @@ struct MomentsTabView: View {
                                 .overlay(Text(m.avatar).font(.system(size: 22)))
                             VStack(alignment: .leading, spacing: 4) {
                                 Text(m.name).font(.system(size: 15, weight: .semibold)).foregroundColor(momentPrimaryColor)
-                                Text(m.content).font(.system(size: 15)).lineSpacing(4)
+                                Text(m.content).font(.system(size: 15)).lineSpacing(4).foregroundColor(momentContentColor)
                                 HStack {
                                     Text(m.time).font(.system(size: 12)).foregroundColor(momentTimeColor)
                                     Spacer()
@@ -689,7 +691,7 @@ struct MomentsTabView: View {
                                         ForEach(m.comments.indices, id: \.self) { i in
                                             HStack(spacing: 0) {
                                                 Text(m.comments[i].0).font(.system(size: 13, weight: .medium)).foregroundColor(momentPrimaryColor)
-                                                Text("：\(m.comments[i].1)").font(.system(size: 13))
+                                                Text("：\(m.comments[i].1)").font(.system(size: 13)).foregroundColor(momentContentColor)
                                             }
                                         }
                                     }.padding(6).background(momentActionBackground).cornerRadius(4)
