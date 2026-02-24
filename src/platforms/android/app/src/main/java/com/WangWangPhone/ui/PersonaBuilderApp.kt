@@ -427,7 +427,7 @@ fun PersonaBuilderChatScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.Bottom
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     OutlinedTextField(
                         value = inputText,
