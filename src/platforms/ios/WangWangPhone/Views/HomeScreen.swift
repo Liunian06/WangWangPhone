@@ -127,7 +127,7 @@ struct WeatherInfo {
 struct WeatherWidget: View {
     var city: String; var weather: WeatherInfo?
     var body: some View {
-        let info = weather ?? WeatherInfo(temp: "--", description: "加载中...", icon: "❓", range: "最高 -- 最低 -- | 风速 --")
+        let info = weather ?? WeatherInfo(temp: "--", description: "加载中...", icon: "❓", range: "最高 -- 最低 --")
         ZStack {
             RoundedRectangle(cornerRadius: 20)
                 .fill(LinearGradient(colors: [Color(red: 0.18, green: 0.55, blue: 1.0), Color(red: 0.07, green: 0.76, blue: 0.91)], startPoint: .topLeading, endPoint: .bottomTrailing))
@@ -154,7 +154,7 @@ struct WeatherWidget: View {
                             .foregroundColor(.white)
                             .lineLimit(1)
                     }
-                    Text(info.range.isEmpty ? "最高 -- 最低 -- | 风速 --" : info.range)
+                    Text(widgetRangeText(info.range))
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(.white.opacity(0.92))
                         .lineLimit(1)
@@ -169,6 +169,14 @@ struct WeatherWidget: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .padding(14)
         }
+    }
+
+    private func widgetRangeText(_ rawRange: String) -> String {
+        let normalized = rawRange.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalized.isEmpty { return "最高 -- 最低 --" }
+        let shortRange = normalized.components(separatedBy: "|").first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return shortRange.isEmpty ? "最高 -- 最低 --" : shortRange
     }
 }
 
@@ -1224,7 +1232,7 @@ struct HomeScreen: View {
                 print("WeatherCache: 使用今日缓存 - \(currentCity)")
             } else {
                 let freshWeather = await fetchWeather(city: currentCity)
-                    ?? WeatherInfo(temp: "--", description: "天气未知", icon: "❓", range: "风力 --")
+                    ?? WeatherInfo(temp: "--", description: "天气未知", icon: "❓", range: "最高 -- 最低 --")
 
                 await MainActor.run {
                     self.weather = freshWeather
@@ -1392,20 +1400,10 @@ struct HomeScreen: View {
         return "🌤️"
     }
 
-    private func formatWindKmph(_ raw: String) -> String {
-        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleaned.isEmpty || cleaned == "--" { return "--" }
-        if cleaned.lowercased().contains("km/h") {
-            return cleaned.replacingOccurrences(of: "km/h", with: "公里/小时", options: [.caseInsensitive])
-        }
-        return "\(cleaned) 公里/小时"
-    }
-
-    private func buildRangeText(maxTemp: String, minTemp: String, windKmph: String) -> String {
+    private func buildRangeText(maxTemp: String, minTemp: String) -> String {
         let maxText = maxTemp.isEmpty ? "--" : normalizeTemperature(maxTemp)
         let minText = minTemp.isEmpty ? "--" : normalizeTemperature(minTemp)
-        let windText = formatWindKmph(windKmph)
-        return "最高 \(maxText) 最低 \(minText) | 风速 \(windText)"
+        return "最高 \(maxText) 最低 \(minText)"
     }
 
     private func isUnknownWeather(temp: String, description: String) -> Bool {
@@ -1435,6 +1433,9 @@ struct HomeScreen: View {
                 return nil
             }
 
+            let payload = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+            WeatherRealtimeMemoryCache.save(city: city, payload: payload)
+
             guard let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 return nil
             }
@@ -1451,8 +1452,6 @@ struct HomeScreen: View {
 
             let temperature = (current?["temp_C"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
-            let windKmph = (current?["windspeedKmph"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
             let maxTemp = (today?["maxtempC"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let minTemp = (today?["mintempC"] as? String)?
@@ -1462,7 +1461,7 @@ struct HomeScreen: View {
                 temp: normalizeTemperature(temperature),
                 description: description,
                 icon: weatherIcon(for: description),
-                range: buildRangeText(maxTemp: maxTemp, minTemp: minTemp, windKmph: windKmph)
+                range: buildRangeText(maxTemp: maxTemp, minTemp: minTemp)
             )
         } catch {
             print("Weather fetch failed: \(error.localizedDescription)")

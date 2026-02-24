@@ -43,6 +43,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
 import java.time.DayOfWeek
@@ -235,145 +236,208 @@ private fun defaultWeatherDetails(temp: String = "--"): List<WeatherDetail> {
     )
 }
 
+private fun weatherAppExtractTemperatureNumber(tempText: String): Int? {
+    return Regex("[-+]?\\d+").find(tempText)?.value?.toIntOrNull()
+}
+
+private fun weatherAppDailyRangeFromHourly(hourlyArray: JSONArray?): Pair<String, String>? {
+    if (hourlyArray == null || hourlyArray.length() == 0) return null
+
+    var minTemp: Int? = null
+    var maxTemp: Int? = null
+    for (index in 0 until hourlyArray.length()) {
+        val hourlyItem = hourlyArray.optJSONObject(index) ?: continue
+        val rawTemp = hourlyItem.optString("tempC", "--")
+        val tempValue = weatherAppExtractTemperatureNumber(rawTemp) ?: continue
+        minTemp = minTemp?.coerceAtMost(tempValue) ?: tempValue
+        maxTemp = maxTemp?.coerceAtLeast(tempValue) ?: tempValue
+    }
+
+    if (minTemp == null || maxTemp == null) return null
+    return "${minTemp}°" to "${maxTemp}°"
+}
+
+private fun parseWeatherAppRealtimePayload(city: String, payload: String): WeatherAppRealtimeData? {
+    if (payload.isBlank()) return null
+    val json = JSONObject(payload)
+
+    val current = json.optJSONArray("current_condition")?.optJSONObject(0)
+    val weatherDays = json.optJSONArray("weather")
+    val today = weatherDays?.optJSONObject(0)
+
+    if (current == null && weatherDays == null) return null
+
+    val zhDesc = current
+        ?.optJSONArray("lang_zh")
+        ?.optJSONObject(0)
+        ?.optString("value", "")
+        .orEmpty()
+    val enDesc = current
+        ?.optJSONArray("weatherDesc")
+        ?.optJSONObject(0)
+        ?.optString("value", "")
+        .orEmpty()
+    val description = weatherAppLocalizeDescription(zhDesc.ifBlank { enDesc.ifBlank { "天气未知" } })
+
+    val tempC = current?.optString("temp_C", "--").orEmpty()
+    val feelsLikeC = current?.optString("FeelsLikeC", "--").orEmpty()
+    val maxTemp = today?.optString("maxtempC", "").orEmpty()
+    val minTemp = today?.optString("mintempC", "").orEmpty()
+    val windKmph = current?.optString("windspeedKmph", "--").orEmpty()
+
+    val weatherInfo = WeatherInfo(
+        temp = weatherAppNormalizeTemperature(tempC),
+        description = description,
+        icon = weatherAppMapIcon(description),
+        range = weatherAppBuildRangeText(maxTemp, minTemp, windKmph)
+    )
+
+    val summary = "当前${weatherInfo.description}，气温${weatherInfo.temp}，体感${weatherAppNormalizeTemperature(feelsLikeC)}"
+
+    val hourlyForecast = mutableListOf(
+        HourlyForecast("现在", weatherInfo.icon, weatherInfo.temp)
+    )
+    val todayHourly = today?.optJSONArray("hourly")
+    if (todayHourly != null) {
+        val count = minOf(todayHourly.length(), 9)
+        for (i in 0 until count) {
+            val item = todayHourly.optJSONObject(i) ?: continue
+            val time = weatherAppHourLabel(item.optString("time", ""))
+            val hourTemp = weatherAppNormalizeTemperature(item.optString("tempC", "--"))
+            val hourZh = item
+                .optJSONArray("lang_zh")
+                ?.optJSONObject(0)
+                ?.optString("value", "")
+                .orEmpty()
+            val hourEn = item
+                .optJSONArray("weatherDesc")
+                ?.optJSONObject(0)
+                ?.optString("value", "")
+                .orEmpty()
+            val hourDesc = weatherAppLocalizeDescription(hourZh.ifBlank { hourEn.ifBlank { "天气未知" } })
+            hourlyForecast.add(HourlyForecast(time, weatherAppMapIcon(hourDesc), hourTemp))
+        }
+    }
+
+    val dailyForecast = mutableListOf<DailyForecast>()
+    if (weatherDays != null) {
+        val count = minOf(weatherDays.length(), 10)
+        for (i in 0 until count) {
+            val dayObj = weatherDays.optJSONObject(i) ?: continue
+            val dateText = dayObj.optString("date", "")
+            val hourlyArray = dayObj.optJSONArray("hourly")
+
+            var lowText = weatherAppNormalizeTemperature(dayObj.optString("mintempC", "--"))
+            var highText = weatherAppNormalizeTemperature(dayObj.optString("maxtempC", "--"))
+            if (lowText == "--" || highText == "--") {
+                val hourlyRange = weatherAppDailyRangeFromHourly(hourlyArray)
+                if (hourlyRange != null) {
+                    if (lowText == "--") lowText = hourlyRange.first
+                    if (highText == "--") highText = hourlyRange.second
+                }
+            }
+
+            val iconSource = hourlyArray?.optJSONObject(minOf(4, (hourlyArray.length() - 1).coerceAtLeast(0)))
+                ?: hourlyArray?.optJSONObject(0)
+            val dayZh = iconSource
+                ?.optJSONArray("lang_zh")
+                ?.optJSONObject(0)
+                ?.optString("value", "")
+                .orEmpty()
+            val dayEn = iconSource
+                ?.optJSONArray("weatherDesc")
+                ?.optJSONObject(0)
+                ?.optString("value", "")
+                .orEmpty()
+            val dayDesc = weatherAppLocalizeDescription(dayZh.ifBlank { dayEn.ifBlank { description } })
+            dailyForecast.add(
+                DailyForecast(
+                    day = weatherAppDayLabel(dateText, i),
+                    icon = weatherAppMapIcon(dayDesc),
+                    low = lowText,
+                    high = highText
+                )
+            )
+        }
+    }
+
+    if (dailyForecast.isEmpty()) {
+        val fallbackLow = if (minTemp.isNotBlank()) weatherAppNormalizeTemperature(minTemp) else weatherInfo.temp
+        val fallbackHigh = if (maxTemp.isNotBlank()) weatherAppNormalizeTemperature(maxTemp) else weatherInfo.temp
+        dailyForecast.add(DailyForecast("今天", weatherInfo.icon, fallbackLow, fallbackHigh))
+        dailyForecast.add(DailyForecast("明天", weatherInfo.icon, fallbackLow, fallbackHigh))
+        dailyForecast.add(DailyForecast("后天", weatherInfo.icon, fallbackLow, fallbackHigh))
+    }
+
+    val humidityRaw = current?.optString("humidity", "--").orEmpty().trim()
+    val visibilityRaw = current?.optString("visibility", "--").orEmpty().trim()
+    val uvRaw = current?.optString("uvIndex", "--").orEmpty().trim()
+    val pressureRaw = current?.optString("pressure", "--").orEmpty().trim()
+    val windDirRaw = current?.optString("winddir16Point", "").orEmpty().trim()
+
+    val humidity = if (humidityRaw.isEmpty() || humidityRaw == "--") "--" else "$humidityRaw%"
+    val visibility = if (visibilityRaw.isEmpty() || visibilityRaw == "--") "--" else "$visibilityRaw 公里"
+    val uv = if (uvRaw.isEmpty()) "--" else uvRaw
+    val pressure = if (pressureRaw.isEmpty() || pressureRaw == "--") "--" else "$pressureRaw hPa"
+    val wind = weatherAppFormatWindKmph(windKmph)
+    val windValue = if (wind == "--") "--" else if (windDirRaw.isNotEmpty()) "${windDirRaw}风 $wind" else wind
+
+    val details = listOf(
+        WeatherDetail("体感温度", weatherAppNormalizeTemperature(feelsLikeC), "人体感知温度"),
+        WeatherDetail("湿度", humidity, "空气湿度"),
+        WeatherDetail("能见度", visibility, "当前视线范围"),
+        WeatherDetail("紫外线指数", uv, "紫外线强度"),
+        WeatherDetail("风速", windValue, "实时风向风速"),
+        WeatherDetail("气压", pressure, "大气压强")
+    )
+
+    return WeatherAppRealtimeData(
+        city = city,
+        weatherInfo = weatherInfo,
+        summary = summary,
+        hourlyForecast = hourlyForecast,
+        dailyForecast = dailyForecast,
+        weatherDetails = details
+    )
+}
+
 private suspend fun fetchWeatherAppRealtimeData(city: String): WeatherAppRealtimeData? {
     return withContext(Dispatchers.IO) {
-        try {
-            val pinyinCity = weatherAppCityToPinyin(city).ifBlank { weatherAppSanitizeCityName(city) }
-            val encodedCity = URLEncoder.encode(pinyinCity, "UTF-8")
-            val request = Request.Builder()
-                .url("https://wttr.in/$encodedCity?format=j1")
-                .header("User-Agent", "WangWangPhone/1.0")
-                .build()
+        val pinyinCity = weatherAppCityToPinyin(city).ifBlank { weatherAppSanitizeCityName(city) }
+        val encodedCity = URLEncoder.encode(pinyinCity, "UTF-8")
+        val request = Request.Builder()
+            .url("https://wttr.in/$encodedCity?format=j1")
+            .header("User-Agent", "WangWangPhone/1.0")
+            .build()
 
-            weatherAppHttpClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext null
-                val body = response.body?.string().orEmpty()
-                val json = JSONObject(body)
+        repeat(2) { attempt ->
+            try {
+                weatherAppHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@use
+                    val body = response.body?.string().orEmpty()
+                    if (body.isBlank()) return@use
 
-                val current = json.optJSONArray("current_condition")?.optJSONObject(0)
-                val weatherDays = json.optJSONArray("weather")
-                val today = weatherDays?.optJSONObject(0)
-
-                val zhDesc = current
-                    ?.optJSONArray("lang_zh")
-                    ?.optJSONObject(0)
-                    ?.optString("value", "")
-                    .orEmpty()
-                val enDesc = current
-                    ?.optJSONArray("weatherDesc")
-                    ?.optJSONObject(0)
-                    ?.optString("value", "")
-                    .orEmpty()
-                val description = weatherAppLocalizeDescription(zhDesc.ifBlank { enDesc.ifBlank { "天气未知" } })
-
-                val tempC = current?.optString("temp_C", "--").orEmpty()
-                val feelsLikeC = current?.optString("FeelsLikeC", "--").orEmpty()
-                val maxTemp = today?.optString("maxtempC", "").orEmpty()
-                val minTemp = today?.optString("mintempC", "").orEmpty()
-                val windKmph = current?.optString("windspeedKmph", "--").orEmpty()
-
-                val weatherInfo = WeatherInfo(
-                    temp = weatherAppNormalizeTemperature(tempC),
-                    description = description,
-                    icon = weatherAppMapIcon(description),
-                    range = weatherAppBuildRangeText(maxTemp, minTemp, windKmph)
-                )
-
-                val summary = "当前${weatherInfo.description}，气温${weatherInfo.temp}，体感${weatherAppNormalizeTemperature(feelsLikeC)}"
-
-                val hourlyForecast = mutableListOf(
-                    HourlyForecast("现在", weatherInfo.icon, weatherInfo.temp)
-                )
-                val todayHourly = today?.optJSONArray("hourly")
-                if (todayHourly != null) {
-                    val count = minOf(todayHourly.length(), 9)
-                    for (i in 0 until count) {
-                        val item = todayHourly.optJSONObject(i) ?: continue
-                        val time = weatherAppHourLabel(item.optString("time", ""))
-                        val hourTemp = weatherAppNormalizeTemperature(item.optString("tempC", "--"))
-                        val hourZh = item
-                            .optJSONArray("lang_zh")
-                            ?.optJSONObject(0)
-                            ?.optString("value", "")
-                            .orEmpty()
-                        val hourEn = item
-                            .optJSONArray("weatherDesc")
-                            ?.optJSONObject(0)
-                            ?.optString("value", "")
-                            .orEmpty()
-                        val hourDesc = weatherAppLocalizeDescription(hourZh.ifBlank { hourEn.ifBlank { "天气未知" } })
-                        hourlyForecast.add(HourlyForecast(time, weatherAppMapIcon(hourDesc), hourTemp))
-                    }
+                    WeatherRealtimeMemoryCache.save(city = city, payload = body)
+                    val parsed = runCatching { parseWeatherAppRealtimePayload(city = city, payload = body) }.getOrNull()
+                    if (parsed != null) return@withContext parsed
                 }
-
-                val dailyForecast = mutableListOf<DailyForecast>()
-                if (weatherDays != null) {
-                    val count = minOf(weatherDays.length(), 10)
-                    for (i in 0 until count) {
-                        val dayObj = weatherDays.optJSONObject(i) ?: continue
-                        val dateText = dayObj.optString("date", "")
-                        val lowText = weatherAppNormalizeTemperature(dayObj.optString("mintempC", "--"))
-                        val highText = weatherAppNormalizeTemperature(dayObj.optString("maxtempC", "--"))
-                        val hourlyArray = dayObj.optJSONArray("hourly")
-                        val iconSource = hourlyArray?.optJSONObject(minOf(4, (hourlyArray.length() - 1).coerceAtLeast(0)))
-                            ?: hourlyArray?.optJSONObject(0)
-                        val dayZh = iconSource
-                            ?.optJSONArray("lang_zh")
-                            ?.optJSONObject(0)
-                            ?.optString("value", "")
-                            .orEmpty()
-                        val dayEn = iconSource
-                            ?.optJSONArray("weatherDesc")
-                            ?.optJSONObject(0)
-                            ?.optString("value", "")
-                            .orEmpty()
-                        val dayDesc = weatherAppLocalizeDescription(dayZh.ifBlank { dayEn.ifBlank { description } })
-                        dailyForecast.add(
-                            DailyForecast(
-                                day = weatherAppDayLabel(dateText, i),
-                                icon = weatherAppMapIcon(dayDesc),
-                                low = lowText,
-                                high = highText
-                            )
-                        )
-                    }
-                }
-
-                val humidityRaw = current?.optString("humidity", "--").orEmpty().trim()
-                val visibilityRaw = current?.optString("visibility", "--").orEmpty().trim()
-                val uvRaw = current?.optString("uvIndex", "--").orEmpty().trim()
-                val pressureRaw = current?.optString("pressure", "--").orEmpty().trim()
-                val windDirRaw = current?.optString("winddir16Point", "").orEmpty().trim()
-
-                val humidity = if (humidityRaw.isEmpty() || humidityRaw == "--") "--" else "$humidityRaw%"
-                val visibility = if (visibilityRaw.isEmpty() || visibilityRaw == "--") "--" else "$visibilityRaw 公里"
-                val uv = if (uvRaw.isEmpty()) "--" else uvRaw
-                val pressure = if (pressureRaw.isEmpty() || pressureRaw == "--") "--" else "$pressureRaw hPa"
-                val wind = weatherAppFormatWindKmph(windKmph)
-                val windValue = if (wind == "--") "--" else if (windDirRaw.isNotEmpty()) "${windDirRaw}风 $wind" else wind
-
-                val details = listOf(
-                    WeatherDetail("体感温度", weatherAppNormalizeTemperature(feelsLikeC), "人体感知温度"),
-                    WeatherDetail("湿度", humidity, "空气湿度"),
-                    WeatherDetail("能见度", visibility, "当前视线范围"),
-                    WeatherDetail("紫外线指数", uv, "紫外线强度"),
-                    WeatherDetail("风速", windValue, "实时风向风速"),
-                    WeatherDetail("气压", pressure, "大气压强")
-                )
-
-                WeatherAppRealtimeData(
-                    city = city,
-                    weatherInfo = weatherInfo,
-                    summary = summary,
-                    hourlyForecast = hourlyForecast,
-                    dailyForecast = dailyForecast,
-                    weatherDetails = details
-                )
+            } catch (_: Exception) {
+                // retry with in-memory fallback below
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
+
+            if (attempt == 0) {
+                Thread.sleep(300)
+            }
         }
+
+        val memoryPayload = WeatherRealtimeMemoryCache.load(city)
+        if (!memoryPayload.isNullOrBlank()) {
+            return@withContext runCatching {
+                parseWeatherAppRealtimePayload(city = city, payload = memoryPayload)
+            }.getOrNull()
+        }
+
+        null
     }
 }
 

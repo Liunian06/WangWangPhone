@@ -272,21 +272,17 @@ private fun mapWeatherIcon(description: String): String {
     }
 }
 
-private fun formatWindKmph(raw: String): String {
-    val cleaned = raw.trim()
-    if (cleaned.isEmpty() || cleaned == "--") return "--"
-    return if (cleaned.contains("km/h", ignoreCase = true)) {
-        cleaned.replace("km/h", "公里/小时", ignoreCase = true)
-    } else {
-        "$cleaned 公里/小时"
-    }
-}
-
-private fun buildRangeText(maxTemp: String, minTemp: String, windKmph: String): String {
+private fun buildRangeText(maxTemp: String, minTemp: String): String {
     val maxText = if (maxTemp.isNotBlank()) normalizeTemperature(maxTemp) else "--"
     val minText = if (minTemp.isNotBlank()) normalizeTemperature(minTemp) else "--"
-    val windText = formatWindKmph(windKmph)
-    return "最高 $maxText 最低 $minText | 风速 $windText"
+    return "最高 $maxText 最低 $minText"
+}
+
+private fun widgetRangeWithoutWind(rawRange: String): String {
+    val normalized = rawRange.trim()
+    if (normalized.isEmpty()) return "最高 -- 最低 --"
+    val withoutWind = normalized.substringBefore("|").trim()
+    return if (withoutWind.isEmpty()) "最高 -- 最低 --" else withoutWind
 }
 
 private fun isUnknownWeather(temp: String, description: String): Boolean {
@@ -329,7 +325,7 @@ suspend fun fetchLocation(weatherCacheDbHelper: WeatherCacheDbHelper): String {
 }
 
 suspend fun fetchWeather(city: String): WeatherInfo {
-    val fallback = WeatherInfo("--", "天气未知", "❓", "风力 --")
+    val fallback = WeatherInfo("--", "天气未知", "❓", "最高 -- 最低 --")
 
     return withContext(Dispatchers.IO) {
         try {
@@ -343,6 +339,7 @@ suspend fun fetchWeather(city: String): WeatherInfo {
             weatherHttpClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext fallback
                 val body = response.body?.string().orEmpty()
+                WeatherRealtimeMemoryCache.save(city = city, payload = body)
                 val json = JSONObject(body)
 
                 val current = json.optJSONArray("current_condition")?.optJSONObject(0)
@@ -363,13 +360,11 @@ suspend fun fetchWeather(city: String): WeatherInfo {
                 val tempC = current?.optString("temp_C", "--").orEmpty()
                 val maxTemp = today?.optString("maxtempC", "").orEmpty()
                 val minTemp = today?.optString("mintempC", "").orEmpty()
-                val windKmph = current?.optString("windspeedKmph", "--").orEmpty()
-
                 WeatherInfo(
                     temp = normalizeTemperature(tempC),
                     description = description,
                     icon = mapWeatherIcon(description),
-                    range = buildRangeText(maxTemp, minTemp, windKmph)
+                    range = buildRangeText(maxTemp, minTemp)
                 )
             }
         } catch (e: Exception) {
@@ -454,7 +449,7 @@ fun ClockWidget(city: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modifier) {
-    val weatherInfo = weather ?: WeatherInfo("--", "加载中...", "❓", "最高 -- 最低 -- | 风速 --")
+    val weatherInfo = weather ?: WeatherInfo("--", "加载中...", "❓", "最高 -- 最低 --")
     Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
         .background(Brush.linearGradient(listOf(Color(0xFF2E8BFF), Color(0xFF12C2E9))))) {
         Box(
@@ -502,7 +497,7 @@ fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modi
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = if (weatherInfo.range.isBlank()) "最高 -- 最低 -- | 风速 --" else weatherInfo.range,
+                    text = widgetRangeWithoutWind(weatherInfo.range),
                     color = Color.White.copy(alpha = 0.92f),
                     fontSize = 11.sp,
                     maxLines = 1,

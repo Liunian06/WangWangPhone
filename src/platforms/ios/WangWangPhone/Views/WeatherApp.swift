@@ -364,11 +364,31 @@ struct WeatherAppView: View {
         }
     }
 
-    private func temperatureInt(from raw: String, fallback: Int) -> Int {
-        if let match = raw.range(of: #"[-+]?\d+"#, options: .regularExpression) {
-            return Int(raw[match]) ?? fallback
+    private func temperatureNumber(from raw: String) -> Int? {
+        guard let match = raw.range(of: #"[-+]?\d+"#, options: .regularExpression) else {
+            return nil
         }
-        return fallback
+        return Int(raw[match])
+    }
+
+    private func temperatureInt(from raw: String, fallback: Int) -> Int {
+        return temperatureNumber(from: raw) ?? fallback
+    }
+
+    private func dailyRangeFromHourly(_ hours: [[String: Any]]) -> (Int, Int)? {
+        guard !hours.isEmpty else { return nil }
+        var minTemp: Int?
+        var maxTemp: Int?
+
+        for item in hours {
+            let rawTemp = (item["tempC"] as? String) ?? "--"
+            guard let value = temperatureNumber(from: rawTemp) else { continue }
+            minTemp = minTemp.map { min($0, value) } ?? value
+            maxTemp = maxTemp.map { max($0, value) } ?? value
+        }
+
+        guard let minTemp, let maxTemp else { return nil }
+        return (minTemp, maxTemp)
     }
 
     private func isUnknownWeather(temp: String, description: String) -> Bool {
@@ -442,6 +462,111 @@ struct WeatherAppView: View {
         return "北京"
     }
 
+    private func parseRealtimeWeather(city: String, jsonObject: [String: Any]) -> WeatherAppRealtimeData? {
+        let current = (jsonObject["current_condition"] as? [[String: Any]])?.first
+        let weatherDays = (jsonObject["weather"] as? [[String: Any]]) ?? []
+        let today = weatherDays.first
+
+        if current == nil && weatherDays.isEmpty {
+            return nil
+        }
+
+        let zhDesc = ((current?["lang_zh"] as? [[String: Any]])?.first?["value"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let enDesc = ((current?["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let description = localizedWeatherDescription(zhDesc.isEmpty ? (enDesc.isEmpty ? "天气未知" : enDesc) : zhDesc)
+
+        let temp = normalizeTemperature((current?["temp_C"] as? String) ?? "--")
+        let feelsLike = normalizeTemperature((current?["FeelsLikeC"] as? String) ?? "--")
+        let windKmph = (current?["windspeedKmph"] as? String) ?? "--"
+        let maxTemp = (today?["maxtempC"] as? String) ?? ""
+        let minTemp = (today?["mintempC"] as? String) ?? ""
+        let icon = weatherIcon(for: description)
+        let range = buildRangeText(maxTemp: maxTemp, minTemp: minTemp, windKmph: windKmph)
+        let summary = "当前\(description)，气温\(temp)，体感\(feelsLike)"
+
+        var hourlyItems: [HourlyForecastItem] = [
+            HourlyForecastItem(time: "现在", icon: icon, temp: temp)
+        ]
+        if let hours = today?["hourly"] as? [[String: Any]] {
+            for item in hours.prefix(9) {
+                let hourTemp = normalizeTemperature((item["tempC"] as? String) ?? "--")
+                let time = hourLabel((item["time"] as? String) ?? "")
+                let hourZh = ((item["lang_zh"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let hourEn = ((item["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let hourDesc = localizedWeatherDescription(hourZh.isEmpty ? (hourEn.isEmpty ? "天气未知" : hourEn) : hourZh)
+                hourlyItems.append(HourlyForecastItem(time: time, icon: weatherIcon(for: hourDesc), temp: hourTemp))
+            }
+        }
+
+        var dailyItems: [(String, String, Int, Int)] = []
+        for (index, dayItem) in weatherDays.prefix(10).enumerated() {
+            let dateText = (dayItem["date"] as? String) ?? ""
+            let hourly = (dayItem["hourly"] as? [[String: Any]]) ?? []
+
+            var low = temperatureInt(from: (dayItem["mintempC"] as? String) ?? "--", fallback: 20)
+            var high = temperatureInt(from: (dayItem["maxtempC"] as? String) ?? "--", fallback: 30)
+            if ((dayItem["mintempC"] as? String) ?? "--") == "--" || ((dayItem["maxtempC"] as? String) ?? "--") == "--" {
+                if let hourlyRange = dailyRangeFromHourly(hourly) {
+                    low = hourlyRange.0
+                    high = hourlyRange.1
+                }
+            }
+
+            let iconSource = hourly.indices.contains(4) ? hourly[4] : hourly.first
+            let dayZh = ((iconSource?["lang_zh"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let dayEn = ((iconSource?["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let dayDesc = localizedWeatherDescription(dayZh.isEmpty ? (dayEn.isEmpty ? description : dayEn) : dayZh)
+
+            dailyItems.append((dayLabel(dateText: dateText, index: index), weatherIcon(for: dayDesc), low, high))
+        }
+
+        if dailyItems.isEmpty {
+            let fallbackLow = temperatureInt(from: minTemp, fallback: temperatureInt(from: temp, fallback: 20))
+            let fallbackHigh = temperatureInt(from: maxTemp, fallback: temperatureInt(from: temp, fallback: 30))
+            dailyItems = [
+                ("今天", icon, fallbackLow, fallbackHigh),
+                ("明天", icon, fallbackLow, fallbackHigh),
+                ("后天", icon, fallbackLow, fallbackHigh)
+            ]
+        }
+
+        let humidityRaw = ((current?["humidity"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
+        let visibilityRaw = ((current?["visibility"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
+        let uvRaw = ((current?["uvIndex"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
+        let pressureRaw = ((current?["pressure"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
+        let windDirRaw = ((current?["winddir16Point"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let humidity = (humidityRaw.isEmpty || humidityRaw == "--") ? "--" : "\(humidityRaw)%"
+        let visibility = (visibilityRaw.isEmpty || visibilityRaw == "--") ? "--" : "\(visibilityRaw) 公里"
+        let uvValue = uvRaw.isEmpty ? "--" : uvRaw
+        let pressure = (pressureRaw.isEmpty || pressureRaw == "--") ? "--" : "\(pressureRaw) hPa"
+        let wind = formatWindKmph(windKmph)
+        let windValue = wind == "--" ? "--" : (windDirRaw.isEmpty ? wind : "\(windDirRaw)风 \(wind)")
+
+        let details = [
+            WeatherDetailItem(title: "体感温度", value: feelsLike, subtitle: "人体感知温度"),
+            WeatherDetailItem(title: "湿度", value: humidity, subtitle: "空气湿度"),
+            WeatherDetailItem(title: "能见度", value: visibility, subtitle: "当前视线范围"),
+            WeatherDetailItem(title: "紫外线指数", value: uvValue, subtitle: "紫外线强度"),
+            WeatherDetailItem(title: "风速", value: windValue, subtitle: "实时风向风速"),
+            WeatherDetailItem(title: "气压", value: pressure, subtitle: "大气压强")
+        ]
+
+        return WeatherAppRealtimeData(
+            city: city,
+            temp: temp,
+            description: description,
+            icon: icon,
+            range: range,
+            summary: summary,
+            hourly: hourlyItems,
+            daily: dailyItems,
+            details: details
+        )
+    }
+
     private func fetchRealtimeWeather(city: String) async -> WeatherAppRealtimeData? {
         let cityPinyin = cityToPinyin(city)
         guard let encodedCity = cityPinyin.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
@@ -453,103 +578,39 @@ struct WeatherAppView: View {
         request.httpMethod = "GET"
         request.setValue("WangWangPhone/1.0", forHTTPHeaderField: "User-Agent")
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
-                return nil
-            }
-
-            guard let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                return nil
-            }
-
-            let current = (jsonObject["current_condition"] as? [[String: Any]])?.first
-            let weatherDays = (jsonObject["weather"] as? [[String: Any]]) ?? []
-            let today = weatherDays.first
-
-            let zhDesc = ((current?["lang_zh"] as? [[String: Any]])?.first?["value"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let enDesc = ((current?["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let description = localizedWeatherDescription(zhDesc.isEmpty ? (enDesc.isEmpty ? "天气未知" : enDesc) : zhDesc)
-
-            let temp = normalizeTemperature((current?["temp_C"] as? String) ?? "--")
-            let feelsLike = normalizeTemperature((current?["FeelsLikeC"] as? String) ?? "--")
-            let windKmph = (current?["windspeedKmph"] as? String) ?? "--"
-            let maxTemp = (today?["maxtempC"] as? String) ?? ""
-            let minTemp = (today?["mintempC"] as? String) ?? ""
-            let icon = weatherIcon(for: description)
-            let range = buildRangeText(maxTemp: maxTemp, minTemp: minTemp, windKmph: windKmph)
-            let summary = "当前\(description)，气温\(temp)，体感\(feelsLike)"
-
-            var hourlyItems: [HourlyForecastItem] = [
-                HourlyForecastItem(time: "现在", icon: icon, temp: temp)
-            ]
-            if let hours = today?["hourly"] as? [[String: Any]] {
-                for item in hours.prefix(9) {
-                    let hourTemp = normalizeTemperature((item["tempC"] as? String) ?? "--")
-                    let time = hourLabel((item["time"] as? String) ?? "")
-                    let hourZh = ((item["lang_zh"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    let hourEn = ((item["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                    let hourDesc = localizedWeatherDescription(hourZh.isEmpty ? (hourEn.isEmpty ? "天气未知" : hourEn) : hourZh)
-                    hourlyItems.append(HourlyForecastItem(time: time, icon: weatherIcon(for: hourDesc), temp: hourTemp))
+        for attempt in 0..<2 {
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                    continue
                 }
+
+                let payload = String(data: data, encoding: .utf8) ?? String(decoding: data, as: UTF8.self)
+                WeatherRealtimeMemoryCache.save(city: city, payload: payload)
+
+                guard let jsonObject = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    continue
+                }
+                if let parsed = parseRealtimeWeather(city: city, jsonObject: jsonObject) {
+                    return parsed
+                }
+            } catch {
+                print("WeatherApp fetch attempt \(attempt + 1) failed: \(error.localizedDescription)")
             }
 
-            var dailyItems: [(String, String, Int, Int)] = []
-            for (index, dayItem) in weatherDays.prefix(10).enumerated() {
-                let dateText = (dayItem["date"] as? String) ?? ""
-                let minRaw = (dayItem["mintempC"] as? String) ?? "--"
-                let maxRaw = (dayItem["maxtempC"] as? String) ?? "--"
-                let low = temperatureInt(from: minRaw, fallback: 20)
-                let high = temperatureInt(from: maxRaw, fallback: 30)
-
-                let hourly = (dayItem["hourly"] as? [[String: Any]]) ?? []
-                let iconSource = hourly.indices.contains(4) ? hourly[4] : hourly.first
-                let dayZh = ((iconSource?["lang_zh"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let dayEn = ((iconSource?["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                let dayDesc = localizedWeatherDescription(dayZh.isEmpty ? (dayEn.isEmpty ? description : dayEn) : dayZh)
-
-                dailyItems.append((dayLabel(dateText: dateText, index: index), weatherIcon(for: dayDesc), low, high))
+            if attempt == 0 {
+                try? await Task.sleep(nanoseconds: 300_000_000)
             }
-
-            let humidityRaw = ((current?["humidity"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
-            let visibilityRaw = ((current?["visibility"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
-            let uvRaw = ((current?["uvIndex"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
-            let pressureRaw = ((current?["pressure"] as? String) ?? "--").trimmingCharacters(in: .whitespacesAndNewlines)
-            let windDirRaw = ((current?["winddir16Point"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-
-            let humidity = (humidityRaw.isEmpty || humidityRaw == "--") ? "--" : "\(humidityRaw)%"
-            let visibility = (visibilityRaw.isEmpty || visibilityRaw == "--") ? "--" : "\(visibilityRaw) 公里"
-            let uvValue = uvRaw.isEmpty ? "--" : uvRaw
-            let pressure = (pressureRaw.isEmpty || pressureRaw == "--") ? "--" : "\(pressureRaw) hPa"
-            let wind = formatWindKmph(windKmph)
-            let windValue = wind == "--" ? "--" : (windDirRaw.isEmpty ? wind : "\(windDirRaw)风 \(wind)")
-
-            let details = [
-                WeatherDetailItem(title: "体感温度", value: feelsLike, subtitle: "人体感知温度"),
-                WeatherDetailItem(title: "湿度", value: humidity, subtitle: "空气湿度"),
-                WeatherDetailItem(title: "能见度", value: visibility, subtitle: "当前视线范围"),
-                WeatherDetailItem(title: "紫外线指数", value: uvValue, subtitle: "紫外线强度"),
-                WeatherDetailItem(title: "风速", value: windValue, subtitle: "实时风向风速"),
-                WeatherDetailItem(title: "气压", value: pressure, subtitle: "大气压强")
-            ]
-
-            return WeatherAppRealtimeData(
-                city: city,
-                temp: temp,
-                description: description,
-                icon: icon,
-                range: range,
-                summary: summary,
-                hourly: hourlyItems,
-                daily: dailyItems,
-                details: details
-            )
-        } catch {
-            print("WeatherApp fetch failed: \(error.localizedDescription)")
-            return nil
         }
+
+        if let memoryPayload = WeatherRealtimeMemoryCache.load(city: city),
+           let memoryData = memoryPayload.data(using: .utf8),
+           let anyObject = try? JSONSerialization.jsonObject(with: memoryData),
+           let jsonObject = anyObject as? [String: Any] {
+            return parseRealtimeWeather(city: city, jsonObject: jsonObject)
+        }
+
+        return nil
     }
 
     private func loadWeatherData() {
