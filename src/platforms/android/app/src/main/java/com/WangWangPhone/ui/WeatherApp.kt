@@ -27,6 +27,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.WangWangPhone.core.WeatherCacheDbHelper
 import com.WangWangPhone.core.WeatherCacheRecord
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -445,6 +447,7 @@ private suspend fun fetchWeatherAppRealtimeData(city: String): WeatherAppRealtim
 fun WeatherAppScreen(onClose: () -> Unit) {
     val context = LocalContext.current
     val weatherCacheDbHelper = remember { WeatherCacheDbHelper(context) }
+    val coroutineScope = rememberCoroutineScope()
 
     var city by remember { mutableStateOf("定位中...") }
     var currentTemp by remember { mutableStateOf("--") }
@@ -455,19 +458,38 @@ fun WeatherAppScreen(onClose: () -> Unit) {
     var hourlyForecast by remember { mutableStateOf(defaultHourlyForecast()) }
     var forecast by remember { mutableStateOf(defaultDailyForecast()) }
     var weatherDetails by remember { mutableStateOf(defaultWeatherDetails()) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
-        val currentCity = fetchLocation(weatherCacheDbHelper)
-        city = currentCity
+    suspend fun loadWeatherData(forceRefresh: Boolean) {
+        if (isRefreshing) return
+        isRefreshing = true
 
-        if (currentCity.isNotBlank() && currentCity != "...") {
-            val cached = weatherCacheDbHelper.getTodayWeatherCache(currentCity)
-            if (cached != null && !weatherAppIsUnknownWeather(cached.temp, cached.description)) {
-                val localizedDescription = weatherAppLocalizeDescription(cached.description)
-                currentTemp = cached.temp
-                condition = localizedDescription
-                range = cached.range
-                summary = "当前$localizedDescription，气温${cached.temp}"
+        if (forceRefresh) {
+            condition = "更新中..."
+            summary = "正在重新获取定位和天气..."
+        }
+
+        try {
+            val currentCity = fetchLocation(weatherCacheDbHelper, forceRefresh = forceRefresh)
+            city = currentCity
+
+            if (currentCity.isBlank() || currentCity == "...") {
+                if (condition == "加载中..." || condition == "更新中...") {
+                    condition = "天气未知"
+                    summary = "定位失败，天气数据暂不可用"
+                }
+                return
+            }
+
+            if (!forceRefresh) {
+                val cached = weatherCacheDbHelper.getTodayWeatherCache(currentCity)
+                if (cached != null && !weatherAppIsUnknownWeather(cached.temp, cached.description)) {
+                    val localizedDescription = weatherAppLocalizeDescription(cached.description)
+                    currentTemp = cached.temp
+                    condition = localizedDescription
+                    range = cached.range
+                    summary = "当前$localizedDescription，气温${cached.temp}"
+                }
             }
 
             val realtime = fetchWeatherAppRealtimeData(currentCity)
@@ -494,11 +516,17 @@ fun WeatherAppScreen(onClose: () -> Unit) {
                     )
                 }
                 weatherCacheDbHelper.clearExpiredCache()
-            } else if (condition == "加载中...") {
+            } else if (condition == "加载中..." || condition == "更新中...") {
                 condition = "天气未知"
                 summary = "天气数据暂不可用"
             }
+        } finally {
+            isRefreshing = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        loadWeatherData(forceRefresh = false)
     }
 
     BackHandler { onClose() }
@@ -515,12 +543,31 @@ fun WeatherAppScreen(onClose: () -> Unit) {
         ) {
             // 关闭按钮
             item {
-                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        if (isRefreshing) "更新中..." else "强制更新",
+                        color = Color.White,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(5.dp))
+                            .background(Color.White.copy(alpha = if (isRefreshing) 0.12f else 0.2f))
+                            .clickable(enabled = !isRefreshing) {
+                                coroutineScope.launch {
+                                    loadWeatherData(forceRefresh = true)
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        fontSize = 14.sp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "完成",
                         color = Color.White,
                         modifier = Modifier
-                            .align(Alignment.TopEnd)
                             .clip(RoundedCornerShape(5.dp))
                             .background(Color.White.copy(alpha = 0.2f))
                             .clickable { onClose() }

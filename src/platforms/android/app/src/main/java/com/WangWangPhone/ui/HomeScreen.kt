@@ -295,9 +295,14 @@ private fun isUnknownWeather(temp: String, description: String): Boolean {
     return normalizedTemp == "--" && (normalizedDesc == "--" || lowerDesc == "n/a")
 }
 
-suspend fun fetchLocation(weatherCacheDbHelper: WeatherCacheDbHelper): String {
+suspend fun fetchLocation(
+    weatherCacheDbHelper: WeatherCacheDbHelper,
+    forceRefresh: Boolean = false
+): String {
     weatherCacheDbHelper.getManualLocation()?.let { return it }
-    weatherCacheDbHelper.getCachedLocation()?.let { return it }
+    if (!forceRefresh) {
+        weatherCacheDbHelper.getCachedLocation()?.let { return it }
+    }
 
     val onlineCity = withContext(Dispatchers.IO) {
         try {
@@ -321,6 +326,11 @@ suspend fun fetchLocation(weatherCacheDbHelper: WeatherCacheDbHelper): String {
         weatherCacheDbHelper.saveLocationCache(onlineCity)
         return onlineCity
     }
+
+    if (forceRefresh) {
+        weatherCacheDbHelper.getCachedLocation()?.let { return it }
+    }
+
     return "北京"
 }
 

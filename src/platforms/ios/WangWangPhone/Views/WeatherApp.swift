@@ -37,6 +37,7 @@ struct WeatherAppView: View {
     @State private var hourlyForecast: [HourlyForecastItem] = Self.defaultHourlyForecast()
     @State private var forecast: [(String, String, Int, Int)] = Self.defaultDailyForecast()
     @State private var weatherDetails: [WeatherDetailItem] = Self.defaultWeatherDetails()
+    @State private var isRefreshing: Bool = false
 
     var body: some View {
         ZStack {
@@ -48,6 +49,18 @@ struct WeatherAppView: View {
                     // 关闭按钮
                     HStack {
                         Spacer()
+                        Button(isRefreshing ? "更新中..." : "强制更新") {
+                            loadWeatherData(forceRefresh: true)
+                        }
+                        .disabled(isRefreshing)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.white.opacity(isRefreshing ? 0.12 : 0.2))
+                        .cornerRadius(10)
+
+                        Spacer().frame(width: 8)
+
                         Button("完成") { isPresented = false }
                             .foregroundColor(.white)
                             .padding(.horizontal, 12)
@@ -448,16 +461,19 @@ struct WeatherAppView: View {
         }
     }
 
-    private func resolveCurrentCity(weatherCache: WeatherCacheManager) async -> String {
+    private func resolveCurrentCity(weatherCache: WeatherCacheManager, forceRefresh: Bool = false) async -> String {
         if let manualCity = weatherCache.getManualLocation(), !manualCity.isEmpty {
             return manualCity
         }
-        if let cachedCity = weatherCache.getCachedLocation(), !cachedCity.isEmpty {
+        if !forceRefresh, let cachedCity = weatherCache.getCachedLocation(), !cachedCity.isEmpty {
             return cachedCity
         }
         if let cityFromIp = await fetchCityFromIp(), !cityFromIp.isEmpty {
             _ = weatherCache.saveLocationCache(city: cityFromIp)
             return cityFromIp
+        }
+        if forceRefresh, let cachedCity = weatherCache.getCachedLocation(), !cachedCity.isEmpty {
+            return cachedCity
         }
         return "北京"
     }
@@ -613,15 +629,24 @@ struct WeatherAppView: View {
         return nil
     }
 
-    private func loadWeatherData() {
+    private func loadWeatherData(forceRefresh: Bool = false) {
+        if isRefreshing { return }
+        isRefreshing = true
+
+        if forceRefresh {
+            condition = "更新中..."
+            summaryText = "正在重新获取定位和天气..."
+        }
+
         Task {
             let weatherCache = WeatherCacheManager.shared
-            let currentCity = await resolveCurrentCity(weatherCache: weatherCache)
+            let currentCity = await resolveCurrentCity(weatherCache: weatherCache, forceRefresh: forceRefresh)
             await MainActor.run {
                 self.city = currentCity
             }
 
-            if let cached = weatherCache.getTodayWeatherCache(city: currentCity),
+            if !forceRefresh,
+               let cached = weatherCache.getTodayWeatherCache(city: currentCity),
                !isUnknownWeather(temp: cached.temp, description: cached.description) {
                 let cachedDescription = localizedWeatherDescription(cached.description)
                 await MainActor.run {
@@ -659,11 +684,15 @@ struct WeatherAppView: View {
                 _ = weatherCache.clearExpiredCache()
             } else {
                 await MainActor.run {
-                    if self.condition == "加载中..." {
+                    if self.condition == "加载中..." || self.condition == "更新中..." {
                         self.condition = "天气未知"
                         self.summaryText = "天气数据暂不可用"
                     }
                 }
+            }
+
+            await MainActor.run {
+                self.isRefreshing = false
             }
         }
     }
