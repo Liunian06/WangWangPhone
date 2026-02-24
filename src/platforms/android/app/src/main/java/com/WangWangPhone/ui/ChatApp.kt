@@ -1311,6 +1311,14 @@ fun MomentsTab(
     // 编辑对话框状态
     var showNicknameDialog by remember { mutableStateOf(false) }
     var showSignatureDialog by remember { mutableStateOf(false) }
+    val momentCellBackground = WeTheme.BackgroundCell
+    val momentListBackground = WeTheme.Background
+    val momentPrimaryColor = if (WeTheme.isDark) Color(0xFF8795B3) else Color(0xFF576B95)
+    val momentAvatarBackground = if (WeTheme.isDark) Color(0xFF2C2C2C) else Color(0xFFF5F5F5)
+    val momentActionBackground = if (WeTheme.isDark) Color(0xFF2A2A2A) else Color(0xFFF7F7F7)
+    val momentTimeColor = if (WeTheme.isDark) Color(0xFF666666) else Color(0xFFB2B2B2)
+    val momentSignatureColor = if (WeTheme.isDark) Color(0xFF666666) else Color(0xFF999999)
+    val momentDividerColor = WeTheme.Separator
 
     if (showNicknameDialog) {
         TextEditDialog(
@@ -1330,7 +1338,7 @@ fun MomentsTab(
         )
     }
 
-    LazyColumn(modifier = Modifier.fillMaxSize().background(Color.White)) {
+    LazyColumn(modifier = Modifier.fillMaxSize().background(momentListBackground)) {
         // 封面 + 头像 + 签名区域
         item {
             Column(modifier = Modifier.fillMaxWidth()) {
@@ -1405,7 +1413,7 @@ fun MomentsTab(
 
                 // 用户签名文字区域（可点击编辑）
                 Box(
-                    modifier = Modifier.fillMaxWidth().background(Color.White)
+                    modifier = Modifier.fillMaxWidth().background(momentCellBackground)
                         .clickable { showSignatureDialog = true }
                         .padding(horizontal = 16.dp, vertical = 10.dp),
                     contentAlignment = Alignment.CenterEnd
@@ -1413,7 +1421,7 @@ fun MomentsTab(
                     Text(
                         userSignature,
                         fontSize = 13.sp,
-                        color = Color(0xFF999999),
+                        color = momentSignatureColor,
                         maxLines = 1
                     )
                 }
@@ -1422,39 +1430,45 @@ fun MomentsTab(
 
         // 动态列表
         items(mockMoments) { m ->
-            Column(modifier = Modifier.fillMaxWidth().background(Color.White).padding(12.dp, 12.dp)) {
+            Column(modifier = Modifier.fillMaxWidth().background(momentCellBackground).padding(12.dp, 12.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Box(
-                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFFF5F5F5)),
+                        modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)).background(momentAvatarBackground),
                         contentAlignment = Alignment.Center
                     ) { Text(m.avatar, fontSize = 22.sp) }
 
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(m.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF576B95))
+                        Text(m.name, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = momentPrimaryColor)
                         Spacer(Modifier.height(4.dp))
                         Text(m.content, fontSize = 15.sp, lineHeight = 22.sp)
                         Spacer(Modifier.height(8.dp))
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(m.time, fontSize = 12.sp, color = Color(0xFFB2B2B2))
+                            Text(m.time, fontSize = 12.sp, color = momentTimeColor)
                             Box(
-                                modifier = Modifier.background(Color(0xFFF7F7F7), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) { Text("··", fontSize = 14.sp, color = Color(0xFF576B95)) }
+                                modifier = Modifier.background(momentActionBackground, RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) { Text("··", fontSize = 14.sp, color = momentPrimaryColor) }
                         }
 
                         // 互动区
                         if (m.likes.isNotEmpty() || m.comments.isNotEmpty()) {
                             Spacer(Modifier.height(6.dp))
-                            Column(modifier = Modifier.fillMaxWidth().background(Color(0xFFF7F7F7), RoundedCornerShape(4.dp)).padding(6.dp, 6.dp)) {
+                            Column(modifier = Modifier.fillMaxWidth().background(momentActionBackground, RoundedCornerShape(4.dp)).padding(6.dp, 6.dp)) {
                                 if (m.likes.isNotEmpty()) {
-                                    Text("❤️ ${m.likes.joinToString("，")}", fontSize = 13.sp, color = Color(0xFF576B95))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        WeIcon("ic_like", "♡", modifier = Modifier.size(14.dp), tint = momentPrimaryColor)
+                                        Text(m.likes.joinToString("，"), fontSize = 13.sp, color = momentPrimaryColor)
+                                    }
                                 }
                                 if (m.likes.isNotEmpty() && m.comments.isNotEmpty()) {
-                                    Divider(color = Color(0xFFDEDEDE), thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
+                                    Divider(color = momentDividerColor, thickness = 0.5.dp, modifier = Modifier.padding(vertical = 4.dp))
                                 }
                                 m.comments.forEach { (name, text) ->
                                     Row {
-                                        Text(name, fontSize = 13.sp, color = Color(0xFF576B95), fontWeight = FontWeight.Medium)
+                                        Text(name, fontSize = 13.sp, color = momentPrimaryColor, fontWeight = FontWeight.Medium)
                                         Text("：$text", fontSize = 13.sp)
                                     }
                                 }
@@ -1463,7 +1477,7 @@ fun MomentsTab(
                     }
                 }
             }
-            Divider(color = Color(0xFFECECEC), thickness = 0.5.dp)
+            Divider(color = momentDividerColor, thickness = 0.5.dp)
         }
     }
 }

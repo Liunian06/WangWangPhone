@@ -599,6 +599,11 @@ struct MomentsTabView: View {
     @State private var editingText = ""
 
     var body: some View {
+        let momentPrimaryColor = WeTheme.dynamicColor(light: Color(red: 0.34, green: 0.42, blue: 0.58), dark: Color(hex: 0x8795B3))
+        let momentActionBackground = WeTheme.dynamicColor(light: Color(white: 0.97), dark: Color(hex: 0x2A2A2A))
+        let momentAvatarBackground = WeTheme.dynamicColor(light: Color(white: 0.96), dark: Color(hex: 0x2C2C2C))
+        let momentTimeColor = WeTheme.dynamicColor(light: Color(white: 0.7), dark: Color(hex: 0x666666))
+
         ScrollView {
             VStack(spacing: 0) {
                 // 封面 + 头像 + 签名区域
@@ -623,7 +628,7 @@ struct MomentsTabView: View {
                             .frame(height: coverHeight)
                             .onTapGesture { showCoverPicker = true }
 
-                            Color.white.frame(height: avatarOverlap)
+                            WeTheme.codeBackgroundCell.frame(height: avatarOverlap)
                         }
 
                         // 昵称 + 头像
@@ -646,12 +651,12 @@ struct MomentsTabView: View {
                         Spacer()
                         Text(userSignature)
                             .font(.system(size: 13))
-                            .foregroundColor(Color(hex: 0x999999))
+                            .foregroundColor(WeTheme.codeTextSecondary)
                             .lineLimit(1)
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color.white)
+                    .background(WeTheme.codeBackgroundCell)
                     .onTapGesture {
                         editingText = userSignature
                         showSignatureAlert = true
@@ -661,38 +666,42 @@ struct MomentsTabView: View {
                 ForEach(wxMoments) { m in
                     VStack(alignment: .leading, spacing: 0) {
                         HStack(alignment: .top, spacing: 10) {
-                            RoundedRectangle(cornerRadius: 6).fill(Color(white: 0.96)).frame(width: 40, height: 40)
+                            RoundedRectangle(cornerRadius: 6).fill(momentAvatarBackground).frame(width: 40, height: 40)
                                 .overlay(Text(m.avatar).font(.system(size: 22)))
                             VStack(alignment: .leading, spacing: 4) {
-                                Text(m.name).font(.system(size: 15, weight: .semibold)).foregroundColor(Color(red: 0.34, green: 0.42, blue: 0.58))
+                                Text(m.name).font(.system(size: 15, weight: .semibold)).foregroundColor(momentPrimaryColor)
                                 Text(m.content).font(.system(size: 15)).lineSpacing(4)
                                 HStack {
-                                    Text(m.time).font(.system(size: 12)).foregroundColor(Color(white: 0.7))
+                                    Text(m.time).font(.system(size: 12)).foregroundColor(momentTimeColor)
                                     Spacer()
-                                    Text("··").font(.system(size: 14)).foregroundColor(Color(red: 0.34, green: 0.42, blue: 0.58))
-                                        .padding(.horizontal, 6).padding(.vertical, 2).background(Color(white: 0.97)).cornerRadius(4)
+                                    Text("··").font(.system(size: 14)).foregroundColor(momentPrimaryColor)
+                                        .padding(.horizontal, 6).padding(.vertical, 2).background(momentActionBackground).cornerRadius(4)
                                 }
                                 if !m.likes.isEmpty || !m.comments.isEmpty {
                                     VStack(alignment: .leading, spacing: 4) {
                                         if !m.likes.isEmpty {
-                                            Text("❤️ \(m.likes.joined(separator: "，"))").font(.system(size: 13)).foregroundColor(Color(red: 0.34, green: 0.42, blue: 0.58))
+                                            HStack(spacing: 4) {
+                                                WeIcon(name: "ic_like", fallback: "♡", size: 14, color: momentPrimaryColor)
+                                                Text(m.likes.joined(separator: "，")).font(.system(size: 13)).foregroundColor(momentPrimaryColor)
+                                            }
                                         }
-                                        if !m.likes.isEmpty && !m.comments.isEmpty { Divider() }
+                                        if !m.likes.isEmpty && !m.comments.isEmpty { Divider().overlay(WeTheme.codeSeparator) }
                                         ForEach(m.comments.indices, id: \.self) { i in
                                             HStack(spacing: 0) {
-                                                Text(m.comments[i].0).font(.system(size: 13, weight: .medium)).foregroundColor(Color(red: 0.34, green: 0.42, blue: 0.58))
+                                                Text(m.comments[i].0).font(.system(size: 13, weight: .medium)).foregroundColor(momentPrimaryColor)
                                                 Text("：\(m.comments[i].1)").font(.system(size: 13))
                                             }
                                         }
-                                    }.padding(6).background(Color(white: 0.97)).cornerRadius(4)
+                                    }.padding(6).background(momentActionBackground).cornerRadius(4)
                                 }
                             }
                         }
-                    }.padding(12).background(Color.white)
-                    Divider()
+                    }.padding(12).background(WeTheme.codeBackgroundCell)
+                    Divider().overlay(WeTheme.codeSeparator)
                 }
             }
         }
+        .background(WeTheme.codeBackground)
         .sheet(isPresented: $showCoverPicker) {
             ImagePicker(isPresented: $showCoverPicker) { image in
                 UserProfileManager.shared.updateCover(image)
