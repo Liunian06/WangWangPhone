@@ -1313,26 +1313,33 @@ struct HomeScreen: View {
 
     private func weatherIcon(for description: String) -> String {
         let text = description.lowercased()
-        if text.contains("thunder") || text.contains("storm") { return "⛈️" }
-        if text.contains("snow") || text.contains("sleet") { return "❄️" }
-        if text.contains("rain") || text.contains("drizzle") || text.contains("shower") { return "🌧️" }
-        if text.contains("fog") || text.contains("mist") || text.contains("haze") { return "🌫️" }
-        if text.contains("cloud") || text.contains("overcast") { return "⛅" }
-        if text.contains("sun") || text.contains("clear") { return "☀️" }
+        if text.contains("thunder") || text.contains("storm") || text.contains("雷") { return "⛈️" }
+        if text.contains("snow") || text.contains("sleet") || text.contains("雪") { return "❄️" }
+        if text.contains("rain") || text.contains("drizzle") || text.contains("shower") || text.contains("雨") { return "🌧️" }
+        if text.contains("fog") || text.contains("mist") || text.contains("haze") || text.contains("雾") { return "🌫️" }
+        if text.contains("cloud") || text.contains("overcast") || text.contains("云") || text.contains("阴") { return "⛅" }
+        if text.contains("sun") || text.contains("clear") || text.contains("晴") { return "☀️" }
         return "🌤️"
     }
 
-    private func buildRangeText(wind: String, forecastTemps: [String]) -> String {
-        let windText = wind.isEmpty ? "--" : wind
-        if forecastTemps.isEmpty { return "风力 \(windText)" }
-        let compactTemps = forecastTemps.prefix(3).map { normalizeTemperature($0) }
-        return "风力 \(windText) | 预报 \(compactTemps.joined(separator: "/"))"
+    private func formatWindKmph(_ raw: String) -> String {
+        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.isEmpty || cleaned == "--" { return "--" }
+        if cleaned.lowercased().contains("km/h") { return cleaned }
+        return "\(cleaned) km/h"
+    }
+
+    private func buildRangeText(maxTemp: String, minTemp: String, windKmph: String) -> String {
+        let maxText = maxTemp.isEmpty ? "--" : normalizeTemperature(maxTemp)
+        let minText = minTemp.isEmpty ? "--" : normalizeTemperature(minTemp)
+        let windText = formatWindKmph(windKmph)
+        return "最高 \(maxText) 最低 \(minText) | 风速 \(windText)"
     }
 
     private func fetchWeather(city: String) async -> WeatherInfo? {
         let cityPinyin = cityToPinyin(city)
         guard let encodedCity = cityPinyin.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
-              let url = URL(string: "https://goweather.herokuapp.com/weather/\(encodedCity)") else {
+              let url = URL(string: "https://wttr.in/\(encodedCity)?format=j1") else {
             return nil
         }
 
@@ -1350,22 +1357,29 @@ struct HomeScreen: View {
                 return nil
             }
 
-            let description = (jsonObject["description"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "天气未知"
-            let wind = (jsonObject["wind"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
-            let temperature = (jsonObject["temperature"] as? String)?
-                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
+            let current = (jsonObject["current_condition"] as? [[String: Any]])?.first
+            let today = (jsonObject["weather"] as? [[String: Any]])?.first
 
-            let forecastTemps = (jsonObject["forecast"] as? [[String: Any]])?
-                .compactMap { ($0["temperature"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty } ?? []
+            let zhDesc = ((current?["lang_zh"] as? [[String: Any]])?.first?["value"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let enDesc = ((current?["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let description = zhDesc.isEmpty ? (enDesc.isEmpty ? "天气未知" : enDesc) : zhDesc
+
+            let temperature = (current?["temp_C"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
+            let windKmph = (current?["windspeedKmph"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
+            let maxTemp = (today?["maxtempC"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let minTemp = (today?["mintempC"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
             return WeatherInfo(
                 temp: normalizeTemperature(temperature),
                 description: description.isEmpty ? "天气未知" : description,
                 icon: weatherIcon(for: description),
-                range: buildRangeText(wind: wind, forecastTemps: forecastTemps)
+                range: buildRangeText(maxTemp: maxTemp, minTemp: minTemp, windKmph: windKmph)
             )
         } catch {
             print("Weather fetch failed: \(error.localizedDescription)")

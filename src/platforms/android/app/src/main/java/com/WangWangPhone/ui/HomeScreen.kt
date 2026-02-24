@@ -224,21 +224,27 @@ private fun normalizeTemperature(rawTemp: String): String {
 private fun mapWeatherIcon(description: String): String {
     val text = description.lowercase(Locale.ROOT)
     return when {
-        "thunder" in text || "storm" in text -> "⛈️"
-        "snow" in text || "sleet" in text -> "❄️"
-        "rain" in text || "drizzle" in text || "shower" in text -> "🌧️"
-        "fog" in text || "mist" in text || "haze" in text -> "🌫️"
-        "cloud" in text || "overcast" in text -> "⛅"
-        "sun" in text || "clear" in text -> "☀️"
+        "thunder" in text || "storm" in text || "雷" in text -> "⛈️"
+        "snow" in text || "sleet" in text || "雪" in text -> "❄️"
+        "rain" in text || "drizzle" in text || "shower" in text || "雨" in text -> "🌧️"
+        "fog" in text || "mist" in text || "haze" in text || "雾" in text -> "🌫️"
+        "cloud" in text || "overcast" in text || "云" in text || "阴" in text -> "⛅"
+        "sun" in text || "clear" in text || "晴" in text -> "☀️"
         else -> "🌤️"
     }
 }
 
-private fun buildRangeText(wind: String, forecastTemps: List<String>): String {
-    val windText = wind.ifBlank { "--" }
-    if (forecastTemps.isEmpty()) return "风力 $windText"
-    val compactTemps = forecastTemps.take(3).map { normalizeTemperature(it) }
-    return "风力 $windText | 预报 ${compactTemps.joinToString("/")}"
+private fun formatWindKmph(raw: String): String {
+    val cleaned = raw.trim()
+    if (cleaned.isEmpty() || cleaned == "--") return "--"
+    return if (cleaned.contains("km/h", ignoreCase = true)) cleaned else "$cleaned km/h"
+}
+
+private fun buildRangeText(maxTemp: String, minTemp: String, windKmph: String): String {
+    val maxText = if (maxTemp.isNotBlank()) normalizeTemperature(maxTemp) else "--"
+    val minText = if (minTemp.isNotBlank()) normalizeTemperature(minTemp) else "--"
+    val windText = formatWindKmph(windKmph)
+    return "最高 $maxText 最低 $minText | 风速 $windText"
 }
 
 suspend fun fetchLocation(weatherCacheDbHelper: WeatherCacheDbHelper): String {
@@ -278,7 +284,7 @@ suspend fun fetchWeather(city: String): WeatherInfo {
             val pinyinCity = cityToPinyin(city).ifBlank { sanitizeCityName(city) }
             val encodedCity = URLEncoder.encode(pinyinCity, "UTF-8")
             val request = Request.Builder()
-                .url("https://goweather.herokuapp.com/weather/$encodedCity")
+                .url("https://wttr.in/$encodedCity?format=j1")
                 .header("User-Agent", "WangWangPhone/1.0")
                 .build()
 
@@ -287,27 +293,30 @@ suspend fun fetchWeather(city: String): WeatherInfo {
                 val body = response.body?.string().orEmpty()
                 val json = JSONObject(body)
 
-                val description = json.optString("description", "天气未知").ifBlank { "天气未知" }
-                val wind = json.optString("wind", "--")
-                val temperature = json.optString("temperature", "--")
+                val current = json.optJSONArray("current_condition")?.optJSONObject(0)
+                val today = json.optJSONArray("weather")?.optJSONObject(0)
+                val zhDesc = current
+                    ?.optJSONArray("lang_zh")
+                    ?.optJSONObject(0)
+                    ?.optString("value", "")
+                    .orEmpty()
+                val enDesc = current
+                    ?.optJSONArray("weatherDesc")
+                    ?.optJSONObject(0)
+                    ?.optString("value", "")
+                    .orEmpty()
+                val description = zhDesc.ifBlank { enDesc.ifBlank { "天气未知" } }
 
-                val forecastTemps = mutableListOf<String>()
-                val forecast = json.optJSONArray("forecast")
-                if (forecast != null) {
-                    for (i in 0 until forecast.length()) {
-                        val item = forecast.optJSONObject(i) ?: continue
-                        val temp = item.optString("temperature", "")
-                        if (temp.isNotBlank()) {
-                            forecastTemps.add(temp)
-                        }
-                    }
-                }
+                val tempC = current?.optString("temp_C", "--").orEmpty()
+                val maxTemp = today?.optString("maxtempC", "").orEmpty()
+                val minTemp = today?.optString("mintempC", "").orEmpty()
+                val windKmph = current?.optString("windspeedKmph", "--").orEmpty()
 
                 WeatherInfo(
-                    temp = normalizeTemperature(temperature),
+                    temp = normalizeTemperature(tempC),
                     description = description,
                     icon = mapWeatherIcon(description),
-                    range = buildRangeText(wind, forecastTemps)
+                    range = buildRangeText(maxTemp, minTemp, windKmph)
                 )
             }
         } catch (e: Exception) {
