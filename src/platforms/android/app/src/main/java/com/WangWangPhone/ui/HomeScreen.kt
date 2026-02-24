@@ -247,6 +247,16 @@ private fun buildRangeText(maxTemp: String, minTemp: String, windKmph: String): 
     return "最高 $maxText 最低 $minText | 风速 $windText"
 }
 
+private fun isUnknownWeather(temp: String, description: String): Boolean {
+    val normalizedDesc = description.trim()
+    if (normalizedDesc.isEmpty()) return true
+    val lowerDesc = normalizedDesc.lowercase(Locale.ROOT)
+    if (normalizedDesc.contains("未知") || lowerDesc == "unknown") return true
+
+    val normalizedTemp = temp.trim()
+    return normalizedTemp == "--" && (normalizedDesc == "--" || lowerDesc == "n/a")
+}
+
 suspend fun fetchLocation(weatherCacheDbHelper: WeatherCacheDbHelper): String {
     weatherCacheDbHelper.getManualLocation()?.let { return it }
     weatherCacheDbHelper.getCachedLocation()?.let { return it }
@@ -343,7 +353,7 @@ fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
         if (city.isNotEmpty() && city != "...") {
             // 先查缓存
             val cached = weatherCacheDbHelper.getTodayWeatherCache(city)
-            if (cached != null) {
+            if (cached != null && !isUnknownWeather(cached.temp, cached.description)) {
                 // 今天已经请求过，直接使用缓存
                 weather = WeatherInfo(
                     temp = cached.temp,
@@ -352,20 +362,22 @@ fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
                     range = cached.range
                 )
             } else {
-                // 没有缓存，请求网络
+                // 没有缓存，或缓存是“天气未知”，请求网络重试
                 val freshWeather = fetchWeather(city)
                 weather = freshWeather
-                // 保存到数据库
-                weatherCacheDbHelper.saveWeatherCache(
-                    com.WangWangPhone.core.WeatherCacheRecord(
-                        city = city,
-                        temp = freshWeather.temp,
-                        description = freshWeather.description,
-                        icon = freshWeather.icon,
-                        range = freshWeather.range,
-                        requestDate = com.WangWangPhone.core.WeatherCacheDbHelper.getTodayDateString()
+                // 只有有效天气才缓存，未知天气下次启动继续重试
+                if (!isUnknownWeather(freshWeather.temp, freshWeather.description)) {
+                    weatherCacheDbHelper.saveWeatherCache(
+                        com.WangWangPhone.core.WeatherCacheRecord(
+                            city = city,
+                            temp = freshWeather.temp,
+                            description = freshWeather.description,
+                            icon = freshWeather.icon,
+                            range = freshWeather.range,
+                            requestDate = com.WangWangPhone.core.WeatherCacheDbHelper.getTodayDateString()
+                        )
                     )
-                )
+                }
                 // 清除过期缓存
                 weatherCacheDbHelper.clearExpiredCache()
             }

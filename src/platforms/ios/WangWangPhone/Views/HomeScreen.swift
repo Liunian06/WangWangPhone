@@ -1187,7 +1187,8 @@ struct HomeScreen: View {
                 self.city = currentCity
             }
 
-            if let cached = weatherCache.getTodayWeatherCache(city: currentCity) {
+            if let cached = weatherCache.getTodayWeatherCache(city: currentCity),
+               !isUnknownWeather(temp: cached.temp, description: cached.description) {
                 await MainActor.run {
                     self.weather = WeatherInfo(
                         temp: cached.temp,
@@ -1205,18 +1206,20 @@ struct HomeScreen: View {
                     self.weather = freshWeather
                 }
 
-                let record = WeatherCacheRecord(
-                    city: currentCity,
-                    temp: freshWeather.temp,
-                    description: freshWeather.description,
-                    icon: freshWeather.icon,
-                    range: freshWeather.range,
-                    requestDate: WeatherCacheManager.getTodayDateString(),
-                    updatedAt: 0
-                )
-                _ = weatherCache.saveWeatherCache(record)
+                if !isUnknownWeather(temp: freshWeather.temp, description: freshWeather.description) {
+                    let record = WeatherCacheRecord(
+                        city: currentCity,
+                        temp: freshWeather.temp,
+                        description: freshWeather.description,
+                        icon: freshWeather.icon,
+                        range: freshWeather.range,
+                        requestDate: WeatherCacheManager.getTodayDateString(),
+                        updatedAt: 0
+                    )
+                    _ = weatherCache.saveWeatherCache(record)
+                }
                 _ = weatherCache.clearExpiredCache()
-                print("WeatherCache: 已请求并缓存 - \(currentCity)")
+                print("WeatherCache: 已请求天气，未知结果不缓存 - \(currentCity)")
             }
         }
     }
@@ -1334,6 +1337,16 @@ struct HomeScreen: View {
         let minText = minTemp.isEmpty ? "--" : normalizeTemperature(minTemp)
         let windText = formatWindKmph(windKmph)
         return "最高 \(maxText) 最低 \(minText) | 风速 \(windText)"
+    }
+
+    private func isUnknownWeather(temp: String, description: String) -> Bool {
+        let normalizedDesc = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        if normalizedDesc.isEmpty { return true }
+        let lowerDesc = normalizedDesc.lowercased()
+        if normalizedDesc.contains("未知") || lowerDesc == "unknown" { return true }
+
+        let normalizedTemp = temp.trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedTemp == "--" && (normalizedDesc == "--" || lowerDesc == "n/a")
     }
 
     private func fetchWeather(city: String) async -> WeatherInfo? {
