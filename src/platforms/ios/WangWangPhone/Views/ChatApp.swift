@@ -599,8 +599,8 @@ struct MomentsTabView: View {
     @State private var editingText = ""
 
     var body: some View {
-        let momentListBackground = WeTheme.codeBackground
         let momentCellBackground = WeTheme.dynamicColor(light: .white, dark: Color(hex: 0x111111))
+        let momentListBackground = momentCellBackground
         let momentPrimaryColor = WeTheme.dynamicColor(light: Color(red: 0.34, green: 0.42, blue: 0.58), dark: Color(hex: 0x8795B3))
         let momentContentColor = WeTheme.dynamicColor(light: Color(hex: 0x191919), dark: Color(hex: 0xD3D3D3))
         let momentActionBackground = WeTheme.dynamicColor(light: Color(white: 0.97), dark: Color(hex: 0x2A2A2A))

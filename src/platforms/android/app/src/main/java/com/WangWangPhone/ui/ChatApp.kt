@@ -1312,7 +1312,7 @@ fun MomentsTab(
     var showNicknameDialog by remember { mutableStateOf(false) }
     var showSignatureDialog by remember { mutableStateOf(false) }
     val momentCellBackground = if (WeTheme.isDark) WeTheme.Background else WeTheme.BackgroundCell
-    val momentListBackground = WeTheme.Background
+    val momentListBackground = momentCellBackground
     val momentPrimaryColor = if (WeTheme.isDark) Color(0xFF8795B3) else Color(0xFF576B95)
     val momentContentColor = if (WeTheme.isDark) Color(0xFFD3D3D3) else Color(0xFF191919)
     val momentAvatarBackground = if (WeTheme.isDark) Color(0xFF2C2C2C) else Color(0xFFF5F5F5)
