@@ -127,24 +127,47 @@ struct WeatherInfo {
 struct WeatherWidget: View {
     var city: String; var weather: WeatherInfo?
     var body: some View {
+        let info = weather ?? WeatherInfo(temp: "--", description: "加载中...", icon: "❓", range: "最高 -- 最低 -- | 风速 --")
         ZStack {
             RoundedRectangle(cornerRadius: 20)
-                .fill(LinearGradient(colors: [Color(red: 0.31, green: 0.67, blue: 0.99), Color(red: 0.0, green: 0.95, blue: 0.99)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .fill(LinearGradient(colors: [Color(red: 0.18, green: 0.55, blue: 1.0), Color(red: 0.07, green: 0.76, blue: 0.91)], startPoint: .topLeading, endPoint: .bottomTrailing))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            HStack {
-                VStack(alignment: .leading) {
-                    Text(city).font(.headline).fontWeight(.bold).foregroundColor(.white)
-                    Text(weather?.temp ?? "--").font(.system(size: 40, weight: .light)).foregroundColor(.white)
+            RoundedRectangle(cornerRadius: 20)
+                .fill(LinearGradient(colors: [.black.opacity(0.06), .black.opacity(0.30)], startPoint: .top, endPoint: .bottom))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(city)
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.white.opacity(0.95))
+                    Text(info.temp)
+                        .font(.system(size: 44, weight: .semibold))
+                        .foregroundColor(.white)
                 }
-                Spacer()
-                VStack(alignment: .trailing) {
-                    HStack(spacing: 5) {
-                        Text(weather?.icon ?? "❓").font(.title)
-                        Text(weather?.description ?? "Loading...").font(.caption).foregroundColor(.white)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Text(info.icon)
+                            .font(.system(size: 20))
+                        Text(info.description)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.white)
+                            .lineLimit(1)
                     }
-                    Text(weather?.range ?? "").font(.caption2).foregroundColor(.white.opacity(0.8))
+                    Text(info.range.isEmpty ? "最高 -- 最低 -- | 风速 --" : info.range)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.92))
+                        .lineLimit(1)
                 }
-            }.padding()
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(Color.white.opacity(0.2))
+                )
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(14)
         }
     }
 }
@@ -1189,11 +1212,12 @@ struct HomeScreen: View {
 
             if let cached = weatherCache.getTodayWeatherCache(city: currentCity),
                !isUnknownWeather(temp: cached.temp, description: cached.description) {
+                let localizedDescription = localizedWeatherDescription(cached.description)
                 await MainActor.run {
                     self.weather = WeatherInfo(
                         temp: cached.temp,
-                        description: cached.description,
-                        icon: cached.icon,
+                        description: localizedDescription,
+                        icon: weatherIcon(for: localizedDescription),
                         range: cached.range
                     )
                 }
@@ -1314,6 +1338,49 @@ struct HomeScreen: View {
         return raw.replacingOccurrences(of: " ", with: "")
     }
 
+    private func containsChinese(_ text: String) -> Bool {
+        text.unicodeScalars.contains { $0.value >= 0x4E00 && $0.value <= 0x9FFF }
+    }
+
+    private func localizedWeatherDescription(_ rawDescription: String) -> String {
+        let cleaned = rawDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        if cleaned.isEmpty { return "天气未知" }
+        if containsChinese(cleaned) { return cleaned }
+
+        let lower = cleaned.lowercased()
+        if lower == "unknown" || lower == "n/a" || lower == "--" { return "天气未知" }
+
+        let level: String
+        if lower.contains("heavy") {
+            level = "大"
+        } else if lower.contains("moderate") {
+            level = "中"
+        } else if lower.contains("light") || lower.contains("patchy") {
+            level = "小"
+        } else {
+            level = ""
+        }
+
+        func withLevel(_ base: String) -> String {
+            level.isEmpty ? base : "\(level)\(base)"
+        }
+
+        if lower.contains("thunder") || lower.contains("storm") { return "雷暴" }
+        if lower.contains("sleet") { return withLevel("雨夹雪") }
+        if lower.contains("snow") || lower.contains("blizzard") { return withLevel("雪") }
+        if lower.contains("hail") { return "冰雹" }
+        if lower.contains("drizzle") { return level.isEmpty ? "毛毛雨" : withLevel("雨") }
+        if lower.contains("shower") { return "阵雨" }
+        if lower.contains("rain") { return withLevel("雨") }
+        if lower.contains("fog") || lower.contains("mist") || lower.contains("haze") { return "有雾" }
+        if lower.contains("overcast") { return "阴天" }
+        if lower.contains("partly cloudy") { return "局部多云" }
+        if lower.contains("cloudy") || lower.contains("cloud") { return "多云" }
+        if lower.contains("clear") || lower.contains("sunny") || lower.contains("sun") { return "晴" }
+        if lower.contains("wind") || lower.contains("breeze") { return "有风" }
+        return cleaned
+    }
+
     private func weatherIcon(for description: String) -> String {
         let text = description.lowercased()
         if text.contains("thunder") || text.contains("storm") || text.contains("雷") { return "⛈️" }
@@ -1377,7 +1444,8 @@ struct HomeScreen: View {
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             let enDesc = ((current?["weatherDesc"] as? [[String: Any]])?.first?["value"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let description = zhDesc.isEmpty ? (enDesc.isEmpty ? "天气未知" : enDesc) : zhDesc
+            let rawDescription = zhDesc.isEmpty ? (enDesc.isEmpty ? "天气未知" : enDesc) : zhDesc
+            let description = localizedWeatherDescription(rawDescription)
 
             let temperature = (current?["temp_C"] as? String)?
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? "--"
@@ -1390,7 +1458,7 @@ struct HomeScreen: View {
 
             return WeatherInfo(
                 temp: normalizeTemperature(temperature),
-                description: description.isEmpty ? "天气未知" : description,
+                description: description,
                 icon: weatherIcon(for: description),
                 range: buildRangeText(maxTemp: maxTemp, minTemp: minTemp, windKmph: windKmph)
             )

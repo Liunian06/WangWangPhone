@@ -221,6 +221,44 @@ private fun normalizeTemperature(rawTemp: String): String {
     return if (match != null) "${match.value.replace("+", "")}°" else rawTemp.replace(" ", "")
 }
 
+private fun containsChinese(text: String): Boolean {
+    return text.any { it in '\u4e00'..'\u9fff' }
+}
+
+private fun localizeWeatherDescription(rawDescription: String): String {
+    val cleaned = rawDescription.trim()
+    if (cleaned.isEmpty()) return "天气未知"
+    if (containsChinese(cleaned)) return cleaned
+
+    val text = cleaned.lowercase(Locale.ROOT)
+    if (text == "unknown" || text == "n/a" || text == "--") return "天气未知"
+
+    val level = when {
+        "heavy" in text -> "大"
+        "moderate" in text -> "中"
+        "light" in text || "patchy" in text -> "小"
+        else -> ""
+    }
+    fun withLevel(base: String): String = if (level.isEmpty()) base else "$level$base"
+
+    return when {
+        "thunder" in text || "storm" in text -> "雷暴"
+        "sleet" in text -> withLevel("雨夹雪")
+        "snow" in text || "blizzard" in text -> withLevel("雪")
+        "hail" in text -> "冰雹"
+        "drizzle" in text -> if (level.isEmpty()) "毛毛雨" else withLevel("雨")
+        "shower" in text -> "阵雨"
+        "rain" in text -> withLevel("雨")
+        "fog" in text || "mist" in text || "haze" in text -> "有雾"
+        "overcast" in text -> "阴天"
+        "partly cloudy" in text -> "局部多云"
+        "cloudy" in text || "cloud" in text -> "多云"
+        "clear" in text || "sunny" in text || "sun" in text -> "晴"
+        "wind" in text || "breeze" in text -> "有风"
+        else -> cleaned
+    }
+}
+
 private fun mapWeatherIcon(description: String): String {
     val text = description.lowercase(Locale.ROOT)
     return when {
@@ -315,7 +353,8 @@ suspend fun fetchWeather(city: String): WeatherInfo {
                     ?.optJSONObject(0)
                     ?.optString("value", "")
                     .orEmpty()
-                val description = zhDesc.ifBlank { enDesc.ifBlank { "天气未知" } }
+                val rawDescription = zhDesc.ifBlank { enDesc.ifBlank { "天气未知" } }
+                val description = localizeWeatherDescription(rawDescription)
 
                 val tempC = current?.optString("temp_C", "--").orEmpty()
                 val maxTemp = today?.optString("maxtempC", "").orEmpty()
@@ -355,10 +394,11 @@ fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
             val cached = weatherCacheDbHelper.getTodayWeatherCache(city)
             if (cached != null && !isUnknownWeather(cached.temp, cached.description)) {
                 // 今天已经请求过，直接使用缓存
+                val localizedDescription = localizeWeatherDescription(cached.description)
                 weather = WeatherInfo(
                     temp = cached.temp,
-                    description = cached.description,
-                    icon = cached.icon,
+                    description = localizedDescription,
+                    icon = mapWeatherIcon(localizedDescription),
                     range = cached.range
                 )
             } else {
@@ -410,21 +450,60 @@ fun ClockWidget(city: String, modifier: Modifier = Modifier) {
 
 @Composable
 fun WeatherWidget(city: String, weather: WeatherInfo?, modifier: Modifier = Modifier) {
+    val weatherInfo = weather ?: WeatherInfo("--", "加载中...", "❓", "最高 -- 最低 -- | 风速 --")
     Box(modifier = modifier.fillMaxSize().clip(RoundedCornerShape(20.dp))
-        .background(Brush.linearGradient(listOf(Color(0xFF4FACFE), Color(0xFF00F2FE)))).padding(15.dp)) {
-        Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
-            Column {
-                Text(city, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text(weather?.temp ?: "--", color = Color.White, fontSize = 40.sp, fontWeight = FontWeight.Light)
-            }
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(weather?.icon ?: "❓", fontSize = 24.sp)
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(weather?.description ?: "加载中...", color = Color.White, fontSize = 14.sp)
-                }
+        .background(Brush.linearGradient(listOf(Color(0xFF2E8BFF), Color(0xFF12C2E9))))) {
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Black.copy(alpha = 0.08f),
+                            Color.Black.copy(alpha = 0.32f)
+                        )
+                    )
+                )
+        )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(city, color = Color.White.copy(alpha = 0.95f), fontSize = 17.sp, fontWeight = FontWeight.Bold)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(weather?.range ?: "", color = Color.White.copy(alpha = 0.8f), fontSize = 10.sp)
+                Text(weatherInfo.temp, color = Color.White, fontSize = 44.sp, fontWeight = FontWeight.SemiBold)
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.2f))
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(weatherInfo.icon, fontSize = 20.sp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = localizeWeatherDescription(weatherInfo.description),
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (weatherInfo.range.isBlank()) "最高 -- 最低 -- | 风速 --" else weatherInfo.range,
+                    color = Color.White.copy(alpha = 0.92f),
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
