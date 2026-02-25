@@ -470,11 +470,12 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
             Box(
                 modifier = Modifier
                     .size(diameter)
-                    .shadow(16.dp, CircleShape, clip = false)
+                    .shadow(24.dp, CircleShape, clip = false, ambientColor = Color.Black.copy(0.3f), spotColor = Color.Black.copy(0.5f))
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.96f)),
+                    .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
+                // 底层图片
                 if (imageBitmap != null) {
                     Image(
                         bitmap = imageBitmap.asImageBitmap(),
@@ -504,183 +505,102 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                     }
                 }
 
+                // 光效叠加层 - 使用纯渐变模拟真实光线追踪
                 Canvas(modifier = Modifier.matchParentSize()) {
                     val radius = size.minDimension / 2f
                     val center = Offset(size.width / 2f, size.height / 2f)
-                    val subtleRim = radius * 0.075f
 
-                    // Stronger floor shadow for grounded 3D depth.
+                    // 1. 球面基础体积阴影 (从右下到左上的渐变，模拟球体受光面和背光面)
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.Black.copy(alpha = 0.46f), Color.Transparent),
-                            center = Offset(size.width * 0.22f, size.height * 0.88f),
-                            radius = radius * 1.28f
-                        ),
-                        center = center,
-                        radius = radius * 1.22f
-                    )
-
-                    // Contact shadow near the bottom edge to fake object thickness.
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color.Black.copy(alpha = 0.28f), Color.Transparent),
-                            center = Offset(size.width * 0.52f, size.height * 1.06f),
-                            radius = radius * 0.86f
-                        ),
-                        center = center,
-                        radius = radius * 1.06f
-                    )
-
-                    // Directional normal-light ramp (top-right lit, bottom-left shaded).
-                    drawCircle(
-                        brush = Brush.linearGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.24f),
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.22f)
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.15f),
+                                Color.Black.copy(alpha = 0.35f)
                             ),
-                            start = Offset(size.width * 0.90f, size.height * 0.08f),
-                            end = Offset(size.width * 0.10f, size.height * 0.96f)
+                            center = Offset(size.width * 0.65f, size.height * 0.65f),
+                            radius = radius * 1.2f
                         ),
                         center = center,
                         radius = radius
                     )
 
-                    // Convex fill light that supports the specular band.
+                    // 2. 主光源高光 (左上角强光源，模拟点光源在球面的反射)
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
-                            center = Offset(size.width * 0.78f, size.height * 0.18f),
-                            radius = radius * 0.94f
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.75f),
+                                Color.White.copy(alpha = 0.45f),
+                                Color.White.copy(alpha = 0.15f),
+                                Color.Transparent
+                            ),
+                            center = Offset(size.width * 0.28f, size.height * 0.28f),
+                            radius = radius * 0.5f
                         ),
                         center = center,
                         radius = radius
                     )
 
-                    // Top-right reflection band: soft aura layer.
-                    drawArc(
-                        brush = Brush.sweepGradient(
+                    // 3. 次级高光 (模拟环境光的二次反射)
+                    drawCircle(
+                        brush = Brush.radialGradient(
                             colors = listOf(
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.56f),
-                                Color.White.copy(alpha = 0.34f),
+                                Color.White.copy(alpha = 0.3f),
+                                Color.White.copy(alpha = 0.1f),
                                 Color.Transparent
                             ),
-                            center = center
+                            center = Offset(size.width * 0.75f, size.height * 0.35f),
+                            radius = radius * 0.35f
                         ),
-                        startAngle = 282f,
-                        sweepAngle = 104f,
-                        useCenter = false,
-                        topLeft = Offset(size.width * 0.06f, -size.height * 0.08f),
-                        size = Size(size.width * 0.86f, size.height * 0.86f),
-                        style = Stroke(width = radius * 0.24f, cap = StrokeCap.Round)
+                        center = center,
+                        radius = radius
                     )
 
-                    // Top-right reflection band: hard white belt.
-                    drawArc(
-                        brush = Brush.sweepGradient(
+                    // 4. 底部环境反射光 (模拟桌面反射的柔和光线)
+                    drawCircle(
+                        brush = Brush.radialGradient(
                             colors = listOf(
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.98f),
-                                Color.White.copy(alpha = 0.90f),
+                                Color.White.copy(alpha = 0.18f),
                                 Color.Transparent
                             ),
-                            center = center
+                            center = Offset(size.width * 0.5f, size.height * 0.85f),
+                            radius = radius * 0.4f
                         ),
-                        startAngle = 292f,
-                        sweepAngle = 82f,
-                        useCenter = false,
-                        topLeft = Offset(size.width * 0.14f, -size.height * 0.12f),
-                        size = Size(size.width * 0.74f, size.height * 0.74f),
-                        style = Stroke(width = radius * 0.13f, cap = StrokeCap.Round)
+                        center = center,
+                        radius = radius
                     )
 
-                    // Top-right reflection band: sharp specular core line.
-                    drawArc(
-                        color = Color.White.copy(alpha = 0.99f),
-                        startAngle = 304f,
-                        sweepAngle = 56f,
-                        useCenter = false,
-                        topLeft = Offset(size.width * 0.19f, -size.height * 0.14f),
-                        size = Size(size.width * 0.66f, size.height * 0.66f),
-                        style = Stroke(width = radius * 0.045f, cap = StrokeCap.Round)
-                    )
-
-                    // Left-bottom arc shadow: soft layer.
-                    drawArc(
-                        brush = Brush.sweepGradient(
+                    // 5. 边缘光晕 (Fresnel效果，模拟边缘的光线折射)
+                    drawCircle(
+                        brush = Brush.radialGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.60f),
-                                Color.Black.copy(alpha = 0.26f),
-                                Color.Transparent
-                            ),
-                            center = center
-                        ),
-                        startAngle = 126f,
-                        sweepAngle = 118f,
-                        useCenter = false,
-                        topLeft = Offset(-size.width * 0.08f, size.height * 0.12f),
-                        size = Size(size.width * 0.98f, size.height * 0.98f),
-                        style = Stroke(width = radius * 0.25f, cap = StrokeCap.Round)
-                    )
-
-                    // Left-bottom arc shadow: hard band.
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            colors = listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.50f),
-                                Color.Black.copy(alpha = 0.20f),
+                                Color.White.copy(alpha = 0.12f),
+                                Color.White.copy(alpha = 0.25f),
                                 Color.Transparent
                             ),
-                            center = center
+                            center = center,
+                            radius = radius * 1.05f
                         ),
-                        startAngle = 136f,
-                        sweepAngle = 90f,
-                        useCenter = false,
-                        topLeft = Offset(-size.width * 0.01f, size.height * 0.18f),
-                        size = Size(size.width * 0.84f, size.height * 0.84f),
-                        style = Stroke(width = radius * 0.14f, cap = StrokeCap.Round)
+                        center = center,
+                        radius = radius
                     )
 
-                    // Left-bottom arc shadow: darker core.
-                    drawArc(
-                        color = Color.Black.copy(alpha = 0.32f),
-                        startAngle = 152f,
-                        sweepAngle = 52f,
-                        useCenter = false,
-                        topLeft = Offset(size.width * 0.03f, size.height * 0.20f),
-                        size = Size(size.width * 0.76f, size.height * 0.76f),
-                        style = Stroke(width = radius * 0.048f, cap = StrokeCap.Round)
-                    )
-
-                    // Inner occlusion ring: makes the center feel inset, not flat.
+                    // 6. 方向性环境光 (从左上到右下的整体光照渐变)
                     drawCircle(
                         brush = Brush.linearGradient(
                             colors = listOf(
                                 Color.White.copy(alpha = 0.08f),
-                                Color.Black.copy(alpha = 0.26f)
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.08f)
                             ),
-                            start = Offset(size.width * 0.84f, size.height * 0.14f),
-                            end = Offset(size.width * 0.16f, size.height * 0.88f)
+                            start = Offset(size.width * 0.2f, size.height * 0.2f),
+                            end = Offset(size.width * 0.8f, size.height * 0.8f)
                         ),
                         center = center,
-                        radius = radius - 0.45.dp.toPx(),
-                        style = Stroke(width = subtleRim)
-                    )
-
-                    drawCircle(
-                        color = Color.White.copy(alpha = 0.36f),
-                        center = center,
-                        radius = radius - 1.25.dp.toPx(),
-                        style = Stroke(width = 0.8.dp.toPx())
-                    )
-                    drawCircle(
-                        color = Color.Black.copy(alpha = 0.12f),
-                        center = center,
-                        radius = radius - 2.1.dp.toPx(),
-                        style = Stroke(width = 0.9.dp.toPx())
+                        radius = radius
                     )
                 }
             }
