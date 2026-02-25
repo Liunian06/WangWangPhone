@@ -507,22 +507,49 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                 Canvas(modifier = Modifier.matchParentSize()) {
                     val radius = size.minDimension / 2f
                     val center = Offset(size.width / 2f, size.height / 2f)
+                    val subtleRim = radius * 0.075f
 
                     // Stronger floor shadow for grounded 3D depth.
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.Black.copy(alpha = 0.42f), Color.Transparent),
-                            center = Offset(size.width * 0.22f, size.height * 0.86f),
-                            radius = radius * 1.22f
+                            colors = listOf(Color.Black.copy(alpha = 0.46f), Color.Transparent),
+                            center = Offset(size.width * 0.22f, size.height * 0.88f),
+                            radius = radius * 1.28f
                         ),
                         center = center,
-                        radius = radius * 1.18f
+                        radius = radius * 1.22f
+                    )
+
+                    // Contact shadow near the bottom edge to fake object thickness.
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.Black.copy(alpha = 0.28f), Color.Transparent),
+                            center = Offset(size.width * 0.52f, size.height * 1.06f),
+                            radius = radius * 0.86f
+                        ),
+                        center = center,
+                        radius = radius * 1.06f
+                    )
+
+                    // Directional normal-light ramp (top-right lit, bottom-left shaded).
+                    drawCircle(
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.24f),
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.22f)
+                            ),
+                            start = Offset(size.width * 0.90f, size.height * 0.08f),
+                            end = Offset(size.width * 0.10f, size.height * 0.96f)
+                        ),
+                        center = center,
+                        radius = radius
                     )
 
                     // Convex fill light that supports the specular band.
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.White.copy(alpha = 0.20f), Color.Transparent),
+                            colors = listOf(Color.White.copy(alpha = 0.22f), Color.Transparent),
                             center = Offset(size.width * 0.78f, size.height * 0.18f),
                             radius = radius * 0.94f
                         ),
@@ -628,17 +655,32 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                         style = Stroke(width = radius * 0.048f, cap = StrokeCap.Round)
                     )
 
+                    // Inner occlusion ring: makes the center feel inset, not flat.
                     drawCircle(
-                        color = Color.White.copy(alpha = 0.40f),
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.08f),
+                                Color.Black.copy(alpha = 0.26f)
+                            ),
+                            start = Offset(size.width * 0.84f, size.height * 0.14f),
+                            end = Offset(size.width * 0.16f, size.height * 0.88f)
+                        ),
                         center = center,
-                        radius = radius - 1.1.dp.toPx(),
-                        style = Stroke(width = 0.9.dp.toPx())
+                        radius = radius - 0.45.dp.toPx(),
+                        style = Stroke(width = subtleRim)
+                    )
+
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.36f),
+                        center = center,
+                        radius = radius - 1.25.dp.toPx(),
+                        style = Stroke(width = 0.8.dp.toPx())
                     )
                     drawCircle(
-                        color = Color.Black.copy(alpha = 0.08f),
+                        color = Color.Black.copy(alpha = 0.12f),
                         center = center,
-                        radius = radius - 2.0.dp.toPx(),
-                        style = Stroke(width = 0.7.dp.toPx())
+                        radius = radius - 2.1.dp.toPx(),
+                        style = Stroke(width = 0.9.dp.toPx())
                     )
                 }
             }

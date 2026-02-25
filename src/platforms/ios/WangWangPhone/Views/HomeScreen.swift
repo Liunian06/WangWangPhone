@@ -196,6 +196,7 @@ struct BadgeWidget: View {
                     .fill(Color.clear)
                     .frame(width: side, height: side)
                     .shadow(color: .black.opacity(0.54), radius: 16, x: -12, y: 12)
+                    .shadow(color: .black.opacity(0.26), radius: 9, x: -2, y: 7)
 
                 Circle()
                     .fill(
@@ -235,6 +236,33 @@ struct BadgeWidget: View {
                 }
                 .frame(width: side - rim * 2, height: side - rim * 2)
                 .clipShape(Circle())
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.24),
+                                .clear,
+                                Color.black.opacity(0.22)
+                            ],
+                            startPoint: UnitPoint(x: 0.90, y: 0.08),
+                            endPoint: UnitPoint(x: 0.10, y: 0.96)
+                        )
+                    )
+                    .frame(width: side, height: side)
+                    .clipShape(Circle())
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.black.opacity(0.28), .clear],
+                            center: UnitPoint(x: 0.52, y: 1.06),
+                            startRadius: 0,
+                            endRadius: side * 0.44
+                        )
+                    )
+                    .frame(width: side * 1.06, height: side * 1.06)
+                    .clipShape(Circle())
 
                 Circle()
                     .fill(
@@ -371,6 +399,17 @@ struct BadgeWidget: View {
                 Circle()
                     .stroke(
                         LinearGradient(
+                            colors: [Color.white.opacity(0.08), Color.black.opacity(0.26)],
+                            startPoint: UnitPoint(x: 0.84, y: 0.14),
+                            endPoint: UnitPoint(x: 0.16, y: 0.88)
+                        ),
+                        lineWidth: side * 0.075
+                    )
+                    .frame(width: side - 0.9, height: side - 0.9)
+
+                Circle()
+                    .stroke(
+                        LinearGradient(
                             colors: [Color.white.opacity(0.44), Color.white.opacity(0.10), Color.black.opacity(0.18)],
                             startPoint: .topTrailing,
                             endPoint: .bottomLeading
@@ -380,11 +419,11 @@ struct BadgeWidget: View {
                     .frame(width: side, height: side)
 
                 Circle()
-                    .stroke(Color.white.opacity(0.44), lineWidth: 0.95)
+                    .stroke(Color.white.opacity(0.36), lineWidth: 0.80)
                     .frame(width: side - rim * 1.1, height: side - rim * 1.1)
 
                 Circle()
-                    .stroke(Color.black.opacity(0.08), lineWidth: 0.65)
+                    .stroke(Color.black.opacity(0.12), lineWidth: 0.90)
                     .frame(width: side, height: side)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
