@@ -33,9 +33,12 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
@@ -468,139 +471,106 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
         ) {
             val diameter = minOf(maxWidth, maxHeight)
             Box(
-                modifier = Modifier
-                    .size(diameter)
-                    .shadow(24.dp, CircleShape, clip = false, ambientColor = Color.Black.copy(0.3f), spotColor = Color.Black.copy(0.5f))
-                    .clip(CircleShape)
-                    .background(Color.White),
+                modifier = Modifier.size(diameter),
                 contentAlignment = Alignment.Center
             ) {
-                // 底层图片
-                if (imageBitmap != null) {
-                    Image(
-                        bitmap = imageBitmap.asImageBitmap(),
-                        contentDescription = "badge widget",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.radialGradient(
-                                    colors = listOf(Color(0xFFF9F9F9), Color(0xFFE7E7E7)),
-                                    center = Offset(80f, 70f),
-                                    radius = 360f
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "导入图片",
-                            color = Color(0xFF7A7A7A),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
+                // 第一层：底层阴影（向下偏移，体现实体厚度）
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .offset(y = 4.dp)
+                        .shadow(8.dp, CircleShape, clip = false)
+                        .background(Color.White.copy(alpha = 0.01f), CircleShape)
+                )
+
+                // 第二层：内容层（圆形裁剪图片）
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.98f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (imageBitmap != null) {
+                        Image(
+                            bitmap = imageBitmap.asImageBitmap(),
+                            contentDescription = "badge widget",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
                         )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(Color(0xFFF9F9F9), Color(0xFFE7E7E7)),
+                                        center = Offset(80f, 70f),
+                                        radius = 360f
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "导入图片",
+                                color = Color(0xFF7A7A7A),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
                     }
                 }
 
-                // 光效叠加层 - 使用纯渐变模拟真实光线追踪
+                // 第三层 + 第四层：边缘内阴影与顶部月牙高光
                 Canvas(modifier = Modifier.matchParentSize()) {
                     val radius = size.minDimension / 2f
                     val center = Offset(size.width / 2f, size.height / 2f)
 
-                    // 1. 球面基础体积阴影 (从右下到左上的渐变，模拟球体受光面和背光面)
+                    // 第三层：边缘内阴影（外圈约 10%-15%）
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.15f),
-                                Color.Black.copy(alpha = 0.35f)
-                            ),
-                            center = Offset(size.width * 0.65f, size.height * 0.65f),
-                            radius = radius * 1.2f
-                        ),
-                        center = center,
-                        radius = radius
-                    )
-
-                    // 2. 主光源高光 (左上角强光源，模拟点光源在球面的反射)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.75f),
-                                Color.White.copy(alpha = 0.45f),
-                                Color.White.copy(alpha = 0.15f),
-                                Color.Transparent
-                            ),
-                            center = Offset(size.width * 0.28f, size.height * 0.28f),
-                            radius = radius * 0.5f
-                        ),
-                        center = center,
-                        radius = radius
-                    )
-
-                    // 3. 次级高光 (模拟环境光的二次反射)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.3f),
-                                Color.White.copy(alpha = 0.1f),
-                                Color.Transparent
-                            ),
-                            center = Offset(size.width * 0.75f, size.height * 0.35f),
-                            radius = radius * 0.35f
-                        ),
-                        center = center,
-                        radius = radius
-                    )
-
-                    // 4. 底部环境反射光 (模拟桌面反射的柔和光线)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.18f),
-                                Color.Transparent
-                            ),
-                            center = Offset(size.width * 0.5f, size.height * 0.85f),
-                            radius = radius * 0.4f
-                        ),
-                        center = center,
-                        radius = radius
-                    )
-
-                    // 5. 边缘光晕 (Fresnel效果，模拟边缘的光线折射)
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                Color.Transparent,
-                                Color.White.copy(alpha = 0.12f),
-                                Color.White.copy(alpha = 0.25f),
-                                Color.Transparent
+                            colorStops = arrayOf(
+                                0.00f to Color.Transparent,
+                                0.84f to Color.Transparent,
+                                0.92f to Color.Black.copy(alpha = 0.20f),
+                                1.00f to Color.Black.copy(alpha = 0.40f)
                             ),
                             center = center,
-                            radius = radius * 1.05f
+                            radius = radius
                         ),
                         center = center,
                         radius = radius
                     )
 
-                    // 6. 方向性环境光 (从左上到右下的整体光照渐变)
-                    drawCircle(
+                    // 第四层：顶部月牙高光（PET 覆膜反光）
+                    val outerOval = Rect(
+                        left = size.width * 0.08f,
+                        top = size.height * 0.04f,
+                        right = size.width * 0.92f,
+                        bottom = size.height * 0.34f
+                    )
+                    val innerOval = Rect(
+                        left = size.width * 0.15f,
+                        top = size.height * 0.11f,
+                        right = size.width * 0.85f,
+                        bottom = size.height * 0.35f
+                    )
+                    val highlightPath = Path().apply {
+                        fillType = PathFillType.EvenOdd
+                        addOval(outerOval)
+                        addOval(innerOval)
+                    }
+                    drawPath(
+                        path = highlightPath,
                         brush = Brush.linearGradient(
                             colors = listOf(
-                                Color.White.copy(alpha = 0.08f),
-                                Color.Transparent,
-                                Color.Black.copy(alpha = 0.08f)
+                                Color.White.copy(alpha = 0.72f),
+                                Color.White.copy(alpha = 0.32f),
+                                Color.Transparent
                             ),
-                            start = Offset(size.width * 0.2f, size.height * 0.2f),
-                            end = Offset(size.width * 0.8f, size.height * 0.8f)
-                        ),
-                        center = center,
-                        radius = radius
+                            start = Offset(size.width / 2f, outerOval.top),
+                            end = Offset(size.width / 2f, outerOval.bottom)
+                        )
                     )
                 }
             }

@@ -190,28 +190,14 @@ struct BadgeWidget: View {
     var body: some View {
         GeometryReader { geometry in
             let side = max(min(geometry.size.width, geometry.size.height) - 14, 24)
-            let rim = side * 0.08
             ZStack {
+                // 第一层：底层阴影（向下偏移，体现实体厚度）
                 Circle()
-                    .fill(Color.clear)
+                    .fill(Color.white.opacity(0.001))
                     .frame(width: side, height: side)
-                    .shadow(color: .black.opacity(0.54), radius: 16, x: -12, y: 12)
-                    .shadow(color: .black.opacity(0.26), radius: 9, x: -2, y: 7)
+                    .shadow(color: .black.opacity(0.36), radius: 8, x: 0, y: 4)
 
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 0.985, green: 0.985, blue: 0.985),
-                                Color(red: 0.90, green: 0.90, blue: 0.90),
-                                Color(red: 0.80, green: 0.80, blue: 0.80)
-                            ],
-                            startPoint: .topTrailing,
-                            endPoint: .bottomLeading
-                        )
-                    )
-                    .frame(width: side, height: side)
-
+                // 第二层：内容层（圆形裁剪图片）
                 Group {
                     if let image = image {
                         Image(uiImage: image)
@@ -234,197 +220,52 @@ struct BadgeWidget: View {
                         }
                     }
                 }
-                .frame(width: side - rim * 2, height: side - rim * 2)
+                .frame(width: side, height: side)
                 .clipShape(Circle())
 
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.24),
-                                .clear,
-                                Color.black.opacity(0.22)
-                            ],
-                            startPoint: UnitPoint(x: 0.90, y: 0.08),
-                            endPoint: UnitPoint(x: 0.10, y: 0.96)
-                        )
-                    )
-                    .frame(width: side, height: side)
-                    .clipShape(Circle())
-
+                // 第三层：边缘内阴影（外圈约 10%-15%）
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Color.black.opacity(0.28), .clear],
-                            center: UnitPoint(x: 0.52, y: 1.06),
+                            gradient: Gradient(stops: [
+                                .init(color: .clear, location: 0.00),
+                                .init(color: .clear, location: 0.84),
+                                .init(color: Color.black.opacity(0.20), location: 0.92),
+                                .init(color: Color.black.opacity(0.40), location: 1.00)
+                            ]),
+                            center: .center,
                             startRadius: 0,
-                            endRadius: side * 0.44
-                        )
-                    )
-                    .frame(width: side * 1.06, height: side * 1.06)
-                    .clipShape(Circle())
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [Color.white.opacity(0.20), .clear],
-                            center: UnitPoint(x: 0.78, y: 0.18),
-                            startRadius: 2,
-                            endRadius: side * 0.55
+                            endRadius: side / 2
                         )
                     )
                     .frame(width: side, height: side)
-                    .clipShape(Circle())
 
-                Circle()
-                    .trim(from: 0.69, to: 0.95)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                Color.white.opacity(0.56),
-                                Color.white.opacity(0.34),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: side * 0.23, lineCap: .round)
-                    )
-                    .frame(width: side * 0.88, height: side * 0.88)
-                    .rotationEffect(.degrees(-15))
-                    .offset(x: side * 0.06, y: -side * 0.08)
-                    .mask(
-                        Circle()
-                            .frame(width: side, height: side)
-                    )
+                // 第四层：顶部月牙高光（PET 覆膜反光）
+                ZStack {
+                    Ellipse()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color.white.opacity(0.72),
+                                    Color.white.opacity(0.32),
+                                    .clear
+                                ],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                        )
+                        .frame(width: side * 0.84, height: side * 0.30)
+                        .offset(y: -side * 0.31)
 
-                Circle()
-                    .trim(from: 0.71, to: 0.92)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                Color.white.opacity(0.98),
-                                Color.white.opacity(0.90),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: side * 0.13, lineCap: .round)
-                    )
-                    .frame(width: side * 0.76, height: side * 0.76)
-                    .rotationEffect(.degrees(-17))
-                    .offset(x: side * 0.10, y: -side * 0.11)
-                    .mask(
-                        Circle()
-                            .frame(width: side, height: side)
-                    )
-
-                Circle()
-                    .trim(from: 0.73, to: 0.88)
-                    .stroke(
-                        Color.white.opacity(0.99),
-                        style: StrokeStyle(lineWidth: side * 0.040, lineCap: .round)
-                    )
-                    .frame(width: side * 0.68, height: side * 0.68)
-                    .rotationEffect(.degrees(-17))
-                    .offset(x: side * 0.12, y: -side * 0.12)
-                    .mask(
-                        Circle()
-                            .frame(width: side, height: side)
-                    )
-
-                Circle()
-                    .trim(from: 0.30, to: 0.62)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                Color.black.opacity(0.60),
-                                Color.black.opacity(0.24),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: side * 0.24, lineCap: .round)
-                    )
-                    .frame(width: side * 0.96, height: side * 0.96)
-                    .rotationEffect(.degrees(20))
-                    .offset(x: -side * 0.08, y: side * 0.10)
-                    .mask(
-                        Circle()
-                            .frame(width: side, height: side)
-                    )
-
-                Circle()
-                    .trim(from: 0.34, to: 0.57)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                .clear,
-                                Color.black.opacity(0.50),
-                                Color.black.opacity(0.18),
-                                .clear
-                            ],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        style: StrokeStyle(lineWidth: side * 0.13, lineCap: .round)
-                    )
-                    .frame(width: side * 0.84, height: side * 0.84)
-                    .rotationEffect(.degrees(22))
-                    .offset(x: -side * 0.05, y: side * 0.13)
-                    .mask(
-                        Circle()
-                            .frame(width: side, height: side)
-                    )
-
-                Circle()
-                    .trim(from: 0.37, to: 0.51)
-                    .stroke(
-                        Color.black.opacity(0.32),
-                        style: StrokeStyle(lineWidth: side * 0.042, lineCap: .round)
-                    )
-                    .frame(width: side * 0.76, height: side * 0.76)
-                    .rotationEffect(.degrees(24))
-                    .offset(x: -side * 0.02, y: side * 0.15)
-                    .mask(
-                        Circle()
-                            .frame(width: side, height: side)
-                    )
-
-                Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.08), Color.black.opacity(0.26)],
-                            startPoint: UnitPoint(x: 0.84, y: 0.14),
-                            endPoint: UnitPoint(x: 0.16, y: 0.88)
-                        ),
-                        lineWidth: side * 0.075
-                    )
-                    .frame(width: side - 0.9, height: side - 0.9)
-
-                Circle()
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.white.opacity(0.44), Color.white.opacity(0.10), Color.black.opacity(0.18)],
-                            startPoint: .topTrailing,
-                            endPoint: .bottomLeading
-                        ),
-                        lineWidth: rim * 0.34
-                    )
-                    .frame(width: side, height: side)
-
-                Circle()
-                    .stroke(Color.white.opacity(0.36), lineWidth: 0.80)
-                    .frame(width: side - rim * 1.1, height: side - rim * 1.1)
-
-                Circle()
-                    .stroke(Color.black.opacity(0.12), lineWidth: 0.90)
-                    .frame(width: side, height: side)
+                    Ellipse()
+                        .fill(Color.black)
+                        .frame(width: side * 0.70, height: side * 0.24)
+                        .offset(y: -side * 0.25)
+                        .blendMode(.destinationOut)
+                }
+                .compositingGroup()
+                .frame(width: side, height: side)
+                .clipShape(Circle())
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
