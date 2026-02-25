@@ -1,4 +1,5 @@
 import Foundation
+import PhotosUI
 import SwiftUI
 
 protocol GridItem {
@@ -25,7 +26,7 @@ struct AppIconData: Identifiable, Equatable, GridItem {
 
 struct WidgetItem: Identifiable, Equatable, GridItem {
     let id: String
-    let widgetType: String // "clock", "weather"
+    let widgetType: String // "clock", "weather", "badge"
     var spanX: Int = 2
     var spanY: Int = 2
     var type: String = "widget"
@@ -34,6 +35,8 @@ struct WidgetItem: Identifiable, Equatable, GridItem {
         return lhs.id == rhs.id
     }
 }
+
+private let badgeWidgetId = "badge_widget"
 
 struct AnyGridItem: Equatable {
     let item: any GridItem
@@ -84,7 +87,8 @@ func getDefaultApps() -> [AppIconData] {
 func getDefaultWidgets() -> [WidgetItem] {
     return [
         WidgetItem(id: "clock_widget", widgetType: "clock"),
-        WidgetItem(id: "weather_widget", widgetType: "weather")
+        WidgetItem(id: "weather_widget", widgetType: "weather"),
+        WidgetItem(id: badgeWidgetId, widgetType: "badge")
     ]
 }
 
@@ -180,6 +184,76 @@ struct WeatherWidget: View {
     }
 }
 
+struct BadgeWidget: View {
+    var image: UIImage?
+
+    var body: some View {
+        GeometryReader { geometry in
+            let side = min(geometry.size.width, geometry.size.height) - 16
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.96))
+                    .frame(width: side, height: side)
+                    .shadow(color: .black.opacity(0.30), radius: 12, x: 0, y: 7)
+
+                Group {
+                    if let image = image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    } else {
+                        ZStack {
+                            Circle()
+                                .fill(
+                                    RadialGradient(
+                                        colors: [Color(red: 0.97, green: 0.97, blue: 0.97), Color(red: 0.90, green: 0.90, blue: 0.90)],
+                                        center: .topLeading,
+                                        startRadius: 6,
+                                        endRadius: side
+                                    )
+                                )
+                            Text("导入图片")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(Color(red: 0.48, green: 0.48, blue: 0.48))
+                        }
+                    }
+                }
+                .frame(width: side, height: side)
+                .clipShape(Circle())
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Color.white.opacity(0.55), .clear],
+                            center: UnitPoint(x: 0.30, y: 0.18),
+                            startRadius: 5,
+                            endRadius: side * 0.78
+                        )
+                    )
+                    .frame(width: side, height: side)
+                    .clipShape(Circle())
+
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [.clear, Color.black.opacity(0.24)],
+                            center: UnitPoint(x: 0.72, y: 0.78),
+                            startRadius: side * 0.16,
+                            endRadius: side * 0.74
+                        )
+                    )
+                    .frame(width: side, height: side)
+                    .clipShape(Circle())
+
+                Circle()
+                    .stroke(Color.white.opacity(0.56), lineWidth: 1.4)
+                    .frame(width: side, height: side)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+}
+
 // MARK: - 将应用分配到多个页面
 func distributeItemsToPages(allApps: [AppIconData], widgets: [WidgetItem]) -> [[Int: AnyGridItem]] {
     var pages: [[Int: AnyGridItem]] = []
@@ -191,18 +265,31 @@ func distributeItemsToPages(allApps: [AppIconData], widgets: [WidgetItem]) -> [[
     
     // 第一页：Widget + 核心应用
     var page0: [Int: AnyGridItem] = [:]
-    if !widgets.isEmpty { page0[0] = AnyGridItem(item: widgets[0]) }
-    if widgets.count > 1 { page0[2] = AnyGridItem(item: widgets[1]) }
-    
-    // 从第3行开始放核心应用（前2行被Widget占据）
-    var pos = 8
-    for app in coreApps {
-        if pos < totalCells {
-            page0[pos] = AnyGridItem(item: app)
-            pos += 1
+    for widget in widgets {
+        for i in 0..<totalCells {
+            if checkOccupancyGlobal(positions: page0, startCell: i, spanX: widget.spanX, spanY: widget.spanY, ignoreCell: nil) {
+                page0[i] = AnyGridItem(item: widget)
+                break
+            }
         }
     }
+
+    var overflowCoreApps: [AppIconData] = []
+    for app in coreApps {
+        var placed = false
+        for i in 0..<totalCells {
+            if checkOccupancyGlobal(positions: page0, startCell: i, spanX: 1, spanY: 1, ignoreCell: nil) {
+                page0[i] = AnyGridItem(item: app)
+                placed = true
+                break
+            }
+        }
+        if !placed { overflowCoreApps.append(app) }
+    }
     pages.append(page0)
+    if !overflowCoreApps.isEmpty {
+        otherApps.insert(contentsOf: overflowCoreApps, at: 0)
+    }
     
     // 第二页起：其余所有应用
     while !otherApps.isEmpty {
@@ -306,8 +393,13 @@ struct PageGridView: View {
         
         Group {
             if let widget = item as? WidgetItem {
-                if widget.widgetType == "clock" { ClockWidget(city: city) }
-                else { WeatherWidget(city: city, weather: weather) }
+                if widget.widgetType == "clock" {
+                    ClockWidget(city: city)
+                } else if widget.widgetType == "weather" {
+                    WeatherWidget(city: city, weather: weather)
+                } else {
+                    BadgeWidget(image: customIcons[badgeWidgetId])
+                }
             } else if let app = item as? AppIconData {
                 VStack(spacing: 6) {
                     ZStack {
@@ -840,7 +932,12 @@ struct SettingsView: View {
 struct DisplaySettingsView: View {
     @Binding var showDisplaySettings: Bool
     @Binding var showIconCustomization: Bool
-    var onIconChanged: () -> Void
+    var onBadgeWidgetChanged: () -> Void
+
+    @State private var showBadgePicker = false
+    @State private var badgePreview: UIImage? = IconCustomizationManager.shared.getCustomIconImage(appId: badgeWidgetId)
+
+    private let iconManager = IconCustomizationManager.shared
     
     var body: some View {
         NavigationView {
@@ -866,6 +963,44 @@ struct DisplaySettingsView: View {
                             .cornerRadius(10)
                             .padding(.horizontal)
                         }
+
+                        Section(header: Text("吧唧小组件").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
+                            Button(action: { showBadgePicker = true }) {
+                                HStack(spacing: 12) {
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("吧唧图片设置").foregroundColor(.primary)
+                                        Text(badgePreview != nil ? "已设置，点击更换" : "点击从相册选择图片")
+                                            .font(.system(size: 12))
+                                            .foregroundColor(.gray)
+                                    }
+                                    Spacer()
+                                    BadgeWidget(image: badgePreview)
+                                        .frame(width: 64, height: 64)
+                                }
+                                .padding()
+                                .background(Color(UIColor.secondarySystemGroupedBackground))
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
+                            .buttonStyle(PlainButtonStyle())
+
+                            if badgePreview != nil {
+                                Button(action: {
+                                    _ = iconManager.clearCustomIcon(appId: badgeWidgetId)
+                                    badgePreview = nil
+                                    onBadgeWidgetChanged()
+                                }) {
+                                    Text("恢复默认吧唧图片")
+                                        .foregroundColor(.blue)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding()
+                                        .background(Color(UIColor.secondarySystemGroupedBackground))
+                                }
+                                .cornerRadius(10)
+                                .padding(.horizontal)
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
                     }
                     .padding(.vertical)
                 }
@@ -875,6 +1010,59 @@ struct DisplaySettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("返回") { showDisplaySettings = false }
+                }
+            }
+            .sheet(isPresented: $showBadgePicker) {
+                BadgeWidgetImagePicker { image in
+                    if let fileName = iconManager.copyImageToStorage(image),
+                       iconManager.saveCustomIcon(appId: badgeWidgetId, fileName: fileName) {
+                        badgePreview = image
+                        onBadgeWidgetChanged()
+                    }
+                }
+            }
+            .onAppear {
+                badgePreview = iconManager.getCustomIconImage(appId: badgeWidgetId)
+            }
+        }
+    }
+}
+
+private struct BadgeWidgetImagePicker: UIViewControllerRepresentable {
+    var onImagePicked: (UIImage) -> Void
+    @Environment(\.presentationMode) private var presentationMode
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 1
+
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        private let parent: BadgeWidgetImagePicker
+
+        init(_ parent: BadgeWidgetImagePicker) {
+            self.parent = parent
+        }
+
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            parent.presentationMode.wrappedValue.dismiss()
+            guard let result = results.first else { return }
+
+            result.itemProvider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
+                guard let self = self, let image = object as? UIImage else { return }
+                DispatchQueue.main.async {
+                    self.parent.onImagePicked(image)
                 }
             }
         }
@@ -1065,8 +1253,13 @@ struct HomeScreen: View {
                 
                 ZStack {
                     if let widget = item as? WidgetItem {
-                        if widget.widgetType == "clock" { ClockWidget(city: city) }
-                        else { WeatherWidget(city: city, weather: weather) }
+                        if widget.widgetType == "clock" {
+                            ClockWidget(city: city)
+                        } else if widget.widgetType == "weather" {
+                            WeatherWidget(city: city, weather: weather)
+                        } else {
+                            BadgeWidget(image: customIcons[badgeWidgetId])
+                        }
                     } else if let app = item as? AppIconData {
                         VStack(spacing: 6) {
                             ZStack {
@@ -1127,7 +1320,7 @@ struct HomeScreen: View {
                     .transition(.move(edge: .trailing)).zIndex(1.5)
             }
             if showDisplaySettings {
-                DisplaySettingsView(showDisplaySettings: $showDisplaySettings, showIconCustomization: $showIconCustomization, onIconChanged: {
+                DisplaySettingsView(showDisplaySettings: $showDisplaySettings, showIconCustomization: $showIconCustomization, onBadgeWidgetChanged: {
                     layoutReloadTrigger = UUID()
                     loadCustomIcons()
                 })

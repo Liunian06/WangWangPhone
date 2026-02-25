@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -30,10 +31,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.changedToUp
@@ -99,12 +102,14 @@ data class AppIcon(
 
 data class WidgetItem(
     override val id: String,
-    val widgetType: String, // "clock", "weather"
+    val widgetType: String, // "clock", "weather", "badge"
     override val spanX: Int = 2,
     override val spanY: Int = 2
 ) : GridItem {
     override val type = "widget"
 }
+
+private const val BADGE_WIDGET_ID = "badge_widget"
 
 fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
     AppIcon("phone", "电话", "📞", Brush.linearGradient(listOf(Color(0xFFFF9A9E), Color(0xFFFECFEF)))),
@@ -146,7 +151,8 @@ fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
 
 fun getDefaultWidgets(): List<WidgetItem> = listOf(
     WidgetItem("clock_widget", "clock"),
-    WidgetItem("weather_widget", "weather")
+    WidgetItem("weather_widget", "weather"),
+    WidgetItem(BADGE_WIDGET_ID, "badge")
 )
 
 const val GRID_COLUMNS = 4
@@ -390,7 +396,12 @@ suspend fun fetchWeather(city: String): WeatherInfo {
  * 2. 如果没有缓存，则请求网络并保存到数据库
  */
 @Composable
-fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
+fun WidgetContent(widgetType: String, badgeImagePath: String? = null, modifier: Modifier = Modifier) {
+    if (widgetType == "badge") {
+        BadgeWidget(imagePath = badgeImagePath, modifier = modifier)
+        return
+    }
+
     var city by remember { mutableStateOf("...") }
     var weather by remember { mutableStateOf<WeatherInfo?>(null) }
     val context = LocalContext.current
@@ -437,6 +448,90 @@ fun WidgetContent(widgetType: String, modifier: Modifier = Modifier) {
         ClockWidget(city = city, modifier = modifier)
     } else if (widgetType == "weather") {
         WeatherWidget(city = city, weather = weather, modifier = modifier)
+    }
+}
+
+@Composable
+fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
+    val imageBitmap = remember(imagePath) { imagePath?.let { android.graphics.BitmapFactory.decodeFile(it) } }
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            val diameter = minOf(maxWidth, maxHeight)
+            Box(
+                modifier = Modifier
+                    .size(diameter)
+                    .shadow(16.dp, CircleShape, clip = false)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.96f)),
+                contentAlignment = Alignment.Center
+            ) {
+                if (imageBitmap != null) {
+                    Image(
+                        bitmap = imageBitmap.asImageBitmap(),
+                        contentDescription = "badge widget",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.radialGradient(
+                                    colors = listOf(Color(0xFFF9F9F9), Color(0xFFE7E7E7)),
+                                    center = Offset(80f, 70f),
+                                    radius = 360f
+                                )
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "导入图片",
+                            color = Color(0xFF7A7A7A),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                Canvas(modifier = Modifier.matchParentSize()) {
+                    val radius = size.minDimension / 2f
+                    val center = Offset(size.width / 2f, size.height / 2f)
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.52f), Color.Transparent),
+                            center = Offset(size.width * 0.28f, size.height * 0.18f),
+                            radius = radius * 1.12f
+                        ),
+                        center = center,
+                        radius = radius
+                    )
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.23f)),
+                            center = Offset(size.width * 0.72f, size.height * 0.78f),
+                            radius = radius * 1.25f
+                        ),
+                        center = center,
+                        radius = radius
+                    )
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.56f),
+                        center = center,
+                        radius = radius - 1.dp.toPx(),
+                        style = Stroke(width = 1.6.dp.toPx())
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -780,7 +875,8 @@ fun HomeScreen() {
             onBack = { showDisplaySettings = false }, onWallpaperChanged = {
                 lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)
                 homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
-            }, onNavigateToIconCustomization = { showIconCustomization = true })
+            }, onNavigateToIconCustomization = { showIconCustomization = true },
+            onBadgeWidgetChanged = { layoutReloadTrigger++ })
         if (showIconCustomization) IconCustomizationScreen(onBack = { showIconCustomization = false },
             onIconChanged = { layoutReloadTrigger++ })
         if (showChatApiPresets) ChatApiPresetsScreen(onBack = { showChatApiPresets = false })
@@ -818,19 +914,29 @@ fun distributeItemsToPages(
 
     // 第一页：Widget + 核心应用
     val page0 = mutableMapOf<Int, GridItem>()
-    // 放置Widget（每个占2x2）
-    if (widgets.isNotEmpty()) page0[0] = widgets[0]  // 左上角 clock
-    if (widgets.size > 1) page0[2] = widgets[1]      // 右上角 weather
-
-    // 第一页从第3行开始放核心应用（前2行被Widget占据）
-    var pos = 8 // row 2, col 0
-    for (app in coreApps) {
-        if (pos < TOTAL_CELLS) {
-            page0[pos] = app
-            pos++
+    for (widget in widgets) {
+        for (i in 0 until TOTAL_CELLS) {
+            if (checkOccupancy(page0, i, widget.spanX, widget.spanY, null)) {
+                page0[i] = widget
+                break
+            }
         }
     }
+
+    val overflowCoreApps = mutableListOf<AppIcon>()
+    for (app in coreApps) {
+        var placed = false
+        for (i in 0 until TOTAL_CELLS) {
+            if (checkOccupancy(page0, i, 1, 1, null)) {
+                page0[i] = app
+                placed = true
+                break
+            }
+        }
+        if (!placed) overflowCoreApps.add(app)
+    }
     pages.add(page0)
+    otherApps.addAll(0, overflowCoreApps)
 
     // 第二页起：其余所有应用
     while (otherApps.isNotEmpty()) {
@@ -1421,7 +1527,11 @@ fun HomeScreenContent(
                                 , contentAlignment = Alignment.Center
                             ) {
                                 if (item is WidgetItem) {
-                                    WidgetContent(widgetType = item.widgetType, modifier = Modifier.fillMaxSize().padding(8.dp))
+                                    WidgetContent(
+                                        widgetType = item.widgetType,
+                                        badgeImagePath = customIcons[BADGE_WIDGET_ID],
+                                        modifier = Modifier.fillMaxSize().padding(8.dp)
+                                    )
                                 } else if (item is AppIcon) {
                                     val itemWidthDp = with(density) { itemWidth.toDp() }
                                     val itemHeightDp = with(density) { itemHeight.toDp() }
@@ -1587,7 +1697,11 @@ fun HomeScreenContent(
                     contentAlignment = Alignment.Center
                 ) {
                     if (draggedItem is WidgetItem) {
-                        WidgetContent((draggedItem as WidgetItem).widgetType, modifier = Modifier.fillMaxSize())
+                        WidgetContent(
+                            (draggedItem as WidgetItem).widgetType,
+                            badgeImagePath = customIcons[BADGE_WIDGET_ID],
+                            modifier = Modifier.fillMaxSize()
+                        )
                     } else {
                         val app = draggedItem as AppIcon
                         val customIconPath = customIcons[app.id]
@@ -1731,14 +1845,23 @@ fun IconCustomizationScreen(onBack: () -> Unit, onIconChanged: () -> Unit) {
 }
 
 @Composable
-fun DisplaySettingsScreen(wallpaperDbHelper: WallpaperDbHelper, onBack: () -> Unit, onWallpaperChanged: () -> Unit, onNavigateToIconCustomization: () -> Unit) {
+fun DisplaySettingsScreen(
+    wallpaperDbHelper: WallpaperDbHelper,
+    onBack: () -> Unit,
+    onWallpaperChanged: () -> Unit,
+    onNavigateToIconCustomization: () -> Unit,
+    onBadgeWidgetChanged: () -> Unit
+) {
     BackHandler { onBack() }
     val isDark = isSystemInDarkTheme()
     val bg = if (isDark) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     val card = if (isDark) Color(0xFF2C2C2E) else Color.White
     val txt = if (isDark) Color.White else Color.Black
+    val context = LocalContext.current
+    val iconDbHelper = remember { IconCustomizationDbHelper(context) }
     var lockPreviewPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)) }
     var homePreviewPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)) }
+    var badgePreviewPath by remember { mutableStateOf(iconDbHelper.getCustomIconFilePath(BADGE_WIDGET_ID)) }
     val lockLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         uri?.let {
             wallpaperDbHelper.copyImageToStorage(it)?.let { fn ->
@@ -1752,6 +1875,16 @@ fun DisplaySettingsScreen(wallpaperDbHelper: WallpaperDbHelper, onBack: () -> Un
             wallpaperDbHelper.copyImageToStorage(it)?.let { fn ->
                 wallpaperDbHelper.saveWallpaper(WallpaperType.HOME, fn)
                 homePreviewPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME); onWallpaperChanged()
+            }
+        }
+    }
+    val badgeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        uri?.let {
+            iconDbHelper.copyImageToStorage(it)?.let { fn ->
+                if (iconDbHelper.saveCustomIcon(BADGE_WIDGET_ID, fn)) {
+                    badgePreviewPath = iconDbHelper.getCustomIconFilePath(BADGE_WIDGET_ID)
+                    onBadgeWidgetChanged()
+                }
             }
         }
     }
@@ -1776,6 +1909,21 @@ fun DisplaySettingsScreen(wallpaperDbHelper: WallpaperDbHelper, onBack: () -> Un
                 Text(">", color = Color.Gray, fontSize = 16.sp)
             }
         }
+        Spacer(modifier = Modifier.height(20.dp))
+        Text("吧唧小组件", modifier = Modifier.padding(horizontal = 26.dp, vertical = 8.dp), fontSize = 13.sp, color = Color.Gray)
+        BadgeWidgetSettingCard("吧唧图片设置", badgePreviewPath, card, txt) { badgeLauncher.launch("image/*") }
+        if (badgePreviewPath != null) {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    iconDbHelper.clearCustomIcon(BADGE_WIDGET_ID)
+                    badgePreviewPath = null
+                    onBadgeWidgetChanged()
+                },
+                modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+                Text("恢复默认吧唧图片", color = Color(0xFF007AFF))
+            }
+        }
     }
 }
 
@@ -1798,6 +1946,43 @@ fun WallpaperSettingCard(title: String, previewPath: String?, cardColor: Color, 
                     .background(Color.Gray.copy(alpha = 0.3f)), contentAlignment = Alignment.Center) {
                     Text("🖼️", fontSize = 24.sp)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun BadgeWidgetSettingCard(
+    title: String,
+    previewPath: String?,
+    cardColor: Color,
+    textColor: Color,
+    onSelectImage: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .padding(horizontal = 16.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(cardColor)
+            .clickable(onClick = onSelectImage)
+            .padding(16.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 16.sp, color = textColor)
+                Text(
+                    if (previewPath != null) "已设置，点击更换" else "点击从相册选择图片",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+            Box(modifier = Modifier.size(64.dp)) {
+                BadgeWidget(imagePath = previewPath, modifier = Modifier.fillMaxSize())
             }
         }
     }
