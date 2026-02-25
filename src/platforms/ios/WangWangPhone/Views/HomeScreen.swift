@@ -1336,6 +1336,7 @@ struct HomeScreen: View {
             isActivated: isActivated,
             onActivationAlert: { showActivationAlert = true }
         )
+        .environment(\.colorScheme, colorScheme)
         .id(layoutReloadTrigger)
         .tag(pageIndex)
     }
