@@ -36,7 +36,7 @@ struct NotesAppView: View {
     
     var body: some View {
         NavigationView {
-            if let note = selectedNote {
+            if selectedNote != nil {
                 // Editor
                 VStack(alignment: .leading) {
                     TextField("标题", text: $editTitle)

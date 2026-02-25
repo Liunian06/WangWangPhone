@@ -1331,7 +1331,6 @@ struct HomeScreen: View {
             onNotesClick: { showNotesApp = true },
             onPersonaBuilderClick: { showPersonaBuilderApp = true },
             onLayoutChanged: { saveLayout() },
-            colorScheme: colorScheme,
             currentPage: $currentPage,
             pageCount: Binding(get: { allPages.count }, set: { _ in }),
             isActivated: isActivated,
