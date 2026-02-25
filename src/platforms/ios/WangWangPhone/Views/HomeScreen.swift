@@ -335,6 +335,7 @@ struct PageGridView: View {
     @Binding var isDraggingOverDock: Bool
     @Binding var draggingItem: AnyGridItem?
     @Binding var draggingOffset: CGSize
+    @Binding var draggingGlobalLocation: CGPoint?
     @Binding var draggingFromCell: Int
     @Binding var draggingFromPage: Int
     @Binding var city: String
@@ -480,11 +481,6 @@ struct PageGridView: View {
                             isEditMode = true
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                         }
-                        if draggingItem == nil {
-                            draggingItem = AnyGridItem(item: item)
-                            draggingFromCell = cellIndex
-                            draggingFromPage = pageIndex
-                        }
                     case .second(true, let drag):
                         // 长按后开始拖动
                         if let drag = drag {
@@ -494,6 +490,7 @@ struct PageGridView: View {
                                 draggingFromPage = pageIndex
                             }
                             draggingOffset = drag.translation
+                            draggingGlobalLocation = drag.location
                             
                             if item.type == "app" {
                                 isDraggingOverDock = drag.location.y > UIScreen.main.bounds.height - 150
@@ -617,7 +614,7 @@ struct PageGridView: View {
                     }
                     
                     withAnimation(.spring()) {
-                        draggingItem = nil; draggingOffset = .zero; draggingFromCell = -1; draggingFromPage = -1; isDraggingOverDock = false; highlightCellIndex = -1
+                        draggingItem = nil; draggingOffset = .zero; draggingGlobalLocation = nil; draggingFromCell = -1; draggingFromPage = -1; isDraggingOverDock = false; highlightCellIndex = -1
                     }
                     onLayoutChanged()
                 }
@@ -659,6 +656,7 @@ struct DraggableDockIconView: View {
     @Binding var dockApps: [AppIconData]
     @Binding var draggingItem: AnyGridItem?
     @Binding var draggingOffset: CGSize
+    @Binding var draggingGlobalLocation: CGPoint?
     let currentPage: Int
     let maxDockApps: Int
     let colorScheme: ColorScheme
@@ -726,7 +724,7 @@ struct DraggableDockIconView: View {
         }
         .highPriorityGesture(
             LongPressGesture(minimumDuration: homeLongPressMinimumDuration, maximumDistance: homeLongPressMaximumDistance)
-                .sequenced(before: DragGesture(minimumDistance: 0))
+                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
                 .onChanged { value in
                     switch value {
                     case .first(true):
@@ -734,10 +732,6 @@ struct DraggableDockIconView: View {
                         if !isEditMode {
                             isEditMode = true
                             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                        }
-                        if !isDragging {
-                            isDragging = true
-                            draggingItem = AnyGridItem(item: app)
                         }
                     case .second(true, let drag):
                         // 长按后开始拖动
@@ -748,6 +742,7 @@ struct DraggableDockIconView: View {
                             }
                             dragOffset = drag.translation
                             draggingOffset = drag.translation
+                            draggingGlobalLocation = drag.location
                         }
                     default:
                         break
@@ -797,7 +792,7 @@ struct DraggableDockIconView: View {
                     
                     withAnimation(.spring()) {
                         isDragging = false; dragOffset = .zero
-                        draggingItem = nil; draggingOffset = .zero
+                        draggingItem = nil; draggingOffset = .zero; draggingGlobalLocation = nil
                     }
                     onLayoutChanged()
                 }
@@ -1225,6 +1220,7 @@ struct HomeScreen: View {
     
     @State private var draggingItem: AnyGridItem? = nil
     @State private var draggingOffset: CGSize = .zero
+    @State private var draggingGlobalLocation: CGPoint? = nil
     @State private var draggingFromCell: Int = -1
     @State private var draggingFromPage: Int = -1
     
@@ -1315,6 +1311,7 @@ struct HomeScreen: View {
             isDraggingOverDock: $isDraggingOverDock,
             draggingItem: $draggingItem,
             draggingOffset: $draggingOffset,
+            draggingGlobalLocation: $draggingGlobalLocation,
             draggingFromCell: $draggingFromCell,
             draggingFromPage: $draggingFromPage,
             city: $city,
@@ -1380,6 +1377,7 @@ struct HomeScreen: View {
                     dockApps: $dockApps,
                     draggingItem: $draggingItem,
                     draggingOffset: $draggingOffset,
+                    draggingGlobalLocation: $draggingGlobalLocation,
                     currentPage: currentPage,
                     maxDockApps: maxDockApps,
                     colorScheme: colorScheme,
@@ -1418,7 +1416,7 @@ struct HomeScreen: View {
 
     @ViewBuilder
     private var draggingOverlayView: some View {
-        if let anyItem = draggingItem {
+        if let anyItem = draggingItem, let dragLocation = draggingGlobalLocation {
             let item = anyItem.item
             let screenWidth = UIScreen.main.bounds.width
             let cellWidth = (screenWidth - 40) / CGFloat(gridColumns)
@@ -1461,7 +1459,7 @@ struct HomeScreen: View {
             .frame(width: itemWidth, height: itemHeight)
             .scaleEffect(1.15)
             .opacity(0.85)
-            .offset(draggingOffset)
+            .position(x: dragLocation.x, y: dragLocation.y)
             .zIndex(10000)
             .allowsHitTesting(false)
         }
