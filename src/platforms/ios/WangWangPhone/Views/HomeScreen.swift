@@ -189,12 +189,27 @@ struct BadgeWidget: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let side = min(geometry.size.width, geometry.size.height) - 16
+            let side = max(min(geometry.size.width, geometry.size.height) - 14, 24)
+            let rim = side * 0.12
             ZStack {
                 Circle()
-                    .fill(Color.white.opacity(0.96))
+                    .fill(Color.clear)
                     .frame(width: side, height: side)
-                    .shadow(color: .black.opacity(0.30), radius: 12, x: 0, y: 7)
+                    .shadow(color: .black.opacity(0.34), radius: 14, x: -10, y: 10)
+
+                Circle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.99, green: 0.99, blue: 0.99),
+                                Color(red: 0.84, green: 0.84, blue: 0.84),
+                                Color(red: 0.70, green: 0.70, blue: 0.70)
+                            ],
+                            startPoint: .topTrailing,
+                            endPoint: .bottomLeading
+                        )
+                    )
+                    .frame(width: side, height: side)
 
                 Group {
                     if let image = image {
@@ -218,16 +233,16 @@ struct BadgeWidget: View {
                         }
                     }
                 }
-                .frame(width: side, height: side)
+                .frame(width: side - rim * 2, height: side - rim * 2)
                 .clipShape(Circle())
 
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Color.white.opacity(0.55), .clear],
-                            center: UnitPoint(x: 0.30, y: 0.18),
-                            startRadius: 5,
-                            endRadius: side * 0.78
+                            colors: [Color.white.opacity(0.62), .clear],
+                            center: UnitPoint(x: 0.82, y: 0.18),
+                            startRadius: 3,
+                            endRadius: side * 0.40
                         )
                     )
                     .frame(width: side, height: side)
@@ -236,17 +251,55 @@ struct BadgeWidget: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [.clear, Color.black.opacity(0.24)],
-                            center: UnitPoint(x: 0.72, y: 0.78),
-                            startRadius: side * 0.16,
-                            endRadius: side * 0.74
+                            colors: [.clear, Color.black.opacity(0.38)],
+                            center: UnitPoint(x: 0.18, y: 0.86),
+                            startRadius: side * 0.10,
+                            endRadius: side * 0.58
                         )
                     )
                     .frame(width: side, height: side)
                     .clipShape(Circle())
 
                 Circle()
-                    .stroke(Color.white.opacity(0.56), lineWidth: 1.4)
+                    .stroke(
+                        LinearGradient(
+                            colors: [Color.white.opacity(0.86), Color.white.opacity(0.20), Color.black.opacity(0.34)],
+                            startPoint: .topTrailing,
+                            endPoint: .bottomLeading
+                        ),
+                        lineWidth: rim
+                    )
+                    .frame(width: side, height: side)
+
+                Ellipse()
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color.white.opacity(0.58),
+                                Color.white.opacity(0.14),
+                                .clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        lineWidth: side * 0.18
+                    )
+                    .frame(width: side * 0.88, height: side * 0.46)
+                    .rotationEffect(.degrees(-22))
+                    .offset(x: side * 0.06, y: -side * 0.20)
+                    .blur(radius: 0.4)
+                    .mask(
+                        Circle()
+                            .frame(width: side, height: side)
+                    )
+
+                Circle()
+                    .stroke(Color.white.opacity(0.55), lineWidth: 1.2)
+                    .frame(width: side - rim * 1.2, height: side - rim * 1.2)
+
+                Circle()
+                    .stroke(Color.black.opacity(0.14), lineWidth: 0.8)
                     .frame(width: side, height: side)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)

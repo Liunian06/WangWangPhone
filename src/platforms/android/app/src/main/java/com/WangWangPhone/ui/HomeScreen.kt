@@ -33,9 +33,11 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
@@ -505,29 +507,82 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                 Canvas(modifier = Modifier.matchParentSize()) {
                     val radius = size.minDimension / 2f
                     val center = Offset(size.width / 2f, size.height / 2f)
+
+                    // Cast shadow: left-bottom
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.White.copy(alpha = 0.52f), Color.Transparent),
-                            center = Offset(size.width * 0.28f, size.height * 0.18f),
-                            radius = radius * 1.12f
+                            colors = listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent),
+                            center = Offset(size.width * 0.24f, size.height * 0.82f),
+                            radius = radius * 1.08f
+                        ),
+                        center = center,
+                        radius = radius * 1.12f
+                    )
+
+                    // Specular highlight: right-top
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.66f), Color.Transparent),
+                            center = Offset(size.width * 0.82f, size.height * 0.18f),
+                            radius = radius * 0.75f
                         ),
                         center = center,
                         radius = radius
                     )
+
+                    // Curved dark falloff: left-bottom
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.23f)),
-                            center = Offset(size.width * 0.72f, size.height * 0.78f),
-                            radius = radius * 1.25f
+                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.34f)),
+                            center = Offset(size.width * 0.18f, size.height * 0.86f),
+                            radius = radius * 0.96f
                         ),
                         center = center,
                         radius = radius
                     )
+
+                    // Metal rim depth
                     drawCircle(
-                        color = Color.White.copy(alpha = 0.56f),
+                        brush = Brush.linearGradient(
+                            colors = listOf(
+                                Color.White.copy(alpha = 0.86f),
+                                Color.White.copy(alpha = 0.18f),
+                                Color.Black.copy(alpha = 0.30f)
+                            ),
+                            start = Offset(size.width * 0.86f, size.height * 0.10f),
+                            end = Offset(size.width * 0.12f, size.height * 0.90f)
+                        ),
+                        center = center,
+                        radius = radius - 1.2.dp.toPx(),
+                        style = Stroke(width = 7.dp.toPx())
+                    )
+
+                    // Reflection band
+                    rotate(degrees = -22f, pivot = center) {
+                        drawArc(
+                            brush = Brush.sweepGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    Color.White.copy(alpha = 0.58f),
+                                    Color.White.copy(alpha = 0.12f),
+                                    Color.Transparent
+                                ),
+                                center = center
+                            ),
+                            startAngle = 220f,
+                            sweepAngle = 110f,
+                            useCenter = false,
+                            topLeft = Offset(size.width * 0.09f, size.height * 0.06f),
+                            size = Size(size.width * 0.84f, size.height * 0.56f),
+                            style = Stroke(width = radius * 0.22f)
+                        )
+                    }
+
+                    drawCircle(
+                        color = Color.White.copy(alpha = 0.52f),
                         center = center,
                         radius = radius - 1.dp.toPx(),
-                        style = Stroke(width = 1.6.dp.toPx())
+                        style = Stroke(width = 1.4.dp.toPx())
                     )
                 }
             }
