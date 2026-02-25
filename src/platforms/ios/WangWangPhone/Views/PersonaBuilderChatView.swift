@@ -20,7 +20,7 @@ struct PersonaBuilderChatView: View {
     @AppStorage("backtrack_warning_shown") private var hasShownBacktrackWarning = false
     
     private let dbHelper = PersonaCardDbHelper()
-    private let presetDbHelper = ApiPresetDbHelper()
+    private let presetManager = ApiPresetManager.shared
     
     var body: some View {
         VStack(spacing: 0) {
@@ -224,7 +224,7 @@ struct PersonaBuilderChatView: View {
                     return
                 }
                 
-                guard let preset = presetDbHelper.getPresetById(card.apiPresetId) else {
+                guard let preset = presetManager.getPresetById(card.apiPresetId) else {
                     print("API预设不存在")
                     return
                 }
@@ -328,7 +328,7 @@ struct PersonaBuilderChatView: View {
             
             do {
                 guard let card = personaCard else { return }
-                guard let preset = presetDbHelper.getPresetById(card.apiPresetId) else { return }
+                guard let preset = presetManager.getPresetById(card.apiPresetId) else { return }
 
                 let currentMessages = dbHelper.getMessages(cardId: cardId)
                 guard let checkpoint = resolveBacktrackCheckpoint(target: message, currentMessages: currentMessages) else {

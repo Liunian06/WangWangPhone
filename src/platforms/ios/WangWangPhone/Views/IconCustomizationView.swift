@@ -51,7 +51,7 @@ struct IconCustomizationView: View {
                 }
             }
             .sheet(isPresented: $showImagePicker) {
-                ImagePicker(selectedAppId: $selectedAppId, customIcons: $customIcons, onIconChanged: onIconChanged)
+                IconImagePicker(selectedAppId: $selectedAppId, customIcons: $customIcons, onIconChanged: onIconChanged)
             }
             .onAppear {
                 loadCustomIcons()
@@ -134,7 +134,7 @@ struct IconCustomizationRow: View {
     }
 }
 
-struct ImagePicker: UIViewControllerRepresentable {
+struct IconImagePicker: UIViewControllerRepresentable {
     @Binding var selectedAppId: String?
     @Binding var customIcons: [String: UIImage]
     var onIconChanged: () -> Void
@@ -157,9 +157,9 @@ struct ImagePicker: UIViewControllerRepresentable {
     }
     
     class Coordinator: NSObject, PHPickerViewControllerDelegate {
-        let parent: ImagePicker
+        let parent: IconImagePicker
         
-        init(_ parent: ImagePicker) {
+        init(_ parent: IconImagePicker) {
             self.parent = parent
         }
         

@@ -185,7 +185,7 @@ struct WeatherAppView: View {
                     Spacer().frame(height: 12)
 
                     // 天气详情网格
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                    LazyVGrid(columns: [SwiftUI.GridItem(.flexible()), SwiftUI.GridItem(.flexible())], spacing: 12) {
                         ForEach(weatherDetails.indices, id: \.self) { index in
                             let detail = weatherDetails[index]
                             VStack(alignment: .leading, spacing: 8) {

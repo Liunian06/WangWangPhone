@@ -9,7 +9,7 @@ struct PersonaCardListView: View {
     @State private var selectedCardId: Int64?
     
     private let dbHelper = PersonaCardDbHelper()
-    private let presetDbHelper = ApiPresetDbHelper()
+    private let presetManager = ApiPresetManager.shared
     
     var body: some View {
         NavigationView {
@@ -87,7 +87,7 @@ struct PersonaCardListView: View {
     }
     
     private func loadPresets() {
-        presets = presetDbHelper.getAllPresets()
+        presets = presetManager.getAllPresets()
         if let firstPreset = presets.first {
             selectedPresetId = firstPreset.id
         }

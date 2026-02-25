@@ -2,14 +2,14 @@ import Foundation
 import PhotosUI
 import SwiftUI
 
-protocol GridItem {
+protocol HomeGridItem {
     var id: String { get }
     var spanX: Int { get }
     var spanY: Int { get }
     var type: String { get }
 }
 
-struct AppIconData: Identifiable, Equatable, GridItem {
+struct AppIconData: Identifiable, Equatable, HomeGridItem {
     let id: String
     let name: String
     let icon: String
@@ -24,7 +24,7 @@ struct AppIconData: Identifiable, Equatable, GridItem {
     }
 }
 
-struct WidgetItem: Identifiable, Equatable, GridItem {
+struct WidgetItem: Identifiable, Equatable, HomeGridItem {
     let id: String
     let widgetType: String // "clock", "weather", "badge"
     var spanX: Int = 2
@@ -39,7 +39,7 @@ struct WidgetItem: Identifiable, Equatable, GridItem {
 private let badgeWidgetId = "badge_widget"
 
 struct AnyGridItem: Equatable {
-    let item: any GridItem
+    let item: any HomeGridItem
     
     static func == (lhs: AnyGridItem, rhs: AnyGridItem) -> Bool {
         return lhs.item.id == rhs.item.id
@@ -406,7 +406,7 @@ struct PageGridView: View {
     }
     
     @ViewBuilder
-    func itemView(item: any GridItem, cellIndex: Int, cellWidth: CGFloat, cellHeight: CGFloat) -> some View {
+    func itemView(item: any HomeGridItem, cellIndex: Int, cellWidth: CGFloat, cellHeight: CGFloat) -> some View {
         let wiggle: Double = cellIndex % 2 == 0 ? -1.5 : 1.5
         
         Group {
@@ -942,6 +942,110 @@ struct SettingsView: View {
                     },
                     secondaryButton: .cancel()
                 )
+            }
+        }
+    }
+}
+
+struct ActivationView: View {
+    @Binding var showActivation: Bool
+    @Binding var isActivated: Bool
+    @Binding var expiryDate: String
+
+    @State private var machineId = LicenseManager.shared.getMachineId()
+    @State private var licenseKey = ""
+    @State private var errorMessage: String?
+    @State private var isActivating = false
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color(UIColor.systemGroupedBackground).ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text("机器码")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+
+                        Text(machineId)
+                            .font(.footnote)
+                            .foregroundColor(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(12)
+                            .background(Color(UIColor.secondarySystemGroupedBackground))
+                            .cornerRadius(10)
+
+                        Text("激活码")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                            .padding(.top, 4)
+
+                        TextEditor(text: $licenseKey)
+                            .frame(height: 140)
+                            .padding(8)
+                            .background(Color(UIColor.secondarySystemGroupedBackground))
+                            .cornerRadius(10)
+                            .disabled(isActivating)
+
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .font(.footnote)
+                                .foregroundColor(.red)
+                        }
+
+                        Button(action: activateLicense) {
+                            HStack {
+                                Spacer()
+                                if isActivating {
+                                    ProgressView()
+                                        .progressViewStyle(.circular)
+                                        .tint(.white)
+                                } else {
+                                    Text("激活")
+                                        .fontWeight(.semibold)
+                                }
+                                Spacer()
+                            }
+                            .frame(height: 48)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                        }
+                        .disabled(isActivating)
+                        .padding(.top, 8)
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("激活授权")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("返回") { showActivation = false }
+                }
+            }
+        }
+    }
+
+    private func activateLicense() {
+        let trimmedKey = licenseKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedKey.isEmpty else {
+            errorMessage = "请输入激活码"
+            return
+        }
+
+        isActivating = true
+        errorMessage = nil
+        LicenseManager.shared.verifyLicense(trimmedKey) { result in
+            isActivating = false
+            switch result {
+            case .success:
+                isActivated = LicenseManager.shared.isActivated()
+                expiryDate = LicenseManager.shared.getExpirationDateString()
+                showActivation = false
+            case .error(let message):
+                errorMessage = message
             }
         }
     }

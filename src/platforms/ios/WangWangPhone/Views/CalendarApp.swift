@@ -109,7 +109,7 @@ struct CalendarAppView: View {
             let days = daysInMonth(for: currentMonth)
             let firstDay = firstWeekdayOfMonth(for: currentMonth)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7)) {
+            LazyVGrid(columns: Array(repeating: SwiftUI.GridItem(.flexible()), count: 7)) {
                 ForEach(0..<firstDay, id: \.self) { _ in
                     Text("")
                 }
@@ -128,7 +128,7 @@ struct CalendarAppView: View {
                             
                             Text("\(day)")
                                 .font(.callout)
-                                .fontWeight(isSelected || isToday ? .bold : .normal)
+                                .fontWeight(isSelected || isToday ? .bold : .regular)
                                 .foregroundColor(isSelected ? .white : (isToday ? .red : .primary))
                         }
                         
