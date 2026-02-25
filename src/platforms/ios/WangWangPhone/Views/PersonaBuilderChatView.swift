@@ -519,8 +519,13 @@ private func parsePersonaContent(_ raw: String) -> ParsedPersonaContent {
 
 struct MessageBubble: View {
     let message: PersonaMessage
-    let isStreaming: Bool = false
+    let isStreaming: Bool
     @State private var thoughtExpanded = false
+
+    init(message: PersonaMessage, isStreaming: Bool = false) {
+        self.message = message
+        self.isStreaming = isStreaming
+    }
 
     private var parsed: ParsedPersonaContent {
         parsePersonaContent(message.content)

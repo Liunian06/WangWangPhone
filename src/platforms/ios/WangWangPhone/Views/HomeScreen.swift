@@ -1302,8 +1302,6 @@ struct HomeScreen: View {
     private func pageGridView(for pageIndex: Int) -> some View {
         PageGridView(
             pageIndex: pageIndex,
-            currentPage: $currentPage,
-            pageCount: Binding(get: { allPages.count }, set: { _ in }),
             gridPositions: Binding(
                 get: { pageIndex < allPages.count ? allPages[pageIndex] : [:] },
                 set: { newValue in
@@ -1333,6 +1331,9 @@ struct HomeScreen: View {
             onNotesClick: { showNotesApp = true },
             onPersonaBuilderClick: { showPersonaBuilderApp = true },
             onLayoutChanged: { saveLayout() },
+            colorScheme: colorScheme,
+            currentPage: $currentPage,
+            pageCount: Binding(get: { allPages.count }, set: { _ in }),
             isActivated: isActivated,
             onActivationAlert: { showActivationAlert = true }
         )
