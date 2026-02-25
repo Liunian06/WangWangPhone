@@ -59,6 +59,11 @@ jobs:
       - name: Build unsigned .app
         run: |
           set -euo pipefail
+          mkdir -p build_output
+          LOG_PATH="build_output/xcodebuild.log"
+          RESULT_BUNDLE_PATH="build_output/BuildResults.xcresult"
+
+          set +e
           xcodebuild \
             -project src/platforms/ios/WangWangPhone.xcodeproj \
             -scheme WangWangPhone \
@@ -66,13 +71,39 @@ jobs:
             -sdk iphoneos \
             -destination "generic/platform=iOS" \
             -derivedDataPath build_output \
+            -resultBundlePath "${RESULT_BUNDLE_PATH}" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY="" \
             DEVELOPMENT_TEAM="" \
             ENTITLEMENTS_REQUIRED=NO \
             AD_HOC_CODE_SIGNING_ALLOWED=YES \
-            build
+            build 2>&1 | tee "${LOG_PATH}"
+          XCODEBUILD_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+
+          if [ "${XCODEBUILD_EXIT_CODE}" -ne 0 ]; then
+            echo "::group::xcodebuild 错误摘要"
+            grep -nE "error:|\\*\\* BUILD FAILED \\*\\*" "${LOG_PATH}" | head -n 200 || echo "未捕获到标准 error 行，请查看完整日志。"
+            echo "::endgroup::"
+
+            echo "::group::xcodebuild 日志最后 200 行"
+            tail -n 200 "${LOG_PATH}" || true
+            echo "::endgroup::"
+
+            echo "::error::xcodebuild 构建失败。请下载 ios-build-logs artifact 查看完整日志和 xcresult。"
+            exit "${XCODEBUILD_EXIT_CODE}"
+          fi
+
+      - name: Upload iOS build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-build-logs
+          path: |
+            build_output/xcodebuild.log
+            build_output/BuildResults.xcresult
+          if-no-files-found: warn
 
       - name: Package unsigned IPA
         run: |
