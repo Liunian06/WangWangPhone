@@ -23,173 +23,192 @@ struct PersonaBuilderChatView: View {
     private let presetManager = ApiPresetManager.shared
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 顶部导航栏
-            HStack {
-                Button {
-                    onBack()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "chevron.left")
-                        Text("返回")
-                    }
-                    .foregroundColor(.blue)
+        contentView
+            .navigationBarHidden(true)
+            .onAppear {
+                loadData()
+            }
+            .confirmationDialog("消息操作", isPresented: $showActionSheet, presenting: selectedMessage) { message in
+                Button("复制") {
+                    UIPasteboard.general.string = message.content
                 }
-                
-                Spacer()
-                
-                Text(personaCard?.name ?? "加载中...")
-                    .font(.headline)
-                
-                Spacer()
-                
-                // 占位，保持标题居中
+                Button("编辑") {
+                    startEditing(message)
+                }
+                Button("回溯") {
+                    requestBacktrack(message)
+                }
+                Button("取消", role: .cancel) {}
+            }
+            .alert("编辑消息", isPresented: $showEditDialog) {
+                TextField("消息内容", text: $editingText, axis: .vertical)
+                    .lineLimit(3...8)
+                Button("保存") {
+                    saveEditedMessage()
+                }
+                Button("取消", role: .cancel) {
+                    editingMessage = nil
+                }
+            }
+            .alert("首次回溯提示", isPresented: $showBacktrackAlert) {
+                Button("继续") {
+                    hasShownBacktrackWarning = true
+                    if let message = pendingBacktrackMessage {
+                        executeBacktrack(message: message)
+                    }
+                    pendingBacktrackMessage = nil
+                }
+                Button("取消", role: .cancel) {
+                    pendingBacktrackMessage = nil
+                }
+            } message: {
+                Text("回溯会清除该消息之后的所有消息，并从该消息作为最后一条重新生成回复。")
+            }
+    }
+
+    private var contentView: some View {
+        VStack(spacing: 0) {
+            headerView
+            Divider()
+            messageListView
+            Divider()
+            inputBarView
+        }
+    }
+
+    private var headerView: some View {
+        HStack {
+            Button {
+                onBack()
+            } label: {
                 HStack(spacing: 4) {
                     Image(systemName: "chevron.left")
                     Text("返回")
                 }
-                .opacity(0)
+                .foregroundColor(.blue)
             }
-            .padding()
-            .background(Color(UIColor.systemBackground))
-            
-            Divider()
-            
-            // 消息列表
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(spacing: 12) {
-                        ForEach(messages, id: \.id) { message in
-                            MessageBubble(message: message)
-                                .id(message.id)
-                                .contentShape(Rectangle())
-                                .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
-                                    selectedMessage = message
-                                    showActionSheet = true
-                                })
-                        }
-                        
-                        // 流式响应中的消息
-                        if !streamingContent.isEmpty {
-                            MessageBubble(message: PersonaMessage(
-                                id: -1,
-                                cardId: cardId,
-                                role: "assistant",
-                                content: streamingContent,
-                                timestamp: Int64(Date().timeIntervalSince1970 * 1000)
-                            ), isStreaming: true)
-                            .id(-1)
-                        }
-                        
-                        if isLoading && streamingContent.isEmpty {
-                            HStack {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                    Text("正在思考...")
-                                        .font(.subheadline)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(12)
-                                .background(Color(UIColor.secondarySystemBackground))
-                                .cornerRadius(12)
-                                
-                                Spacer()
-                            }
-                            .padding(.horizontal)
-                        }
+
+            Spacer()
+
+            Text(personaCard?.name ?? "加载中...")
+                .font(.headline)
+
+            Spacer()
+
+            HStack(spacing: 4) {
+                Image(systemName: "chevron.left")
+                Text("返回")
+            }
+            .opacity(0)
+        }
+        .padding()
+        .background(Color(UIColor.systemBackground))
+    }
+
+    private var messageListView: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: 12) {
+                    ForEach(messages, id: \.id) { message in
+                        MessageBubble(message: message)
+                            .id(message.id)
+                            .contentShape(Rectangle())
+                            .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in
+                                selectedMessage = message
+                                showActionSheet = true
+                            })
                     }
-                    .padding()
-                }
-                .onChange(of: messages.count) { _ in
-                    if let lastMessage = messages.last {
-                        withAnimation {
-                            proxy.scrollTo(lastMessage.id, anchor: .bottom)
-                        }
-                    }
-                }
-                .onChange(of: streamingContent) { _ in
+
                     if !streamingContent.isEmpty {
-                        withAnimation {
-                            proxy.scrollTo(-1, anchor: .bottom)
+                        MessageBubble(message: PersonaMessage(
+                            id: -1,
+                            cardId: cardId,
+                            role: "assistant",
+                            content: streamingContent,
+                            timestamp: Int64(Date().timeIntervalSince1970 * 1000)
+                        ), isStreaming: true)
+                        .id(-1)
+                    }
+
+                    if isLoading && streamingContent.isEmpty {
+                        HStack {
+                            HStack(spacing: 8) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("思考中...")
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(12)
+                            .background(Color(UIColor.secondarySystemBackground))
+                            .cornerRadius(12)
+
+                            Spacer()
                         }
+                        .padding(.horizontal)
+                    }
+                }
+                .padding()
+            }
+            .onChange(of: messages.count) { _ in
+                if let lastMessage = messages.last {
+                    withAnimation {
+                        proxy.scrollTo(lastMessage.id, anchor: .bottom)
                     }
                 }
             }
-            
-            Divider()
-            
-            // 输入框
-            HStack(spacing: 12) {
-                TextField("输入消息...", text: $inputText)
-                    .textFieldStyle(.roundedBorder)
-                    .disabled(isLoading)
-                
-                Button {
-                    sendMessage()
-                } label: {
-                    Image(systemName: "arrow.up.circle.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(inputText.trimmingCharacters(in: .whitespaces).isEmpty || isLoading ? .gray : .blue)
-                }
-                .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty || isLoading)
-            }
-            .padding()
-            .background(Color(UIColor.systemBackground))
-        }
-        .navigationBarHidden(true)
-        .onAppear {
-            loadData()
-        }
-        .confirmationDialog("消息操作", isPresented: $showActionSheet, presenting: selectedMessage) { message in
-            Button("复制") {
-                UIPasteboard.general.string = message.content
-            }
-            Button("编辑") {
-                editingMessage = message
-                editingText = message.content
-                showEditDialog = true
-            }
-            Button("回溯") {
-                if hasShownBacktrackWarning {
-                    executeBacktrack(message: message)
-                } else {
-                    pendingBacktrackMessage = message
-                    showBacktrackAlert = true
+            .onChange(of: streamingContent) { _ in
+                if !streamingContent.isEmpty {
+                    withAnimation {
+                        proxy.scrollTo(-1, anchor: .bottom)
+                    }
                 }
             }
-            Button("取消", role: .cancel) {}
-        }
-        .alert("编辑消息", isPresented: $showEditDialog) {
-            TextField("消息内容", text: $editingText, axis: .vertical)
-                .lineLimit(3...8)
-            Button("保存") {
-                guard let message = editingMessage, !editingText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
-                if dbHelper.updateMessageContent(cardId: cardId, messageId: message.id, newContent: editingText) {
-                    messages = dbHelper.getMessages(cardId: cardId)
-                }
-                editingMessage = nil
-            }
-            Button("取消", role: .cancel) {
-                editingMessage = nil
-            }
-        }
-        .alert("首次回溯提示", isPresented: $showBacktrackAlert) {
-            Button("继续") {
-                hasShownBacktrackWarning = true
-                if let message = pendingBacktrackMessage {
-                    executeBacktrack(message: message)
-                }
-                pendingBacktrackMessage = nil
-            }
-            Button("取消", role: .cancel) {
-                pendingBacktrackMessage = nil
-            }
-        } message: {
-            Text("回溯会清除该消息之后的所有消息，并从该消息作为最后一条重新生成回复。")
         }
     }
-    
+
+    private var inputBarView: some View {
+        HStack(spacing: 12) {
+            TextField("输入消息...", text: $inputText)
+                .textFieldStyle(.roundedBorder)
+                .disabled(isLoading)
+
+            Button {
+                sendMessage()
+            } label: {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundColor(inputText.trimmingCharacters(in: .whitespaces).isEmpty || isLoading ? .gray : .blue)
+            }
+            .disabled(inputText.trimmingCharacters(in: .whitespaces).isEmpty || isLoading)
+        }
+        .padding()
+        .background(Color(UIColor.systemBackground))
+    }
+
+    private func startEditing(_ message: PersonaMessage) {
+        editingMessage = message
+        editingText = message.content
+        showEditDialog = true
+    }
+
+    private func requestBacktrack(_ message: PersonaMessage) {
+        if hasShownBacktrackWarning {
+            executeBacktrack(message: message)
+        } else {
+            pendingBacktrackMessage = message
+            showBacktrackAlert = true
+        }
+    }
+
+    private func saveEditedMessage() {
+        guard let message = editingMessage, !editingText.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        if dbHelper.updateMessageContent(cardId: cardId, messageId: message.id, newContent: editingText) {
+            messages = dbHelper.getMessages(cardId: cardId)
+        }
+        editingMessage = nil
+    }
+
     private func loadData() {
         personaCard = dbHelper.getCardById(cardId)
         messages = dbHelper.getMessages(cardId: cardId)

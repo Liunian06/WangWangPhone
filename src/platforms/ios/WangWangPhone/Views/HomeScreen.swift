@@ -1240,257 +1240,12 @@ struct HomeScreen: View {
 
     var body: some View {
         ZStack {
-            if let wallpaper = homeWallpaper {
-                Image(uiImage: wallpaper).resizable().aspectRatio(contentMode: .fill).ignoresSafeArea()
-            } else {
-                Color(red: 0.17, green: 0.17, blue: 0.17).ignoresSafeArea()
-            }
-            
-            VStack(spacing: 0) {
-                Spacer().frame(height: 10)
-                
-                // TabView 分页滑动
-                TabView(selection: $currentPage) {
-                    ForEach(0..<allPages.count, id: \.self) { pageIndex in
-                        PageGridView(
-                            pageIndex: pageIndex,
-                            currentPage: $currentPage,
-                            pageCount: Binding(get: { allPages.count }, set: { _ in }),
-                            gridPositions: Binding(
-                                get: { pageIndex < allPages.count ? allPages[pageIndex] : [:] },
-                                set: { newValue in
-                                    if pageIndex < allPages.count {
-                                        allPages[pageIndex] = newValue
-                                    }
-                                }
-                            ),
-                            dockApps: $dockApps,
-                            isEditMode: $isEditMode,
-                            isDraggingOverDock: $isDraggingOverDock,
-                            draggingItem: $draggingItem,
-                            draggingOffset: $draggingOffset,
-                            draggingFromCell: $draggingFromCell,
-                            draggingFromPage: $draggingFromPage,
-                            city: $city,
-                            weather: $weather,
-                            maxDockApps: maxDockApps,
-                            customIcons: customIcons,
-                            onSettingsClick: { showSettings = true },
-                            onChatClick: { showChatApp = true },
-                            onBrowserClick: { showBrowserApp = true },
-                            onCalculatorClick: { showCalculatorApp = true },
-                            onWeatherClick: { showWeatherApp = true },
-                            onCalendarClick: { showCalendarApp = true },
-                            onCameraClick: { showCameraApp = true },
-                            onNotesClick: { showNotesApp = true },
-                            onPersonaBuilderClick: { showPersonaBuilderApp = true },
-                            onLayoutChanged: { saveLayout() },
-                            isActivated: isActivated,
-                            onActivationAlert: { showActivationAlert = true }
-                        )
-                        .id(layoutReloadTrigger)
-                        .tag(pageIndex)
-                    }
-                }
-                .tabViewStyle(.page(indexDisplayMode: .never))
-                
-                // 页面指示器
-                if allPages.count > 1 {
-                    PageIndicator(pageCount: allPages.count, currentPage: currentPage)
-                }
-
-                // Dock 栏
-                ZStack {
-                    RoundedRectangle(cornerRadius: 30)
-                        .fill(isDraggingOverDock && dockApps.count < maxDockApps ? Color.blue.opacity(0.4) : Color.white.opacity(0.3))
-                        .background(.ultraThinMaterial)
-                        .clipShape(RoundedRectangle(cornerRadius: 30))
-                        .frame(height: 90).padding(.horizontal, 15)
-                    
-                    if dockApps.isEmpty && !isEditMode {
-                        Text("长按拖入应用").font(.caption).foregroundColor(.white.opacity(0.4))
-                    }
-                    if dockApps.isEmpty && isEditMode {
-                        Text("拖拽应用到此处").font(.caption).foregroundColor(.white.opacity(0.5))
-                    }
-                    
-                    HStack(spacing: 0) {
-                        ForEach(0..<maxDockApps, id: \.self) { slotIndex in
-                            ZStack {
-                                if slotIndex < dockApps.count {
-                                    let app = dockApps[slotIndex]
-                                    DraggableDockIconView(
-                                        app: app, dockIndex: slotIndex,
-                                        isEditMode: $isEditMode,
-                                        gridPositions: $allPages,
-                                        dockApps: $dockApps,
-                                        draggingItem: $draggingItem,
-                                        draggingOffset: $draggingOffset,
-                                        currentPage: currentPage,
-                                        maxDockApps: maxDockApps,
-                                        colorScheme: colorScheme,
-                                        customIcons: customIcons,
-                                        isActivated: isActivated,
-                                        onActivationAlert: { showActivationAlert = true },
-                                        onTap: {
-                                            if !isEditMode {
-                                                if app.id == "settings" { showSettings = true }
-                                                else if app.id == "chat" { showChatApp = true }
-                                            }
-                                        },
-                                        onBrowserClick: { showBrowserApp = true },
-                                        onCalculatorClick: { showCalculatorApp = true },
-                                        onWeatherClick: { showWeatherApp = true },
-                                        onCalendarClick: { showCalendarApp = true },
-                                        onCameraClick: { showCameraApp = true },
-                                        onNotesClick: { showNotesApp = true },
-                                        onPersonaBuilderClick: { showPersonaBuilderApp = true },
-                                        onLayoutChanged: { saveLayout() }
-                                    )
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                        }
-                    }
-                    .padding(.horizontal, 24)
-                }
-                .padding(.bottom, 20)
-            }
-
-            // Home Indicator
-            VStack { Spacer()
-                RoundedRectangle(cornerRadius: 5).fill(Color.white.opacity(0.8)).frame(width: 120, height: 5).padding(.bottom, 8)
-            }
-
-            // 拖拽浮层
-            if let anyItem = draggingItem {
-                let item = anyItem.item
-                // 动态计算浮层尺寸
-                let screenWidth = UIScreen.main.bounds.width
-                let cellWidth = (screenWidth - 40) / CGFloat(gridColumns) // 假设 padding 20*2
-                let cellHeight = cellWidth * 1.2 // 估算比例
-                
-                let itemWidth = cellWidth * CGFloat(item.spanX)
-                let itemHeight = cellHeight * CGFloat(item.spanY)
-                
-                ZStack {
-                    if let widget = item as? WidgetItem {
-                        if widget.widgetType == "clock" {
-                            ClockWidget(city: city)
-                        } else if widget.widgetType == "weather" {
-                            WeatherWidget(city: city, weather: weather)
-                        } else {
-                            BadgeWidget(image: customIcons[badgeWidgetId])
-                        }
-                    } else if let app = item as? AppIconData {
-                        VStack(spacing: 6) {
-                            ZStack {
-                                if let customIcon = customIcons[app.id] {
-                                    Image(uiImage: customIcon)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: 60, height: 60)
-                                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                                } else if app.useImage {
-                                    Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
-                                        .resizable().aspectRatio(contentMode: .fit).frame(width: 60, height: 60)
-                                } else {
-                                    Text(app.icon).font(.system(size: 48))
-                                }
-                            }.frame(width: 60, height: 60)
-                            Text(app.name).font(.caption2).foregroundColor(.white)
-                        }
-                    }
-                }
-                .frame(width: itemWidth, height: itemHeight)
-                .scaleEffect(1.15).opacity(0.85)
-                .offset(draggingOffset)
-                .zIndex(10000)
-                .allowsHitTesting(false)
-            }
-
-            // 点击空白退出编辑 - 使用低 zIndex 避免阻挡拖拽
-            if isEditMode {
-                Color.clear.contentShape(Rectangle())
-                    .onTapGesture {
-                        isEditMode = false
-                        saveLayout()
-                    }
-                    .zIndex(-1)
-                    .allowsHitTesting(true)
-            }
-
-            if showSettings {
-                SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, showChatApiPresets: $showChatApiPresets, showImageApiPresets: $showImageApiPresets, showVoiceApiPresets: $showVoiceApiPresets, isActivated: $isActivated, expiryDate: expiryDate)
-                    .transition(.move(edge: .trailing)).zIndex(1)
-                    .onDisappear {
-                        loadLayout()
-                        layoutReloadTrigger = UUID()
-                        homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
-                    }
-            }
-            if showChatApiPresets {
-                ApiPresetListView(type: "chat", title: "聊天API预设", showView: $showChatApiPresets)
-                    .transition(.move(edge: .trailing)).zIndex(1.5)
-            }
-            if showImageApiPresets {
-                ApiPresetListView(type: "image", title: "生图API预设", showView: $showImageApiPresets)
-                    .transition(.move(edge: .trailing)).zIndex(1.5)
-            }
-            if showVoiceApiPresets {
-                ApiPresetListView(type: "voice", title: "语音API预设", showView: $showVoiceApiPresets)
-                    .transition(.move(edge: .trailing)).zIndex(1.5)
-            }
-            if showDisplaySettings {
-                DisplaySettingsView(showDisplaySettings: $showDisplaySettings, showIconCustomization: $showIconCustomization, onBadgeWidgetChanged: {
-                    layoutReloadTrigger = UUID()
-                    loadCustomIcons()
-                })
-                    .transition(.move(edge: .trailing)).zIndex(1.5)
-            }
-            if showIconCustomization {
-                IconCustomizationView(showIconCustomization: $showIconCustomization, onIconChanged: {
-                    layoutReloadTrigger = UUID()
-                    loadCustomIcons()
-                })
-                    .transition(.move(edge: .trailing)).zIndex(1.6)
-            }
-            if showActivation {
-                ActivationView(showActivation: $showActivation, isActivated: $isActivated, expiryDate: $expiryDate)
-                    .transition(.move(edge: .trailing)).zIndex(2)
-            }
-            if showChatApp {
-                ChatAppView(isPresented: $showChatApp)
-                    .transition(.move(edge: .trailing)).zIndex(3)
-            }
-            if showBrowserApp {
-                BrowserAppView(isPresented: $showBrowserApp)
-                    .transition(.move(edge: .trailing)).zIndex(4)
-            }
-            if showCalculatorApp {
-                CalculatorAppView(isPresented: $showCalculatorApp)
-                    .transition(.move(edge: .trailing)).zIndex(5)
-            }
-            if showWeatherApp {
-                WeatherAppView(isPresented: $showWeatherApp)
-                    .transition(.move(edge: .trailing)).zIndex(6)
-            }
-            if showCalendarApp {
-                CalendarAppView(isPresented: $showCalendarApp)
-                    .transition(.move(edge: .trailing)).zIndex(7)
-            }
-            if showCameraApp {
-                CameraAppView(isPresented: $showCameraApp)
-                    .transition(.move(edge: .trailing)).zIndex(8)
-            }
-            if showNotesApp {
-                NotesAppView(isPresented: $showNotesApp)
-                    .transition(.move(edge: .trailing)).zIndex(9)
-            }
-            if showPersonaBuilderApp {
-                PersonaCardListView()
-                    .transition(.move(edge: .trailing)).zIndex(10)
-            }
+            wallpaperView
+            homeMainContent
+            homeIndicatorView
+            draggingOverlayView
+            editModeDismissOverlayView
+            overlayPagesView
         }
         .alert(isPresented: $showActivationAlert) {
             Alert(
@@ -1509,7 +1264,296 @@ struct HomeScreen: View {
             loadCustomIcons()
         }
     }
-    
+
+    @ViewBuilder
+    private var wallpaperView: some View {
+        if let wallpaper = homeWallpaper {
+            Image(uiImage: wallpaper)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .ignoresSafeArea()
+        } else {
+            Color(red: 0.17, green: 0.17, blue: 0.17).ignoresSafeArea()
+        }
+    }
+
+    private var homeMainContent: some View {
+        VStack(spacing: 0) {
+            Spacer().frame(height: 10)
+            pageTabView
+
+            if allPages.count > 1 {
+                PageIndicator(pageCount: allPages.count, currentPage: currentPage)
+            }
+
+            dockView
+        }
+    }
+
+    private var pageTabView: some View {
+        TabView(selection: $currentPage) {
+            ForEach(0..<allPages.count, id: \.self) { pageIndex in
+                pageGridView(for: pageIndex)
+            }
+        }
+        .tabViewStyle(.page(indexDisplayMode: .never))
+    }
+
+    private func pageGridView(for pageIndex: Int) -> some View {
+        PageGridView(
+            pageIndex: pageIndex,
+            currentPage: $currentPage,
+            pageCount: Binding(get: { allPages.count }, set: { _ in }),
+            gridPositions: Binding(
+                get: { pageIndex < allPages.count ? allPages[pageIndex] : [:] },
+                set: { newValue in
+                    if pageIndex < allPages.count {
+                        allPages[pageIndex] = newValue
+                    }
+                }
+            ),
+            dockApps: $dockApps,
+            isEditMode: $isEditMode,
+            isDraggingOverDock: $isDraggingOverDock,
+            draggingItem: $draggingItem,
+            draggingOffset: $draggingOffset,
+            draggingFromCell: $draggingFromCell,
+            draggingFromPage: $draggingFromPage,
+            city: $city,
+            weather: $weather,
+            maxDockApps: maxDockApps,
+            customIcons: customIcons,
+            onSettingsClick: { showSettings = true },
+            onChatClick: { showChatApp = true },
+            onBrowserClick: { showBrowserApp = true },
+            onCalculatorClick: { showCalculatorApp = true },
+            onWeatherClick: { showWeatherApp = true },
+            onCalendarClick: { showCalendarApp = true },
+            onCameraClick: { showCameraApp = true },
+            onNotesClick: { showNotesApp = true },
+            onPersonaBuilderClick: { showPersonaBuilderApp = true },
+            onLayoutChanged: { saveLayout() },
+            isActivated: isActivated,
+            onActivationAlert: { showActivationAlert = true }
+        )
+        .id(layoutReloadTrigger)
+        .tag(pageIndex)
+    }
+
+    private var dockView: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 30)
+                .fill(isDraggingOverDock && dockApps.count < maxDockApps ? Color.blue.opacity(0.4) : Color.white.opacity(0.3))
+                .background(.ultraThinMaterial)
+                .clipShape(RoundedRectangle(cornerRadius: 30))
+                .frame(height: 90)
+                .padding(.horizontal, 15)
+
+            if dockApps.isEmpty && !isEditMode {
+                Text("长按拖入应用").font(.caption).foregroundColor(.white.opacity(0.4))
+            }
+            if dockApps.isEmpty && isEditMode {
+                Text("拖拽应用到此处").font(.caption).foregroundColor(.white.opacity(0.5))
+            }
+
+            HStack(spacing: 0) {
+                ForEach(0..<maxDockApps, id: \.self) { slotIndex in
+                    dockSlotView(slotIndex: slotIndex)
+                }
+            }
+            .padding(.horizontal, 24)
+        }
+        .padding(.bottom, 20)
+    }
+
+    @ViewBuilder
+    private func dockSlotView(slotIndex: Int) -> some View {
+        ZStack {
+            if slotIndex < dockApps.count {
+                let app = dockApps[slotIndex]
+                DraggableDockIconView(
+                    app: app,
+                    dockIndex: slotIndex,
+                    isEditMode: $isEditMode,
+                    gridPositions: $allPages,
+                    dockApps: $dockApps,
+                    draggingItem: $draggingItem,
+                    draggingOffset: $draggingOffset,
+                    currentPage: currentPage,
+                    maxDockApps: maxDockApps,
+                    colorScheme: colorScheme,
+                    customIcons: customIcons,
+                    isActivated: isActivated,
+                    onActivationAlert: { showActivationAlert = true },
+                    onTap: {
+                        if !isEditMode {
+                            if app.id == "settings" { showSettings = true }
+                            else if app.id == "chat" { showChatApp = true }
+                        }
+                    },
+                    onBrowserClick: { showBrowserApp = true },
+                    onCalculatorClick: { showCalculatorApp = true },
+                    onWeatherClick: { showWeatherApp = true },
+                    onCalendarClick: { showCalendarApp = true },
+                    onCameraClick: { showCameraApp = true },
+                    onNotesClick: { showNotesApp = true },
+                    onPersonaBuilderClick: { showPersonaBuilderApp = true },
+                    onLayoutChanged: { saveLayout() }
+                )
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var homeIndicatorView: some View {
+        VStack {
+            Spacer()
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color.white.opacity(0.8))
+                .frame(width: 120, height: 5)
+                .padding(.bottom, 8)
+        }
+    }
+
+    @ViewBuilder
+    private var draggingOverlayView: some View {
+        if let anyItem = draggingItem {
+            let item = anyItem.item
+            let screenWidth = UIScreen.main.bounds.width
+            let cellWidth = (screenWidth - 40) / CGFloat(gridColumns)
+            let cellHeight = cellWidth * 1.2
+            let itemWidth = cellWidth * CGFloat(item.spanX)
+            let itemHeight = cellHeight * CGFloat(item.spanY)
+
+            ZStack {
+                if let widget = item as? WidgetItem {
+                    if widget.widgetType == "clock" {
+                        ClockWidget(city: city)
+                    } else if widget.widgetType == "weather" {
+                        WeatherWidget(city: city, weather: weather)
+                    } else {
+                        BadgeWidget(image: customIcons[badgeWidgetId])
+                    }
+                } else if let app = item as? AppIconData {
+                    VStack(spacing: 6) {
+                        ZStack {
+                            if let customIcon = customIcons[app.id] {
+                                Image(uiImage: customIcon)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fill)
+                                    .frame(width: 60, height: 60)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            } else if app.useImage {
+                                Image(colorScheme == .dark ? "\(app.icon)Dark" : "\(app.icon)Light")
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .frame(width: 60, height: 60)
+                            } else {
+                                Text(app.icon).font(.system(size: 48))
+                            }
+                        }
+                        .frame(width: 60, height: 60)
+                        Text(app.name).font(.caption2).foregroundColor(.white)
+                    }
+                }
+            }
+            .frame(width: itemWidth, height: itemHeight)
+            .scaleEffect(1.15)
+            .opacity(0.85)
+            .offset(draggingOffset)
+            .zIndex(10000)
+            .allowsHitTesting(false)
+        }
+    }
+
+    @ViewBuilder
+    private var editModeDismissOverlayView: some View {
+        if isEditMode {
+            Color.clear
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    isEditMode = false
+                    saveLayout()
+                }
+                .zIndex(-1)
+                .allowsHitTesting(true)
+        }
+    }
+
+    @ViewBuilder
+    private var overlayPagesView: some View {
+        if showSettings {
+            SettingsView(showSettings: $showSettings, showActivation: $showActivation, showDisplaySettings: $showDisplaySettings, showChatApiPresets: $showChatApiPresets, showImageApiPresets: $showImageApiPresets, showVoiceApiPresets: $showVoiceApiPresets, isActivated: $isActivated, expiryDate: expiryDate)
+                .transition(.move(edge: .trailing)).zIndex(1)
+                .onDisappear {
+                    loadLayout()
+                    layoutReloadTrigger = UUID()
+                    homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
+                }
+        }
+        if showChatApiPresets {
+            ApiPresetListView(type: "chat", title: "聊天API预设", showView: $showChatApiPresets)
+                .transition(.move(edge: .trailing)).zIndex(1.5)
+        }
+        if showImageApiPresets {
+            ApiPresetListView(type: "image", title: "生图API预设", showView: $showImageApiPresets)
+                .transition(.move(edge: .trailing)).zIndex(1.5)
+        }
+        if showVoiceApiPresets {
+            ApiPresetListView(type: "voice", title: "语音API预设", showView: $showVoiceApiPresets)
+                .transition(.move(edge: .trailing)).zIndex(1.5)
+        }
+        if showDisplaySettings {
+            DisplaySettingsView(showDisplaySettings: $showDisplaySettings, showIconCustomization: $showIconCustomization, onBadgeWidgetChanged: {
+                layoutReloadTrigger = UUID()
+                loadCustomIcons()
+            })
+                .transition(.move(edge: .trailing)).zIndex(1.5)
+        }
+        if showIconCustomization {
+            IconCustomizationView(showIconCustomization: $showIconCustomization, onIconChanged: {
+                layoutReloadTrigger = UUID()
+                loadCustomIcons()
+            })
+                .transition(.move(edge: .trailing)).zIndex(1.6)
+        }
+        if showActivation {
+            ActivationView(showActivation: $showActivation, isActivated: $isActivated, expiryDate: $expiryDate)
+                .transition(.move(edge: .trailing)).zIndex(2)
+        }
+        if showChatApp {
+            ChatAppView(isPresented: $showChatApp)
+                .transition(.move(edge: .trailing)).zIndex(3)
+        }
+        if showBrowserApp {
+            BrowserAppView(isPresented: $showBrowserApp)
+                .transition(.move(edge: .trailing)).zIndex(4)
+        }
+        if showCalculatorApp {
+            CalculatorAppView(isPresented: $showCalculatorApp)
+                .transition(.move(edge: .trailing)).zIndex(5)
+        }
+        if showWeatherApp {
+            WeatherAppView(isPresented: $showWeatherApp)
+                .transition(.move(edge: .trailing)).zIndex(6)
+        }
+        if showCalendarApp {
+            CalendarAppView(isPresented: $showCalendarApp)
+                .transition(.move(edge: .trailing)).zIndex(7)
+        }
+        if showCameraApp {
+            CameraAppView(isPresented: $showCameraApp)
+                .transition(.move(edge: .trailing)).zIndex(8)
+        }
+        if showNotesApp {
+            NotesAppView(isPresented: $showNotesApp)
+                .transition(.move(edge: .trailing)).zIndex(9)
+        }
+        if showPersonaBuilderApp {
+            PersonaCardListView()
+                .transition(.move(edge: .trailing)).zIndex(10)
+        }
+    }
     func loadCustomIcons() {
         let records = iconManager.getAllCustomIcons()
         var icons: [String: UIImage] = [:]

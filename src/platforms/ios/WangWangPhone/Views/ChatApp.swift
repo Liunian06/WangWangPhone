@@ -1178,7 +1178,7 @@ struct ContactSelectionView: View {
                             .padding(.horizontal, 16).padding(.vertical, 6)
                             .background(WeTheme.codeBackground)
                         
-                        ForEach(section.contacts) { contact in
+                        ForEach(section.contacts, id: \.id) { contact in
                             ContactSelectionRow(
                                 contact: contact,
                                 isSelected: contact.id == selectedContact1 || contact.id == selectedContact2,
