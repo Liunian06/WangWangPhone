@@ -195,7 +195,7 @@ struct BadgeWidget: View {
                 Circle()
                     .fill(Color.clear)
                     .frame(width: side, height: side)
-                    .shadow(color: .black.opacity(0.34), radius: 14, x: -10, y: 10)
+                    .shadow(color: .black.opacity(0.44), radius: 14, x: -10, y: 10)
 
                 Circle()
                     .fill(
@@ -267,28 +267,51 @@ struct BadgeWidget: View {
                             startPoint: .topTrailing,
                             endPoint: .bottomLeading
                         ),
-                        lineWidth: rim
+                        lineWidth: rim * 0.46
                     )
                     .frame(width: side, height: side)
 
-                Ellipse()
+                Circle()
+                    .trim(from: 0.71, to: 0.93)
                     .stroke(
                         LinearGradient(
                             colors: [
                                 .clear,
-                                Color.white.opacity(0.58),
-                                Color.white.opacity(0.14),
+                                Color.white.opacity(0.78),
+                                Color.white.opacity(0.22),
                                 .clear
                             ],
                             startPoint: .leading,
                             endPoint: .trailing
                         ),
-                        lineWidth: side * 0.18
+                        style: StrokeStyle(lineWidth: side * 0.17, lineCap: .round)
                     )
-                    .frame(width: side * 0.88, height: side * 0.46)
-                    .rotationEffect(.degrees(-22))
-                    .offset(x: side * 0.06, y: -side * 0.20)
-                    .blur(radius: 0.4)
+                    .frame(width: side * 0.88, height: side * 0.88)
+                    .rotationEffect(.degrees(-12))
+                    .offset(x: side * 0.05, y: -side * 0.06)
+                    .mask(
+                        Circle()
+                            .frame(width: side, height: side)
+                    )
+
+                Circle()
+                    .trim(from: 0.33, to: 0.58)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                .clear,
+                                Color.black.opacity(0.45),
+                                Color.black.opacity(0.12),
+                                .clear
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        ),
+                        style: StrokeStyle(lineWidth: side * 0.18, lineCap: .round)
+                    )
+                    .frame(width: side * 0.90, height: side * 0.90)
+                    .rotationEffect(.degrees(16))
+                    .offset(x: -side * 0.04, y: side * 0.06)
                     .mask(
                         Circle()
                             .frame(width: side, height: side)

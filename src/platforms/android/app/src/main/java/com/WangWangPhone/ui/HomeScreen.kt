@@ -37,8 +37,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.changedToUp
@@ -508,10 +508,10 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                     val radius = size.minDimension / 2f
                     val center = Offset(size.width / 2f, size.height / 2f)
 
-                    // Cast shadow: left-bottom
+                    // Base drop shadow (opacity +10%)
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.Black.copy(alpha = 0.22f), Color.Transparent),
+                            colors = listOf(Color.Black.copy(alpha = 0.32f), Color.Transparent),
                             center = Offset(size.width * 0.24f, size.height * 0.82f),
                             radius = radius * 1.08f
                         ),
@@ -519,7 +519,45 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                         radius = radius * 1.12f
                     )
 
-                    // Specular highlight: right-top
+                    // Eccentric arc highlight at top-right
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.White.copy(alpha = 0.78f),
+                                Color.White.copy(alpha = 0.24f),
+                                Color.Transparent
+                            ),
+                            center = center
+                        ),
+                        startAngle = 286f,
+                        sweepAngle = 92f,
+                        useCenter = false,
+                        topLeft = Offset(size.width * 0.08f, -size.height * 0.04f),
+                        size = Size(size.width * 0.84f, size.height * 0.84f),
+                        style = Stroke(width = radius * 0.20f, cap = StrokeCap.Round)
+                    )
+
+                    // Eccentric arc shadow at left-bottom
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.44f),
+                                Color.Black.copy(alpha = 0.12f),
+                                Color.Transparent
+                            ),
+                            center = center
+                        ),
+                        startAngle = 126f,
+                        sweepAngle = 102f,
+                        useCenter = false,
+                        topLeft = Offset(-size.width * 0.02f, size.height * 0.08f),
+                        size = Size(size.width * 0.92f, size.height * 0.92f),
+                        style = Stroke(width = radius * 0.20f, cap = StrokeCap.Round)
+                    )
+
+                    // Spot highlight to brighten top-right edge
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(Color.White.copy(alpha = 0.66f), Color.Transparent),
@@ -530,7 +568,7 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                         radius = radius
                     )
 
-                    // Curved dark falloff: left-bottom
+                    // Spot darkening near left-bottom edge
                     drawCircle(
                         brush = Brush.radialGradient(
                             colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.34f)),
@@ -541,48 +579,17 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                         radius = radius
                     )
 
-                    // Metal rim depth
-                    drawCircle(
-                        brush = Brush.linearGradient(
-                            colors = listOf(
-                                Color.White.copy(alpha = 0.86f),
-                                Color.White.copy(alpha = 0.18f),
-                                Color.Black.copy(alpha = 0.30f)
-                            ),
-                            start = Offset(size.width * 0.86f, size.height * 0.10f),
-                            end = Offset(size.width * 0.12f, size.height * 0.90f)
-                        ),
-                        center = center,
-                        radius = radius - 1.2.dp.toPx(),
-                        style = Stroke(width = 7.dp.toPx())
-                    )
-
-                    // Reflection band
-                    rotate(degrees = -22f, pivot = center) {
-                        drawArc(
-                            brush = Brush.sweepGradient(
-                                colors = listOf(
-                                    Color.Transparent,
-                                    Color.White.copy(alpha = 0.58f),
-                                    Color.White.copy(alpha = 0.12f),
-                                    Color.Transparent
-                                ),
-                                center = center
-                            ),
-                            startAngle = 220f,
-                            sweepAngle = 110f,
-                            useCenter = false,
-                            topLeft = Offset(size.width * 0.09f, size.height * 0.06f),
-                            size = Size(size.width * 0.84f, size.height * 0.56f),
-                            style = Stroke(width = radius * 0.22f)
-                        )
-                    }
-
                     drawCircle(
                         color = Color.White.copy(alpha = 0.52f),
                         center = center,
-                        radius = radius - 1.dp.toPx(),
+                        radius = radius - 0.8.dp.toPx(),
                         style = Stroke(width = 1.4.dp.toPx())
+                    )
+                    drawCircle(
+                        color = Color.Black.copy(alpha = 0.10f),
+                        center = center,
+                        radius = radius - 2.2.dp.toPx(),
+                        style = Stroke(width = 1.1.dp.toPx())
                     )
                 }
             }
