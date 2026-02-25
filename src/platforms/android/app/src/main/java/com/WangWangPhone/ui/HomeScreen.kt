@@ -508,88 +508,137 @@ fun BadgeWidget(imagePath: String?, modifier: Modifier = Modifier) {
                     val radius = size.minDimension / 2f
                     val center = Offset(size.width / 2f, size.height / 2f)
 
-                    // Base drop shadow (opacity +10%)
+                    // Stronger floor shadow for grounded 3D depth.
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(Color.Black.copy(alpha = 0.32f), Color.Transparent),
-                            center = Offset(size.width * 0.24f, size.height * 0.82f),
-                            radius = radius * 1.08f
+                            colors = listOf(Color.Black.copy(alpha = 0.42f), Color.Transparent),
+                            center = Offset(size.width * 0.22f, size.height * 0.86f),
+                            radius = radius * 1.22f
                         ),
                         center = center,
-                        radius = radius * 1.12f
+                        radius = radius * 1.18f
                     )
 
-                    // Eccentric arc highlight at top-right
+                    // Convex fill light that supports the specular band.
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(Color.White.copy(alpha = 0.20f), Color.Transparent),
+                            center = Offset(size.width * 0.78f, size.height * 0.18f),
+                            radius = radius * 0.94f
+                        ),
+                        center = center,
+                        radius = radius
+                    )
+
+                    // Top-right reflection band: soft aura layer.
                     drawArc(
                         brush = Brush.sweepGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.White.copy(alpha = 0.78f),
-                                Color.White.copy(alpha = 0.24f),
+                                Color.White.copy(alpha = 0.56f),
+                                Color.White.copy(alpha = 0.34f),
                                 Color.Transparent
                             ),
                             center = center
                         ),
-                        startAngle = 286f,
-                        sweepAngle = 92f,
+                        startAngle = 282f,
+                        sweepAngle = 104f,
                         useCenter = false,
-                        topLeft = Offset(size.width * 0.08f, -size.height * 0.04f),
-                        size = Size(size.width * 0.84f, size.height * 0.84f),
-                        style = Stroke(width = radius * 0.20f, cap = StrokeCap.Round)
+                        topLeft = Offset(size.width * 0.06f, -size.height * 0.08f),
+                        size = Size(size.width * 0.86f, size.height * 0.86f),
+                        style = Stroke(width = radius * 0.24f, cap = StrokeCap.Round)
                     )
 
-                    // Eccentric arc shadow at left-bottom
+                    // Top-right reflection band: hard white belt.
                     drawArc(
                         brush = Brush.sweepGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                Color.Black.copy(alpha = 0.44f),
-                                Color.Black.copy(alpha = 0.12f),
+                                Color.White.copy(alpha = 0.98f),
+                                Color.White.copy(alpha = 0.90f),
+                                Color.Transparent
+                            ),
+                            center = center
+                        ),
+                        startAngle = 292f,
+                        sweepAngle = 82f,
+                        useCenter = false,
+                        topLeft = Offset(size.width * 0.14f, -size.height * 0.12f),
+                        size = Size(size.width * 0.74f, size.height * 0.74f),
+                        style = Stroke(width = radius * 0.13f, cap = StrokeCap.Round)
+                    )
+
+                    // Top-right reflection band: sharp specular core line.
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.99f),
+                        startAngle = 304f,
+                        sweepAngle = 56f,
+                        useCenter = false,
+                        topLeft = Offset(size.width * 0.19f, -size.height * 0.14f),
+                        size = Size(size.width * 0.66f, size.height * 0.66f),
+                        style = Stroke(width = radius * 0.045f, cap = StrokeCap.Round)
+                    )
+
+                    // Left-bottom arc shadow: soft layer.
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.60f),
+                                Color.Black.copy(alpha = 0.26f),
                                 Color.Transparent
                             ),
                             center = center
                         ),
                         startAngle = 126f,
-                        sweepAngle = 102f,
+                        sweepAngle = 118f,
                         useCenter = false,
-                        topLeft = Offset(-size.width * 0.02f, size.height * 0.08f),
-                        size = Size(size.width * 0.92f, size.height * 0.92f),
-                        style = Stroke(width = radius * 0.20f, cap = StrokeCap.Round)
+                        topLeft = Offset(-size.width * 0.08f, size.height * 0.12f),
+                        size = Size(size.width * 0.98f, size.height * 0.98f),
+                        style = Stroke(width = radius * 0.25f, cap = StrokeCap.Round)
                     )
 
-                    // Spot highlight to brighten top-right edge
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color.White.copy(alpha = 0.66f), Color.Transparent),
-                            center = Offset(size.width * 0.82f, size.height * 0.18f),
-                            radius = radius * 0.75f
+                    // Left-bottom arc shadow: hard band.
+                    drawArc(
+                        brush = Brush.sweepGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                Color.Black.copy(alpha = 0.50f),
+                                Color.Black.copy(alpha = 0.20f),
+                                Color.Transparent
+                            ),
+                            center = center
                         ),
-                        center = center,
-                        radius = radius
+                        startAngle = 136f,
+                        sweepAngle = 90f,
+                        useCenter = false,
+                        topLeft = Offset(-size.width * 0.01f, size.height * 0.18f),
+                        size = Size(size.width * 0.84f, size.height * 0.84f),
+                        style = Stroke(width = radius * 0.14f, cap = StrokeCap.Round)
                     )
 
-                    // Spot darkening near left-bottom edge
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.34f)),
-                            center = Offset(size.width * 0.18f, size.height * 0.86f),
-                            radius = radius * 0.96f
-                        ),
-                        center = center,
-                        radius = radius
+                    // Left-bottom arc shadow: darker core.
+                    drawArc(
+                        color = Color.Black.copy(alpha = 0.32f),
+                        startAngle = 152f,
+                        sweepAngle = 52f,
+                        useCenter = false,
+                        topLeft = Offset(size.width * 0.03f, size.height * 0.20f),
+                        size = Size(size.width * 0.76f, size.height * 0.76f),
+                        style = Stroke(width = radius * 0.048f, cap = StrokeCap.Round)
                     )
 
                     drawCircle(
-                        color = Color.White.copy(alpha = 0.52f),
+                        color = Color.White.copy(alpha = 0.40f),
                         center = center,
-                        radius = radius - 0.8.dp.toPx(),
-                        style = Stroke(width = 1.4.dp.toPx())
+                        radius = radius - 1.1.dp.toPx(),
+                        style = Stroke(width = 0.9.dp.toPx())
                     )
                     drawCircle(
-                        color = Color.Black.copy(alpha = 0.10f),
+                        color = Color.Black.copy(alpha = 0.08f),
                         center = center,
-                        radius = radius - 2.2.dp.toPx(),
-                        style = Stroke(width = 1.1.dp.toPx())
+                        radius = radius - 2.0.dp.toPx(),
+                        style = Stroke(width = 0.7.dp.toPx())
                     )
                 }
             }
