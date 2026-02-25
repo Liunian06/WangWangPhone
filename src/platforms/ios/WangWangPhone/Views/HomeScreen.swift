@@ -95,6 +95,9 @@ func getDefaultWidgets() -> [WidgetItem] {
 let gridColumns = 4
 let gridRows = 7
 let totalCells = gridColumns * gridRows
+private let widgetGridInset: CGFloat = 4
+private let homeLongPressMinimumDuration: Double = 0.55
+private let homeLongPressMaximumDistance: CGFloat = 18
 
 struct ClockWidget: View {
     @State private var currentTime = Date()
@@ -391,8 +394,12 @@ struct PageGridView: View {
                         let isDragged = draggingItem?.item.id == item.id && draggingFromCell == cellIndex && draggingFromPage == pageIndex
                         
                         if !isDragged {
+                            let itemInset = item.type == "widget" ? widgetGridInset : 0
                             itemView(item: item, cellIndex: cellIndex, cellWidth: cellWidth, cellHeight: cellHeight)
-                                .frame(width: cellWidth * CGFloat(item.spanX), height: cellHeight * CGFloat(item.spanY))
+                                .frame(
+                                    width: max(0, cellWidth * CGFloat(item.spanX) - itemInset * 2),
+                                    height: max(0, cellHeight * CGFloat(item.spanY) - itemInset * 2)
+                                )
                                 .position(
                                     x: CGFloat(col) * cellWidth + (cellWidth * CGFloat(item.spanX)) / 2,
                                     y: CGFloat(row) * cellHeight + (cellHeight * CGFloat(item.spanY)) / 2
@@ -438,37 +445,33 @@ struct PageGridView: View {
                 }
             }
         }
-        .contentShape(Rectangle())
         .rotationEffect(isEditMode ? .degrees(wiggle) : .degrees(0))
         .animation(isEditMode ? Animation.easeInOut(duration: 0.12 + Double(cellIndex % 3) * 0.03).repeatForever(autoreverses: true) : .linear(duration: 0.1), value: isEditMode)
-        .simultaneousGesture(
-            TapGesture()
-                .onEnded {
-                    if !isEditMode {
-                        if let app = item as? AppIconData {
-                            if app.id == "settings" {
-                                onSettingsClick()
-                            } else {
-                                if isActivated {
-                                    if app.id == "chat" { onChatClick() }
-                                    else if app.id == "safari" { onBrowserClick() }
-                                    else if app.id == "calculator" { onCalculatorClick() }
-                                    else if app.id == "weather_app" { onWeatherClick() }
-                                    else if app.id == "calendar" { onCalendarClick() }
-                                    else if app.id == "camera" { onCameraClick() }
-                                    else if app.id == "notes" { onNotesClick() }
-                                    else if app.id == "persona_builder" { onPersonaBuilderClick() }
-                                } else {
-                                    onActivationAlert()
-                                }
-                            }
+        .onTapGesture {
+            if !isEditMode {
+                if let app = item as? AppIconData {
+                    if app.id == "settings" {
+                        onSettingsClick()
+                    } else {
+                        if isActivated {
+                            if app.id == "chat" { onChatClick() }
+                            else if app.id == "safari" { onBrowserClick() }
+                            else if app.id == "calculator" { onCalculatorClick() }
+                            else if app.id == "weather_app" { onWeatherClick() }
+                            else if app.id == "calendar" { onCalendarClick() }
+                            else if app.id == "camera" { onCameraClick() }
+                            else if app.id == "notes" { onNotesClick() }
+                            else if app.id == "persona_builder" { onPersonaBuilderClick() }
+                        } else {
+                            onActivationAlert()
                         }
                     }
                 }
-        )
-        .gesture(
-            LongPressGesture(minimumDuration: 0.5)
-                .sequenced(before: DragGesture(coordinateSpace: .global))
+            }
+        }
+        .highPriorityGesture(
+            LongPressGesture(minimumDuration: homeLongPressMinimumDuration, maximumDistance: homeLongPressMaximumDistance)
+                .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
                 .onChanged { value in
                     switch value {
                     case .first(true):
@@ -700,33 +703,30 @@ struct DraggableDockIconView: View {
         .animation(isEditMode && !isDragging ? Animation.easeInOut(duration: 0.12 + Double(dockIndex % 3) * 0.03).repeatForever(autoreverses: true) : .linear(duration: 0.1), value: isEditMode)
         .onAppear { if isEditMode { wiggleAmount = dockIndex % 2 == 0 ? -1.5 : 1.5 } }
         .onChange(of: isEditMode) { nv in wiggleAmount = nv ? (dockIndex % 2 == 0 ? -1.5 : 1.5) : 0 }
-        .simultaneousGesture(
-            TapGesture()
-                .onEnded {
-                    if !isEditMode {
-                        if app.id == "settings" {
-                            onTap()
-                        } else {
-                            if isActivated {
-                                if app.id == "chat" { onTap() }
-                                else if app.id == "safari" { onBrowserClick() }
-                                else if app.id == "calculator" { onCalculatorClick() }
-                                else if app.id == "weather_app" { onWeatherClick() }
-                                else if app.id == "calendar" { onCalendarClick() }
-                                else if app.id == "camera" { onCameraClick() }
-                                else if app.id == "notes" { onNotesClick() }
-                                else if app.id == "persona_builder" { onPersonaBuilderClick() }
-                                else { onTap() }
-                            } else {
-                                onActivationAlert()
-                            }
-                        }
+        .onTapGesture {
+            if !isEditMode {
+                if app.id == "settings" {
+                    onTap()
+                } else {
+                    if isActivated {
+                        if app.id == "chat" { onTap() }
+                        else if app.id == "safari" { onBrowserClick() }
+                        else if app.id == "calculator" { onCalculatorClick() }
+                        else if app.id == "weather_app" { onWeatherClick() }
+                        else if app.id == "calendar" { onCalendarClick() }
+                        else if app.id == "camera" { onCameraClick() }
+                        else if app.id == "notes" { onNotesClick() }
+                        else if app.id == "persona_builder" { onPersonaBuilderClick() }
+                        else { onTap() }
+                    } else {
+                        onActivationAlert()
                     }
                 }
-        )
-        .gesture(
-            LongPressGesture(minimumDuration: 0.5)
-                .sequenced(before: DragGesture())
+            }
+        }
+        .highPriorityGesture(
+            LongPressGesture(minimumDuration: homeLongPressMinimumDuration, maximumDistance: homeLongPressMaximumDistance)
+                .sequenced(before: DragGesture(minimumDistance: 0))
                 .onChanged { value in
                     switch value {
                     case .first(true):
