@@ -96,8 +96,8 @@ let gridColumns = 4
 let gridRows = 7
 let totalCells = gridColumns * gridRows
 private let widgetGridInset: CGFloat = 4
-private let homeLongPressMinimumDuration: Double = 0.55
-private let homeLongPressMaximumDistance: CGFloat = 18
+private let homeLongPressMinimumDuration: Double = 0.8
+private let homeLongPressMaximumDistance: CGFloat = 10
 
 struct ClockWidget: View {
     @State private var currentTime = Date()
