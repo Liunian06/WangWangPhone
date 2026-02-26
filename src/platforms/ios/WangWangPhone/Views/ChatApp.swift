@@ -296,7 +296,12 @@ struct ChatAppView: View {
     @State private var currentView = "main"
     @State private var currentChatId: String? = nil
     @State private var currentContactId: String? = nil
+    @State private var editingContactId: String? = nil
     @State private var showContactSelection = false
+    @State private var selectedContact1Id: String? = nil
+    @State private var selectedContact2Id: String? = nil
+    @State private var contactsRefreshTrigger = 0
+    @State private var chatsRefreshTrigger = 0
 
     // 用户资料状态
     @State private var userNickname: String = UserProfileManager.shared.getUserProfile().nickname
@@ -308,34 +313,91 @@ struct ChatAppView: View {
         ZStack {
             switch currentView {
             case "chat-detail":
-                ChatDetailView(chatId: currentChatId ?? "", onBack: { currentView = "main"; currentChatId = nil }, avatarImage: avatarImage)
+                ChatDetailView(
+                    chatId: currentChatId ?? "",
+                    onBack: { chatsRefreshTrigger += 1; currentView = "main"; currentChatId = nil },
+                    onSettingsClick: { currentView = "chat-settings" },
+                    avatarImage: avatarImage
+                )
             case "contact-detail":
-                ContactDetailView(contactId: currentContactId ?? "", onBack: { currentView = "main"; currentContactId = nil }, onSendMessage: { id in currentChatId = id; currentView = "chat-detail" })
+                ContactDetailView(
+                    contactId: currentContactId ?? "",
+                    onBack: { currentView = "main"; currentContactId = nil },
+                    onSendMessage: { id in currentChatId = id; currentView = "chat-detail" },
+                    onEdit: { id in editingContactId = id; currentView = "edit-contact" },
+                    onDelete: { contactsRefreshTrigger += 1; currentView = "main"; currentContactId = nil; currentTab = "contacts" }
+                )
+            case "add-contact":
+                AddContactView(
+                    onBack: { currentView = "main"; currentTab = "contacts" },
+                    onContactAdded: { contactsRefreshTrigger += 1; currentView = "main"; currentTab = "contacts" }
+                )
+            case "edit-contact":
+                EditContactView(
+                    contactId: editingContactId ?? "",
+                    onBack: { currentView = "contact-detail" },
+                    onContactUpdated: { contactsRefreshTrigger += 1; currentView = "contact-detail" }
+                )
+            case "chat-settings":
+                ChatSettingsView(
+                    chatId: currentChatId ?? "",
+                    onBack: { currentView = "chat-detail" },
+                    onSelectApiPreset: { currentView = "select-api-preset" }
+                )
+            case "select-api-preset":
+                ApiPresetSelectionView(
+                    onBack: { currentView = "select-contacts" },
+                    onPresetSelected: { presetId in
+                        if currentChatId != nil {
+                            // 更新现有会话的预设
+                            _ = ChatDbHelper.shared.updateApiPresetId(conversationId: currentChatId!, apiPresetId: presetId)
+                            currentView = "chat-detail"
+                            chatsRefreshTrigger += 1
+                        } else if let c1 = selectedContact1Id, let c2 = selectedContact2Id {
+                            // 创建新会话
+                            if let chatId = ChatDbHelper.shared.createConversation(aiRoleId: c1, userPersonaId: c2, apiPresetId: presetId) {
+                                currentChatId = chatId
+                                currentView = "chat-detail"
+                                chatsRefreshTrigger += 1
+                            }
+                        }
+                    }
+                )
             case "service":
                 ServicePageView(onBack: { currentView = "main"; currentTab = "me" })
             case "select-contacts":
                 ContactSelectionView(
                     onBack: { currentView = "main"; showContactSelection = false },
-                    onContactsSelected: { contact1Id, _ in
-                        // 创建新的聊天会话
-                        let chatId = contact1Id
-                        currentChatId = chatId
-                        currentView = "chat-detail"
-                        showContactSelection = false
+                    onContactsSelected: { contact1Id, contact2Id in
+                        selectedContact1Id = contact1Id
+                        selectedContact2Id = contact2Id
+                        currentChatId = nil
+                        currentView = "select-api-preset"
                     }
                 )
             default:
                 ChatMainView(
                     currentTab: $currentTab,
                     onClose: { isPresented = false },
-                    onOpenChat: { id in currentChatId = id; currentView = "chat-detail" },
+                    onOpenChat: { id in
+                        if id == "new" {
+                            currentView = "select-contacts"
+                            showContactSelection = true
+                        } else {
+                            currentChatId = id
+                            currentView = "chat-detail"
+                        }
+                    },
                     onOpenContact: { id in currentContactId = id; currentView = "contact-detail" },
                     onOpenService: { currentView = "service" },
                     onStartChat: { currentView = "select-contacts"; showContactSelection = true },
+                    onAddContact: { currentView = "add-contact" },
                     userNickname: $userNickname,
                     userSignature: $userSignature,
                     avatarImage: $avatarImage,
-                    coverImage: $coverImage
+                    coverImage: $coverImage,
+                    contactsRefreshTrigger: contactsRefreshTrigger,
+                    chatsRefreshTrigger: chatsRefreshTrigger
                 )
             }
         }
@@ -350,10 +412,13 @@ struct ChatMainView: View {
     var onOpenContact: (String) -> Void
     var onOpenService: () -> Void
     var onStartChat: () -> Void
+    var onAddContact: () -> Void
     @Binding var userNickname: String
     @Binding var userSignature: String
     @Binding var avatarImage: UIImage?
     @Binding var coverImage: UIImage?
+    var contactsRefreshTrigger: Int
+    var chatsRefreshTrigger: Int
     private let titles = ["messages": "微信", "contacts": "通讯录", "moments": "朋友圈", "me": "我"]
     @State private var showMenu = false
 
@@ -370,7 +435,7 @@ struct ChatMainView: View {
                                 Button(action: onStartChat) {
                                     Label("发起聊天", systemImage: "message")
                                 }
-                                Button(action: {}) {
+                                Button(action: onAddContact) {
                                     Label("添加朋友", systemImage: "person.badge.plus")
                                 }
                                 Button(action: {}) {
@@ -390,8 +455,8 @@ struct ChatMainView: View {
 
             Group {
                 switch currentTab {
-                case "messages": MessagesTabView(onOpenChat: onOpenChat)
-                case "contacts": ContactsTabView(onOpenContact: onOpenContact)
+                case "messages": MessagesTabView(onOpenChat: onOpenChat, chatsRefreshTrigger: chatsRefreshTrigger)
+                case "contacts": ContactsTabView(onOpenContact: onOpenContact, contactsRefreshTrigger: contactsRefreshTrigger)
                 case "moments": MomentsTabView(
                     userNickname: $userNickname,
                     userSignature: $userSignature,
@@ -491,86 +556,147 @@ struct TabUnreadBadgeView: View {
     }
 }
 
-// MARK: - Messages Tab
+// MARK: - Time Formatting Helper
+func formatConversationTime(_ timestamp: Int64) -> String {
+    let now = Date().timeIntervalSince1970
+    let diff = now - Double(timestamp)
+    let date = Date(timeIntervalSince1970: Double(timestamp))
+    let formatter = DateFormatter()
+    
+    if diff < 60 { return "刚刚" }
+    if diff < 3600 { return "\(Int(diff / 60))分钟前" }
+    if diff < 86400 { formatter.dateFormat = "HH:mm"; return formatter.string(from: date) }
+    if diff < 172800 { return "昨天" }
+    formatter.dateFormat = "MM-dd"
+    return formatter.string(from: date)
+}
+
+// MARK: - Messages Tab (Database-driven)
 struct MessagesTabView: View {
     var onOpenChat: (String) -> Void
+    var chatsRefreshTrigger: Int = 0
+    
+    @State private var dbConversations: [ConversationData] = []
+    
     var body: some View {
         ScrollView {
             LazyVStack(spacing: 0) {
-                ForEach(wxConversations) { conv in
+                ForEach(dbConversations, id: \.id) { conv in
+                    let contactInfo = ContactDbHelper.shared.getContactById(conv.aiRoleId)
+                    let displayName = contactInfo?.nickname ?? "未知联系人"
+                    let displayAvatar = contactInfo?.persona.first.map(String.init) ?? "👤"
+                    
                     Button(action: { onOpenChat(conv.id) }) {
                         HStack(spacing: 8) {
                             ZStack {
-                                RoundedRectangle(cornerRadius: 4).fill(conv.iconBg).frame(width: 48, height: 48)
-                                    .overlay(Text(conv.avatar).font(.system(size: 24)))
-                                UnreadBadgeView(conv: conv).position(x: 50, y: 2)
+                                RoundedRectangle(cornerRadius: 4).fill(Color(hex: 0x4CAF50)).frame(width: 48, height: 48)
+                                    .overlay(Text(displayAvatar).font(.system(size: 24)))
+                                if conv.unreadCount > 0 {
+                                    ZStack {
+                                        Circle().fill(Color(hex: 0xFA5151)).frame(width: 18, height: 18)
+                                        Text("\(conv.unreadCount)").font(.system(size: 10, weight: .bold)).foregroundColor(.white)
+                                    }.position(x: 50, y: 2)
+                                }
                             }.frame(width: 52, height: 52)
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack {
-                                    Text(conv.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary).lineLimit(1)
+                                    Text(displayName).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary).lineLimit(1)
                                     Spacer()
-                                    Text(conv.time).font(.system(size: 11)).foregroundColor(WeTheme.codeTextHint)
+                                    Text(formatConversationTime(conv.lastMessageTime)).font(.system(size: 11)).foregroundColor(WeTheme.codeTextHint)
                                 }
                                 HStack {
-                                    Text(conv.lastMsg).font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary).lineLimit(1)
+                                    Text(conv.lastMessage).font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary).lineLimit(1)
                                     Spacer()
-                                    if conv.muted { WeIcon(name: "ic_mute", fallback: "🔇", size: 16, color: WeTheme.codeTextHint) }
+                                    if conv.isMuted { WeIcon(name: "ic_mute", fallback: "🔇", size: 16, color: WeTheme.codeTextHint) }
                                 }
                             }
                         }.padding(16).background(WeTheme.codeBackgroundCell)
                     }.buttonStyle(PlainButtonStyle())
                     Divider().overlay(WeTheme.codeSeparator).padding(.leading, 76)
                 }
+                
+                if dbConversations.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("暂无会话").font(.system(size: 16)).foregroundColor(WeTheme.codeTextHint)
+                        Text("点击右上角 ⊕ 发起聊天").font(.system(size: 13)).foregroundColor(WeTheme.codeTextHint)
+                    }.padding(.top, 100)
+                }
             }
         }
+        .onAppear { loadConversations() }
+        .onChange(of: chatsRefreshTrigger) { _ in loadConversations() }
+    }
+    
+    private func loadConversations() {
+        dbConversations = ChatDbHelper.shared.getAllConversations()
     }
 }
 
-// MARK: - Contacts Tab
+// MARK: - Contacts Tab (Database-driven)
 struct ContactsTabView: View {
     var onOpenContact: (String) -> Void
+    var contactsRefreshTrigger: Int = 0
+    
+    @State private var allContacts: [ContactInfo] = []
+    
+    private var groupedContacts: [(letter: String, contacts: [ContactInfo])] {
+        let grouped = Dictionary(grouping: allContacts) { $0.getPinyinInitial() }
+        return grouped
+            .map { (letter: $0.key, contacts: $0.value.sorted { $0.nickname < $1.nickname }) }
+            .sorted { $0.letter < $1.letter }
+    }
+    
     var body: some View {
         ScrollView {
-            VStack(spacing: 0) {
-                ForEach(wxContactGroups) { g in
-                    HStack(spacing: 16) {
-                        RoundedRectangle(cornerRadius: 4).fill(g.color).frame(width: 36, height: 36)
-                            .overlay(Text(g.icon).font(.system(size: 20)).foregroundColor(.white))
-                        Text(g.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
-                        Spacer()
-                    }.padding(.horizontal, 16).padding(.vertical, 10).background(WeTheme.codeBackgroundCell)
-                    Divider().overlay(WeTheme.codeSeparator).padding(.leading, 68)
-                }
-                if !wxStarred.isEmpty {
-                    Text("星标朋友").font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary).frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 16).padding(.vertical, 8).background(WeTheme.codeBackground)
-                    ForEach(wxStarred) { c in ContactRow(contact: c, onOpenContact: onOpenContact) }
-                }
-                var lastLetter = ""
-                ForEach(wxContactList) { c in
-                    if !c.letter.isEmpty && c.letter != lastLetter {
-                        let _ = { lastLetter = c.letter }()
-                        Text(c.letter).font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary).frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16).padding(.vertical, 8).background(WeTheme.codeBackground)
+            LazyVStack(spacing: 0) {
+                ForEach(groupedContacts, id: \.letter) { section in
+                    Text(section.letter).font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 16).padding(.vertical, 6)
+                        .background(WeTheme.codeBackground)
+                    
+                    ForEach(section.contacts, id: \.id) { contact in
+                        DbContactRow(contact: contact, onOpenContact: onOpenContact)
                     }
-                    ContactRow(contact: c, onOpenContact: onOpenContact)
+                }
+                
+                if allContacts.isEmpty {
+                    VStack(spacing: 12) {
+                        Text("暂无联系人").font(.system(size: 16)).foregroundColor(WeTheme.codeTextHint)
+                        Text("点击右上角 ⊕ 添加朋友").font(.system(size: 13)).foregroundColor(WeTheme.codeTextHint)
+                    }.padding(.top, 100)
                 }
             }
         }
+        .onAppear { loadContacts() }
+        .onChange(of: contactsRefreshTrigger) { _ in loadContacts() }
+    }
+    
+    private func loadContacts() {
+        allContacts = ContactDbHelper.shared.getAllContacts()
     }
 }
 
-struct ContactRow: View {
-    let contact: WXContact
+struct DbContactRow: View {
+    let contact: ContactInfo
     var onOpenContact: (String) -> Void
     var body: some View {
-        Button(action: {
-            onOpenContact(contact.id)
-        }) {
+        Button(action: { onOpenContact(contact.id) }) {
             HStack(spacing: 16) {
-                RoundedRectangle(cornerRadius: 4).fill(WeTheme.codeBackground).frame(width: 36, height: 36)
-                    .overlay(Text(contact.avatar).font(.system(size: 22)))
-                Text(contact.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                if let avatarFileName = contact.avatarFileName,
+                   let avatarPath = ContactDbHelper.shared.getAvatarFilePath(avatarFileName),
+                   let uiImage = UIImage(contentsOfFile: avatarPath) {
+                    Image(uiImage: uiImage)
+                        .resizable().aspectRatio(contentMode: .fill)
+                        .frame(width: 36, height: 36)
+                        .clipShape(RoundedRectangle(cornerRadius: 4))
+                } else {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(red: 0.96, green: 0.96, blue: 0.86))
+                        .frame(width: 36, height: 36)
+                        .overlay(Text(contact.persona.first.map(String.init) ?? "👤").font(.system(size: 22)))
+                }
+                Text(contact.nickname).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
                 Spacer()
             }.padding(.horizontal, 16).padding(.vertical, 10).background(WeTheme.codeBackgroundCell)
         }.buttonStyle(PlainButtonStyle())
@@ -807,31 +933,32 @@ struct MeTabView: View {
     }
 }
 
-// MARK: - Chat Detail
+// MARK: - Chat Detail (Database-driven, conversation model)
 struct ChatDetailView: View {
     let chatId: String
     var onBack: () -> Void
+    var onSettingsClick: () -> Void
     var avatarImage: UIImage?
     @State private var messages: [WXChatMessage] = []
     @State private var inputText: String = ""
+    @State private var conversation: ConversationData? = nil
+    @State private var aiContact: ContactInfo? = nil
+    @State private var userPersonaContact: ContactInfo? = nil
 
-    private var conv: WXConversation? { wxConversations.first { $0.id == chatId } }
-    private var chatName: String { conv?.name ?? "聊天" }
-    private var isGroup: Bool {
-        guard conv != nil else { return false }
-        return chatName.contains("群") || Set(messages.filter { $0.type == "received" }.map { $0.name }).count > 1
-    }
+    private var chatName: String { aiContact?.nickname ?? "聊天" }
+    private var chatAvatar: String { aiContact?.persona.first.map(String.init) ?? "👤" }
 
     var body: some View {
         VStack(spacing: 0) {
             ZStack {
-                Text(isGroup ? "\(chatName)(\(Int.random(in: 10...50)))" : chatName)
+                Text(chatName)
                     .font(.system(size: 17, weight: .semibold)).lineLimit(1).foregroundColor(WeTheme.codeTextPrimary)
                 HStack {
                     WeIcon(name: "ic_nav_back", fallback: "‹", size: 24, color: WeTheme.codeTextPrimary)
                         .onTapGesture(perform: onBack)
                     Spacer()
                     Text("···").font(.system(size: 20, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                        .onTapGesture(perform: onSettingsClick)
                 }.padding(.horizontal, 12)
             }.frame(height: 50).background(WeTheme.codeBackground)
             Divider().overlay(WeTheme.codeSeparator)
@@ -857,7 +984,6 @@ struct ChatDetailView: View {
                                     RoundedRectangle(cornerRadius: 4).fill(WeTheme.codeBackgroundCell).frame(width: 40, height: 40)
                                         .overlay(Text(msg.avatar.isEmpty ? "👤" : msg.avatar).font(.system(size: 20)))
                                     VStack(alignment: .leading, spacing: 2) {
-                                        if isGroup { Text(msg.name.isEmpty ? chatName : msg.name).font(.system(size: 11)).foregroundColor(WeTheme.codeTextHint) }
                                         Text(msg.text).font(.system(size: 16)).padding(12).padding(.vertical, -2)
                                             .frame(minHeight: 40)
                                             .background(WeTheme.codeBubbleReceived).cornerRadius(4)
@@ -898,24 +1024,28 @@ struct ChatDetailView: View {
                 }
             }.padding(10).background(WeTheme.codeBackground)
         }.background(WeTheme.codeBackground)
-        .onAppear { loadMessages() }
+        .onAppear { loadConversationAndMessages() }
     }
 
-    private func loadMessages() {
-        let dbMessages = ChatDbHelper.shared.getMessages(contactId: chatId)
+    private func loadConversationAndMessages() {
+        // 从数据库加载会话信息
+        conversation = ChatDbHelper.shared.getConversationById(chatId)
+        if let conv = conversation {
+            aiContact = ContactDbHelper.shared.getContactById(conv.aiRoleId)
+            userPersonaContact = ContactDbHelper.shared.getContactById(conv.userPersonaId)
+        }
         
+        // 加载消息
+        let dbMessages = ChatDbHelper.shared.getMessages(conversationId: chatId)
         if dbMessages.isEmpty {
-            messages = wxChatMessages[chatId] ?? [
-                WXChatMessage(type: "time", text: "今天 12:00"),
-                WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: "你好！"),
-            ]
+            messages = [WXChatMessage(type: "time", text: "开始聊天")]
         } else {
             messages = [WXChatMessage(type: "time", text: "历史消息")]
             for msg in dbMessages {
-                if msg.isSent {
-                    messages.append(WXChatMessage(type: "sent", text: msg.message))
+                if msg.isFromUser {
+                    messages.append(WXChatMessage(type: "sent", text: msg.content))
                 } else {
-                    messages.append(WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: msg.message))
+                    messages.append(WXChatMessage(type: "received", name: chatName, avatar: chatAvatar, text: msg.content))
                 }
             }
         }
@@ -926,59 +1056,54 @@ struct ChatDetailView: View {
         guard !trimmed.isEmpty else { return }
         
         // 保存用户消息到数据库
-        ChatDbHelper.shared.addMessage(contactId: chatId, isSent: true, message: trimmed)
+        _ = ChatDbHelper.shared.addMessage(conversationId: chatId, isFromUser: true, content: trimmed)
         messages.append(WXChatMessage(type: "sent", text: trimmed))
         inputText = ""
         
         // 获取AI角色和用户人设
-        var aiPersona = ""
-        var userPersona = ""
+        let aiPersona = aiContact?.persona ?? ""
+        let userPersona = userPersonaContact?.persona ?? ""
         
-        // 尝试从联系人数据库获取AI角色人设
-        if let contact = ContactDbHelper.shared.getContactById(chatId) {
-            aiPersona = contact.persona
+        // 获取会话级API预设
+        let presetId = conversation?.apiPresetId ?? -1
+        let chatPresets = ApiPresetManager.shared.getPresetsByType("chat")
+        let preset: ApiPresetInfo?
+        if presetId != -1 {
+            preset = ApiPresetManager.shared.getPresetById(presetId)
+        } else {
+            preset = chatPresets.first
         }
         
-        // 获取当前用户人设
-        let userProfile = UserProfileManager.shared.getUserProfile()
-        userPersona = userProfile.signature
-        
-        // 获取默认的聊天API预设
-        let chatPresets = ApiPresetManager.shared.getPresetsByType("chat")
-        guard let preset = chatPresets.first else {
-            // 如果没有配置API预设，使用模拟回复
+        guard let activePreset = preset else {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                let mockResponse = "这是模拟回复：\(trimmed)"
-                ChatDbHelper.shared.addMessage(contactId: self.chatId, isSent: false, message: mockResponse)
-                self.messages.append(WXChatMessage(type: "received", name: self.conv?.name ?? "对方", avatar: self.conv?.avatar ?? "👤", text: mockResponse))
+                let mockResponse = "请先配置聊天API预设（点击右上角 ··· 进入聊天设置）"
+                _ = ChatDbHelper.shared.addMessage(conversationId: self.chatId, isFromUser: false, content: mockResponse)
+                self.messages.append(WXChatMessage(type: "received", name: self.chatName, avatar: self.chatAvatar, text: mockResponse))
             }
             return
         }
         
         // 显示加载状态
-        messages.append(WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: "思考中..."))
+        messages.append(WXChatMessage(type: "received", name: chatName, avatar: chatAvatar, text: "思考中..."))
         
         // 调用LLM API
         LlmApiService.shared.callLlmApi(
-            preset: preset,
+            preset: activePreset,
             userMessage: trimmed,
             aiPersona: aiPersona,
             userPersona: userPersona
         ) { response in
-            // 移除"思考中..."消息
             if messages.last?.text == "思考中..." {
                 messages.removeLast()
             }
             
             if response.isError {
-                // 显示错误消息
                 let errorMessage = "API错误: \(response.errorMessage ?? "未知错误")"
-                ChatDbHelper.shared.addMessage(contactId: chatId, isSent: false, message: errorMessage)
-                messages.append(WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: errorMessage))
+                _ = ChatDbHelper.shared.addMessage(conversationId: chatId, isFromUser: false, content: errorMessage)
+                messages.append(WXChatMessage(type: "received", name: chatName, avatar: chatAvatar, text: errorMessage))
             } else {
-                // 保存AI回复到数据库并显示
-                ChatDbHelper.shared.addMessage(contactId: chatId, isSent: false, message: response.content)
-                messages.append(WXChatMessage(type: "received", name: conv?.name ?? "对方", avatar: conv?.avatar ?? "👤", text: response.content))
+                _ = ChatDbHelper.shared.addMessage(conversationId: chatId, isFromUser: false, content: response.content)
+                messages.append(WXChatMessage(type: "received", name: chatName, avatar: chatAvatar, text: response.content))
             }
         }
     }
@@ -1026,15 +1151,16 @@ struct ServicePageView: View {
     }
 }
 
-// MARK: - Contact Detail
+// MARK: - Contact Detail (Database-driven)
 struct ContactDetailView: View {
     let contactId: String
     var onBack: () -> Void
     var onSendMessage: (String) -> Void
+    var onEdit: (String) -> Void
+    var onDelete: () -> Void
     
-    private var contact: WXContact {
-        (wxStarred + wxContactList).first { $0.id == contactId } ?? WXContact(id: contactId, name: "未知联系人", avatar: "👤")
-    }
+    @State private var contactInfo: ContactInfo? = nil
+    @State private var showDeleteAlert = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -1044,50 +1170,56 @@ struct ContactDetailView: View {
                     WeIcon(name: "ic_nav_back", fallback: "‹", size: 24, color: WeTheme.codeTextPrimary)
                         .onTapGesture(perform: onBack)
                     Spacer()
-                    Text("···").font(.system(size: 20, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                    Menu {
+                        Button(action: { onEdit(contactId) }) { Label("编辑", systemImage: "pencil") }
+                        Button(role: .destructive, action: { showDeleteAlert = true }) { Label("删除", systemImage: "trash") }
+                    } label: {
+                        Text("···").font(.system(size: 20, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                    }
                 }.padding(.horizontal, 12)
             }.frame(height: 50).background(WeTheme.codeBackground)
             Divider().overlay(WeTheme.codeSeparator)
             
             ScrollView {
                 VStack(spacing: 0) {
-                    // 头像 + 昵称 + 微信号 + 地区
                     HStack(alignment: .top, spacing: 16) {
-                        RoundedRectangle(cornerRadius: 8).fill(WeTheme.codeBackground).frame(width: 64, height: 64)
-                            .overlay(Text(contact.avatar).font(.system(size: 36)))
+                        if let avatarFileName = contactInfo?.avatarFileName,
+                           let avatarPath = ContactDbHelper.shared.getAvatarFilePath(avatarFileName),
+                           let uiImage = UIImage(contentsOfFile: avatarPath) {
+                            Image(uiImage: uiImage).resizable().aspectRatio(contentMode: .fill)
+                                .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: 8))
+                        } else {
+                            RoundedRectangle(cornerRadius: 8).fill(Color(red: 0.96, green: 0.96, blue: 0.86)).frame(width: 64, height: 64)
+                                .overlay(Text(contactInfo?.persona.first.map(String.init) ?? "👤").font(.system(size: 36)))
+                        }
                         VStack(alignment: .leading, spacing: 6) {
-                            Text(contact.name).font(.system(size: 22, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
-                            Text("微信号：\(contact.id)").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
-                            Text("地区：北京 朝阳").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                            Text(contactInfo?.nickname ?? "未知联系人").font(.system(size: 22, weight: .bold)).foregroundColor(WeTheme.codeTextPrimary)
+                            Text("微信号：\(contactInfo?.wechatId ?? "未设置")").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                            if let region = contactInfo?.region, !region.isEmpty {
+                                Text("地区：\(region)").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                            }
                         }
                         Spacer()
                     }.padding(16).background(WeTheme.codeBackgroundCell)
                     
-                    Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
-                    
-                    // 详细资料
-                    HStack {
-                        Text("详细资料").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
-                        Spacer()
-                        Text("›").foregroundColor(Color(white: 0.75)).font(.system(size: 16))
-                    }.padding(16).background(WeTheme.codeBackgroundCell)
-                    
-                    Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
-                    
-                    // 朋友圈
-                    HStack {
-                        Text("朋友圈").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
-                        Spacer()
-                        Text("›").foregroundColor(Color(white: 0.75)).font(.system(size: 16))
-                    }.padding(16).background(WeTheme.codeBackgroundCell)
+                    if let persona = contactInfo?.persona, !persona.isEmpty {
+                        Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("人设信息").font(.system(size: 13)).foregroundColor(WeTheme.codeTextSecondary)
+                            Text(persona).font(.system(size: 15)).foregroundColor(WeTheme.codeTextPrimary).lineSpacing(4)
+                        }.frame(maxWidth: .infinity, alignment: .leading).padding(16).background(WeTheme.codeBackgroundCell)
+                    }
                     
                     Color(red: 0.93, green: 0.93, blue: 0.93).frame(height: 8)
                     
-                    // 发消息 + 音视频通话
                     VStack(spacing: 0) {
                         Button(action: {
-                            let conv = wxConversations.first { $0.name == contact.name }
-                            onSendMessage(conv?.id ?? "u_\(contact.id)")
+                            let conversations = ChatDbHelper.shared.getAllConversations()
+                            if let existing = conversations.first(where: { $0.aiRoleId == contactId }) {
+                                onSendMessage(existing.id)
+                            } else {
+                                onSendMessage("contact_\(contactId)")
+                            }
                         }) {
                             Text("发消息").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
                                 .frame(maxWidth: .infinity).padding(16).background(WeTheme.codeBackgroundCell)
@@ -1101,6 +1233,16 @@ struct ContactDetailView: View {
                 }
             }
         }.background(WeTheme.codeBackground)
+        .onAppear { contactInfo = ContactDbHelper.shared.getContactById(contactId) }
+        .alert("删除联系人", isPresented: $showDeleteAlert) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                _ = ContactDbHelper.shared.deleteContact(id: contactId)
+                onDelete()
+            }
+        } message: {
+            Text("确定要删除 \(contactInfo?.nickname ?? "此联系人") 吗？")
+        }
     }
 }
 

@@ -16,6 +16,7 @@ struct PersonaBuilderChatView: View {
     @State private var showEditDialog = false
     @State private var showBacktrackAlert = false
     @State private var pendingBacktrackMessage: PersonaMessage?
+    @State private var branchToastMessage: String? = nil
     
     @AppStorage("backtrack_warning_shown") private var hasShownBacktrackWarning = false
     
@@ -37,6 +38,9 @@ struct PersonaBuilderChatView: View {
                 }
                 Button("回溯") {
                     requestBacktrack(message)
+                }
+                Button("分支") {
+                    createBranch(from: message)
                 }
                 Button("取消", role: .cancel) {}
             }
@@ -74,6 +78,25 @@ struct PersonaBuilderChatView: View {
             Divider()
             inputBarView
         }
+        .overlay(
+            Group {
+                if let toast = branchToastMessage {
+                    VStack {
+                        Spacer()
+                        Text(toast)
+                            .font(.subheadline)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.black.opacity(0.75))
+                            .cornerRadius(8)
+                            .padding(.bottom, 80)
+                    }
+                    .transition(.opacity)
+                    .animation(.easeInOut, value: branchToastMessage)
+                }
+            }
+        )
     }
 
     private var headerView: some View {
@@ -402,6 +425,45 @@ struct PersonaBuilderChatView: View {
             }
             
             isLoading = false
+        }
+    }
+    
+    private func createBranch(from message: PersonaMessage) {
+        guard let card = personaCard else { return }
+        
+        // 生成随机4位hex后缀
+        let hex4 = String(format: "%04x", Int.random(in: 0...0xFFFF))
+        let branchName = "\(card.name)-\(hex4)"
+        
+        // 创建新卡
+        let newCardId = dbHelper.createCard(name: branchName, apiPresetId: card.apiPresetId)
+        guard newCardId != -1 else {
+            branchToastMessage = "分支创建失败"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) { branchToastMessage = nil }
+            return
+        }
+        
+        // 复制消息历史到分支（截止到选中消息）
+        let allMessages = dbHelper.getMessages(cardId: cardId)
+        for msg in allMessages {
+            let copiedMsg = PersonaMessage(
+                id: -1,
+                cardId: newCardId,
+                role: msg.role,
+                content: msg.content,
+                timestamp: msg.timestamp
+            )
+            _ = dbHelper.addMessage(copiedMsg)
+            if msg.id == message.id { break }
+        }
+        
+        branchToastMessage = "已创建分支: \(branchName)"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { branchToastMessage = nil }
+        
+        // 自动跳转到新卡
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            // 关闭当前页面，回到列表后用户可以看到新分支卡
+            onBack()
         }
     }
 }

@@ -1053,8 +1053,14 @@ struct DisplaySettingsView: View {
 
     @State private var showBadgePicker = false
     @State private var badgePreview: UIImage? = IconCustomizationManager.shared.getCustomIconImage(appId: badgeWidgetId)
+    
+    @State private var showLockWallpaperPicker = false
+    @State private var showHomeWallpaperPicker = false
+    @State private var lockWallpaperPreview: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .lock)
+    @State private var homeWallpaperPreview: UIImage? = WallpaperManager.shared.getWallpaperImage(type: .home)
 
     private let iconManager = IconCustomizationManager.shared
+    private let wallpaperManager = WallpaperManager.shared
     
     var body: some View {
         NavigationView {
@@ -1064,7 +1070,87 @@ struct DisplaySettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         Section(header: Text("壁纸").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
-                            Text("壁纸设置功能待实现").padding().background(Color(UIColor.secondarySystemGroupedBackground)).cornerRadius(10).padding(.horizontal)
+                            VStack(spacing: 0) {
+                                // 锁屏壁纸
+                                Button(action: { showLockWallpaperPicker = true }) {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("锁屏壁纸").foregroundColor(.primary)
+                                            Text(lockWallpaperPreview != nil ? "已设置，点击更换" : "点击从相册选择图片")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        if let preview = lockWallpaperPreview {
+                                            Image(uiImage: preview)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 48, height: 80)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        } else {
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color(UIColor.systemGray5))
+                                                .frame(width: 48, height: 80)
+                                                .overlay(Text("🖼️").font(.system(size: 20)))
+                                        }
+                                        Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                Divider().padding(.leading)
+                                
+                                // 桌面壁纸
+                                Button(action: { showHomeWallpaperPicker = true }) {
+                                    HStack(spacing: 12) {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            Text("桌面壁纸").foregroundColor(.primary)
+                                            Text(homeWallpaperPreview != nil ? "已设置，点击更换" : "点击从相册选择图片")
+                                                .font(.system(size: 12))
+                                                .foregroundColor(.gray)
+                                        }
+                                        Spacer()
+                                        if let preview = homeWallpaperPreview {
+                                            Image(uiImage: preview)
+                                                .resizable()
+                                                .aspectRatio(contentMode: .fill)
+                                                .frame(width: 48, height: 80)
+                                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        } else {
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color(UIColor.systemGray5))
+                                                .frame(width: 48, height: 80)
+                                                .overlay(Text("🖼️").font(.system(size: 20)))
+                                        }
+                                        Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold)).foregroundColor(.gray)
+                                    }
+                                    .padding()
+                                    .background(Color(UIColor.secondarySystemGroupedBackground))
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                                
+                                // 清除壁纸按钮
+                                if lockWallpaperPreview != nil || homeWallpaperPreview != nil {
+                                    Divider().padding(.leading)
+                                    Button(action: {
+                                        _ = wallpaperManager.clearAllWallpapers()
+                                        lockWallpaperPreview = nil
+                                        homeWallpaperPreview = nil
+                                        NotificationCenter.default.post(name: Notification.Name("WallpaperChanged"), object: nil)
+                                    }) {
+                                        Text("恢复默认壁纸")
+                                            .foregroundColor(.blue)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                            .padding()
+                                            .background(Color(UIColor.secondarySystemGroupedBackground))
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+                            .cornerRadius(10)
+                            .padding(.horizontal)
                         }
                         
                         Section(header: Text("桌面图标").font(.caption).foregroundColor(.gray).padding(.horizontal)) {
@@ -1138,8 +1224,28 @@ struct DisplaySettingsView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showLockWallpaperPicker) {
+                BadgeWidgetImagePicker { image in
+                    if let fileName = wallpaperManager.copyImageToStorage(image),
+                       wallpaperManager.saveWallpaper(type: .lock, fileName: fileName) {
+                        lockWallpaperPreview = image
+                        NotificationCenter.default.post(name: Notification.Name("WallpaperChanged"), object: nil)
+                    }
+                }
+            }
+            .sheet(isPresented: $showHomeWallpaperPicker) {
+                BadgeWidgetImagePicker { image in
+                    if let fileName = wallpaperManager.copyImageToStorage(image),
+                       wallpaperManager.saveWallpaper(type: .home, fileName: fileName) {
+                        homeWallpaperPreview = image
+                        NotificationCenter.default.post(name: Notification.Name("WallpaperChanged"), object: nil)
+                    }
+                }
+            }
             .onAppear {
                 badgePreview = iconManager.getCustomIconImage(appId: badgeWidgetId)
+                lockWallpaperPreview = wallpaperManager.getWallpaperImage(type: .lock)
+                homeWallpaperPreview = wallpaperManager.getWallpaperImage(type: .home)
             }
         }
     }
@@ -1488,6 +1594,7 @@ struct HomeScreen: View {
                     loadLayout()
                     layoutReloadTrigger = UUID()
                     homeWallpaper = WallpaperManager.shared.getWallpaperImage(type: .home)
+                    loadCustomIcons()
                 }
         }
         if showChatApiPresets {
@@ -1549,7 +1656,7 @@ struct HomeScreen: View {
                 .transition(.move(edge: .trailing)).zIndex(9)
         }
         if showPersonaBuilderApp {
-            PersonaCardListView()
+            PersonaCardListView(onClose: { showPersonaBuilderApp = false })
                 .transition(.move(edge: .trailing)).zIndex(10)
         }
     }

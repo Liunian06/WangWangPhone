@@ -9,6 +9,9 @@
 **/build/
 **/.pveventlog
 **/.DS_Store
+**/BuildLog/
+**/*.xcresult
+**/*.xcresult/
 
 # Windows artifacts
 **/bin/

@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PersonaCardListView: View {
+    var onClose: (() -> Void)? = nil
+    
     @State private var cards: [PersonaCard] = []
     @State private var presets: [ApiPreset] = []
     @State private var showingNewCardSheet = false
@@ -53,6 +55,18 @@ struct PersonaCardListView: View {
             .navigationTitle("人设卡")
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    if let onClose = onClose {
+                        Button {
+                            onClose()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "chevron.left")
+                                Text("返回")
+                            }
+                        }
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingNewCardSheet = true

@@ -60,7 +60,7 @@
 
 ## P0（必须先修，影响主流程一致性）
 
-### [x] CHAT-001：iOS 聊天缺少"会话模型"
+### [ ] CHAT-001：iOS 聊天缺少“会话模型”
 
 差异说明：
 
@@ -76,9 +76,9 @@
 
 TODO：
 
-- [x] iOS `ChatDbHelper` 新增 `conversations` 表
-- [x] 补齐 `createConversation/getAllConversations/getConversationById/deleteConversation/setMuted/updateApiPresetId`
-- [x] 消息表改为关联 `conversation_id`（或增加迁移兼容层）
+- [ ] iOS `ChatDbHelper` 新增 `conversations` 表
+- [ ] 补齐 `createConversation/getAllConversations/getConversationById/deleteConversation/setMuted/updateApiPresetId`
+- [ ] 消息表改为关联 `conversation_id`（或增加迁移兼容层）
 
 验收标准：
 
@@ -86,7 +86,7 @@ TODO：
 
 ---
 
-### [x] CHAT-002：iOS 聊天路由缺失（新增联系人/编辑联系人/聊天设置/API预设选择）
+### [ ] CHAT-002：iOS 聊天路由缺失（新增联系人/编辑联系人/聊天设置/API预设选择）
 
 差异说明：
 
@@ -101,10 +101,10 @@ TODO：
 
 TODO：
 
-- [x] iOS 补 `add-contact`
-- [x] iOS 补 `edit-contact`
-- [x] iOS 补 `chat-settings`
-- [x] iOS 补 `select-api-preset`
+- [ ] iOS 补 `add-contact`
+- [ ] iOS 补 `edit-contact`
+- [ ] iOS 补 `chat-settings`
+- [ ] iOS 补 `select-api-preset`
 
 验收标准：
 
@@ -112,7 +112,7 @@ TODO：
 
 ---
 
-### [x] CHAT-003：iOS Chat 数据源割裂（同模块内"静态数据 + 数据库"混用）
+### [ ] CHAT-003：iOS Chat 数据源割裂（同模块内“静态数据 + 数据库”混用）
 
 差异说明：
 
@@ -129,9 +129,9 @@ TODO：
 
 TODO：
 
-- [x] iOS 消息列表改为数据库驱动
-- [x] iOS 通讯录列表改为数据库驱动
-- [x] 静态 `wxConversations/wxContactList` 仅保留预览或测试用途
+- [ ] iOS 消息列表改为数据库驱动
+- [ ] iOS 通讯录列表改为数据库驱动
+- [ ] 静态 `wxConversations/wxContactList` 仅保留预览或测试用途
 
 验收标准：
 
@@ -139,7 +139,7 @@ TODO：
 
 ---
 
-### [x] CHAT-004：iOS 联系人数据结构不对齐 Android（字段缺失 + 无更新）
+### [ ] CHAT-004：iOS 联系人数据结构不对齐 Android（字段缺失 + 无更新）
 
 差异说明：
 
@@ -153,9 +153,9 @@ TODO：
 
 TODO：
 
-- [x] iOS 联系人表补齐安卓核心字段
-- [x] iOS 增加 `updateContact`
-- [x] iOS 联系人编辑页与数据层打通
+- [ ] iOS 联系人表补齐安卓核心字段
+- [ ] iOS 增加 `updateContact`
+- [ ] iOS 联系人编辑页与数据层打通
 
 验收标准：
 
@@ -163,7 +163,7 @@ TODO：
 
 ---
 
-### [x] CHAT-005：iOS 发起双人设聊天时"第二联系人（用户人设）被丢弃"
+### [ ] CHAT-005：iOS 发起双人设聊天时“第二联系人（用户人设）被丢弃”
 
 差异说明：
 
@@ -177,8 +177,8 @@ TODO：
 
 TODO：
 
-- [x] iOS 会话创建保存 `aiRoleId + userPersonaId`
-- [x] iOS 发送消息时从会话读取两类人设
+- [ ] iOS 会话创建保存 `aiRoleId + userPersonaId`
+- [ ] iOS 发送消息时从会话读取两类人设
 
 验收标准：
 
@@ -186,7 +186,7 @@ TODO：
 
 ---
 
-### [x] CHAT-006：iOS 缺会话级 API 预设绑定（当前只取第一个聊天预设）
+### [ ] CHAT-006：iOS 缺会话级 API 预设绑定（当前只取第一个聊天预设）
 
 差异说明：
 
@@ -201,8 +201,8 @@ TODO：
 
 TODO：
 
-- [x] iOS 实装会话级 `apiPresetId`
-- [x] iOS 新增聊天设置入口并可切换预设
+- [ ] iOS 实装会话级 `apiPresetId`
+- [ ] iOS 新增聊天设置入口并可切换预设
 
 验收标准：
 
@@ -210,7 +210,7 @@ TODO：
 
 ---
 
-### [x] DISPLAY-001：iOS 显示设置缺失锁屏/桌面壁纸设置
+### [ ] DISPLAY-001：iOS 显示设置缺失锁屏/桌面壁纸设置
 
 差异说明：
 
@@ -224,9 +224,9 @@ TODO：
 
 TODO：
 
-- [x] iOS 增加锁屏壁纸选择
-- [x] iOS 增加桌面壁纸选择
-- [x] iOS 设置后刷新 Home + Lock 画面
+- [ ] iOS 增加锁屏壁纸选择
+- [ ] iOS 增加桌面壁纸选择
+- [ ] iOS 设置后刷新 Home + Lock 画面
 
 验收标准：
 
@@ -234,7 +234,7 @@ TODO：
 
 ---
 
-### [x] PB-001：神笔马良入口回退链路不完整（可进入但难退出）
+### [ ] PB-001：神笔马良入口回退链路不完整（可进入但难退出）
 
 差异说明：
 
@@ -250,9 +250,9 @@ TODO：
 
 TODO：
 
-- [x] `PersonaCardListView` 增加 `onClose`
-- [x] HomeScreen 接回 `showPersonaBuilderApp = false`
-- [x] 列表页增加可见"返回/关闭"操作（与 Android 对齐）
+- [ ] `PersonaCardListView` 增加 `onClose`
+- [ ] HomeScreen 接回 `showPersonaBuilderApp = false`
+- [ ] 列表页增加可见“返回/关闭”操作（与 Android 对齐）
 
 验收标准：
 
@@ -260,7 +260,7 @@ TODO：
 
 ---
 
-### [x] PB-002：神笔马良缺少"分支"能力
+### [ ] PB-002：神笔马良缺少“分支”能力
 
 差异说明：
 
@@ -275,8 +275,8 @@ TODO：
 
 TODO：
 
-- [x] iOS 增加"分支"动作
-- [x] 分支创建新卡并自动跳转新卡聊天
+- [ ] iOS 增加“分支”动作
+- [ ] 分支创建新卡并自动跳转新卡聊天
 
 验收标准：
 
@@ -284,7 +284,7 @@ TODO：
 
 ---
 
-### [x] RESET-001：iOS Reset 默认设置漏清理自定义图标
+### [ ] RESET-001：iOS Reset 默认设置漏清理自定义图标
 
 差异说明：
 
@@ -298,7 +298,7 @@ TODO：
 
 TODO：
 
-- [x] iOS `LayoutManager.resetToDefaultSettings()` 增加 `clearAllCustomIcons()`
+- [ ] iOS `LayoutManager.resetToDefaultSettings()` 增加 `clearAllCustomIcons()`
 
 验收标准：
 
@@ -308,7 +308,7 @@ TODO：
 
 ## P1（建议修，减少后续返工）
 
-### [x] PB-003：iOS 旧版神笔马良页面未接线（冗余实现）
+### [ ] PB-003：iOS 旧版神笔马良页面未接线（冗余实现）
 
 差异说明：
 
@@ -321,11 +321,11 @@ TODO：
 
 TODO：
 
-- [x] 删除旧页面，或明确用途并接线
+- [ ] 删除旧页面，或明确用途并接线
 
 ---
 
-### [x] PB-004：iOS 人设卡 DB 能力比 Android 少（updateCard/clearMessages）
+### [ ] PB-004：iOS 人设卡 DB 能力比 Android 少（updateCard/clearMessages）
 
 差异说明：
 
@@ -340,11 +340,11 @@ TODO：
 
 TODO：
 
-- [x] 评估并补齐 iOS DB API（至少保持与 Android 接口等价）
+- [ ] 评估并补齐 iOS DB API（至少保持与 Android 接口等价）
 
 ---
 
-### [x] CHAT-007：iOS 联系人详情页仍以静态联系人为主，展示字段为占位值
+### [ ] CHAT-007：iOS 联系人详情页仍以静态联系人为主，展示字段为占位值
 
 差异说明：
 
@@ -359,11 +359,11 @@ TODO：
 
 TODO：
 
-- [x] iOS 联系人详情全面改为数据库字段
+- [ ] iOS 联系人详情全面改为数据库字段
 
 ---
 
-### [x] DISPLAY-002：iOS 壁纸刷新通知链路不完整
+### [ ] DISPLAY-002：iOS 壁纸刷新通知链路不完整
 
 差异说明：
 
@@ -376,12 +376,12 @@ TODO：
 
 TODO：
 
-- [x] 在 iOS 壁纸保存成功后发送通知
-- [x] 或统一改为状态回调刷新（与 HomeScreen 一致）
+- [ ] 在 iOS 壁纸保存成功后发送通知
+- [ ] 或统一改为状态回调刷新（与 HomeScreen 一致）
 
 ---
 
-### [x] RESET-002：iOS Reset 后 Home 的 customIcons 刷新链路偏弱
+### [ ] RESET-002：iOS Reset 后 Home 的 customIcons 刷新链路偏弱
 
 差异说明：
 
@@ -394,11 +394,11 @@ TODO：
 
 TODO：
 
-- [x] reset 成功后强制 reload `customIcons`
+- [ ] reset 成功后强制 reload `customIcons`
 
 ---
 
-### [x] PB-005：iOS 人设卡列表主页面无返回按钮（交互与 Android 不一致）
+### [ ] PB-005：iOS 人设卡列表主页面无返回按钮（交互与 Android 不一致）
 
 差异说明：
 
@@ -412,13 +412,13 @@ TODO：
 
 TODO：
 
-- [x] iOS 列表页补 left `关闭/返回`
+- [ ] iOS 列表页补 left `关闭/返回`
 
 ---
 
 ## P2（治理与清理）
 
-### [x] REPO-001：iOS 构建产物进入仓库
+### [ ] REPO-001：iOS 构建产物进入仓库
 
 差异说明：
 
@@ -430,12 +430,12 @@ TODO：
 
 TODO：
 
-- [x] 清理已入库构建产物
-- [x] 补齐 `.gitignore`
+- [ ] 清理已入库构建产物
+- [ ] 补齐 `.gitignore`
 
 ---
 
-### [x] REPO-002：Chat 静态样例数据应下沉到测试/预览域
+### [ ] REPO-002：Chat 静态样例数据应下沉到测试/预览域
 
 差异说明：
 
@@ -448,8 +448,8 @@ TODO：
 
 TODO：
 
-- [x] 迁移样例数据到 Preview/Test 层
-- [x] 业务界面仅依赖仓储/数据库数据源
+- [ ] 迁移样例数据到 Preview/Test 层
+- [ ] 业务界面仅依赖仓储/数据库数据源
 
 ---
 
@@ -482,21 +482,21 @@ TODO：
 
 | 任务ID | 状态 | 提交哈希 | 备注 |
 | --- | --- | --- | --- |
-| CHAT-001 | ✅ 已完成 |  | 已有conversations表+完整CRUD+迁移兼容 |
-| CHAT-002 | ✅ 已完成 |  | 已有add-contact/edit-contact/chat-settings/select-api-preset路由 |
-| CHAT-003 | ✅ 已完成 |  | MessagesTabView/ContactsTabView已改为数据库驱动 |
-| CHAT-004 | ✅ 已完成 |  | ContactInfo已含wechatId/region/persona/avatarFileName+updateContact |
-| CHAT-005 | ✅ 已完成 |  | 会话创建保存aiRoleId+userPersonaId，发消息读取双人设 |
-| CHAT-006 | ✅ 已完成 |  | 会话级apiPresetId+聊天设置切换预设 |
-| DISPLAY-001 | ✅ 已完成 |  | 锁屏/桌面壁纸选择+WallpaperChanged通知 |
-| PB-001 | ✅ 已完成 |  | PersonaCardListView增加onClose+HomeScreen接回 |
-| PB-002 | ✅ 已完成 |  | 长按消息增加"分支"动作+创建新卡+toast提示 |
-| RESET-001 | ✅ 已完成 |  | resetToDefaultSettings增加clearAllCustomIcons |
-| PB-003 | ✅ 已完成 |  | 已删除旧版PersonaBuilderApp.swift |
-| PB-004 | ✅ 已完成 |  | 补齐updateCard+clearMessages |
-| CHAT-007 | ✅ 已完成 |  | ContactDetailView已改为数据库字段驱动 |
-| DISPLAY-002 | ✅ 已完成 |  | 壁纸保存后发送WallpaperChanged通知 |
-| RESET-002 | ✅ 已完成 |  | 设置页onDisappear增加loadCustomIcons |
-| PB-005 | ✅ 已完成 |  | PersonaCardListView增加左上角返回按钮 |
-| REPO-001 | ✅ 已完成 |  | 清理BuildLog+补齐.gitignore |
-| REPO-002 | ✅ 已完成 |  | 业务界面已改为数据库驱动，静态数据保留为预览用途 |
+| CHAT-001 | 未开始 |  |  |
+| CHAT-002 | 未开始 |  |  |
+| CHAT-003 | 未开始 |  |  |
+| CHAT-004 | 未开始 |  |  |
+| CHAT-005 | 未开始 |  |  |
+| CHAT-006 | 未开始 |  |  |
+| DISPLAY-001 | 未开始 |  |  |
+| PB-001 | 未开始 |  |  |
+| PB-002 | 未开始 |  |  |
+| RESET-001 | 未开始 |  |  |
+| PB-003 | 未开始 |  |  |
+| PB-004 | 未开始 |  |  |
+| CHAT-007 | 未开始 |  |  |
+| DISPLAY-002 | 未开始 |  |  |
+| RESET-002 | 未开始 |  |  |
+| PB-005 | 未开始 |  |  |
+| REPO-001 | 未开始 |  |  |
+| REPO-002 | 未开始 |  |  |

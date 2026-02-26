@@ -251,4 +251,41 @@ class PersonaCardDbHelper {
         
         sqlite3_finalize(statement)
     }
+    
+    /// 更新人设卡（对齐 Android updateCard）
+    func updateCard(id: Int64, name: String, apiPresetId: Int64) -> Bool {
+        let now = Int64(Date().timeIntervalSince1970 * 1000)
+        let query = "UPDATE persona_cards SET name = ?, api_preset_id = ?, updated_at = ? WHERE id = ?"
+        var statement: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_text(statement, 1, (name as NSString).utf8String, -1, nil)
+            sqlite3_bind_int64(statement, 2, apiPresetId)
+            sqlite3_bind_int64(statement, 3, now)
+            sqlite3_bind_int64(statement, 4, id)
+            
+            let result = sqlite3_step(statement) == SQLITE_DONE
+            sqlite3_finalize(statement)
+            return result
+        }
+        
+        sqlite3_finalize(statement)
+        return false
+    }
+    
+    /// 清空某张卡的所有消息（对齐 Android clearMessages）
+    func clearMessages(cardId: Int64) -> Bool {
+        let query = "DELETE FROM persona_messages WHERE card_id = ?"
+        var statement: OpaquePointer?
+        
+        if sqlite3_prepare_v2(db, query, -1, &statement, nil) == SQLITE_OK {
+            sqlite3_bind_int64(statement, 1, cardId)
+            let result = sqlite3_step(statement) == SQLITE_DONE
+            sqlite3_finalize(statement)
+            return result
+        }
+        
+        sqlite3_finalize(statement)
+        return false
+    }
 }

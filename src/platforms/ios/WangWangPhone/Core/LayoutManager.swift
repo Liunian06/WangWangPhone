@@ -161,6 +161,9 @@ class LayoutManager {
         // 4. 重置用户资料
         _ = UserProfileManager.shared.resetToDefault()
         
+        // 5. 清除自定义图标
+        _ = IconCustomizationManager.shared.clearAllCustomIcons()
+        
         return true
     }
     
