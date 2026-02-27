@@ -1,7 +1,9 @@
 package com.WangWangPhone.ui
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,6 +39,7 @@ fun PersonaCardListScreen(
     var presets by remember { mutableStateOf<List<ApiPreset>>(emptyList()) }
     var showNewCardDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf<PersonaCard?>(null) }
+    var showEditDialog by remember { mutableStateOf<PersonaCard?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) {
@@ -116,6 +119,7 @@ fun PersonaCardListScreen(
                         card = card,
                         preset = presets.find { it.id == card.apiPresetId },
                         onClick = { onCardSelected(card.id) },
+                        onLongClick = { showEditDialog = card },
                         onDelete = { showDeleteDialog = card }
                     )
                 }
@@ -134,6 +138,23 @@ fun PersonaCardListScreen(
                         cards = dbHelper.getAllCards()
                     }
                     showNewCardDialog = false
+                }
+            }
+        )
+    }
+
+    showEditDialog?.let { card ->
+        EditCardDialog(
+            card = card,
+            presets = presets,
+            onDismiss = { showEditDialog = null },
+            onConfirm = { newName, newPresetId ->
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        dbHelper.updateCard(card.id, newName, newPresetId)
+                        cards = dbHelper.getAllCards()
+                    }
+                    showEditDialog = null
                 }
             }
         )
@@ -168,17 +189,22 @@ fun PersonaCardListScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PersonaCardItem(
     card: PersonaCard,
     preset: ApiPreset?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
     ) {
         Row(
             modifier = Modifier
@@ -286,6 +312,78 @@ fun NewCardDialog(
                 enabled = name.isNotBlank()
             ) {
                 Text("创建")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun EditCardDialog(
+    card: PersonaCard,
+    presets: List<ApiPreset>,
+    onDismiss: () -> Unit,
+    onConfirm: (String, Long) -> Unit
+) {
+    var name by remember { mutableStateOf(card.name) }
+    var selectedPresetId by remember { mutableStateOf(card.apiPresetId) }
+    var expanded by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑人设卡") },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("人设卡名称") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = it }
+                ) {
+                    OutlinedTextField(
+                        value = presets.find { it.id == selectedPresetId }?.name ?: "",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("选择API预设") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        presets.forEach { preset ->
+                            DropdownMenuItem(
+                                text = { Text(preset.name) },
+                                onClick = {
+                                    selectedPresetId = preset.id
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(name, selectedPresetId) },
+                enabled = name.isNotBlank()
+            ) {
+                Text("保存")
             }
         },
         dismissButton = {

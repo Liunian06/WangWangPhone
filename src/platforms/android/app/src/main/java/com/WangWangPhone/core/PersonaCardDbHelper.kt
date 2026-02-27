@@ -143,10 +143,13 @@ class PersonaCardDbHelper(context: Context) : SQLiteOpenHelper(context, DATABASE
         return null
     }
 
-    fun updateCard(cardId: Long, name: String) {
+    fun updateCard(cardId: Long, name: String, apiPresetId: Long? = null) {
         val db = writableDatabase
         val values = ContentValues().apply {
             put(COLUMN_NAME, name)
+            if (apiPresetId != null) {
+                put(COLUMN_API_PRESET_ID, apiPresetId)
+            }
             put(COLUMN_UPDATED_AT, System.currentTimeMillis())
         }
         db.update(TABLE_CARDS, values, "$COLUMN_ID = ?", arrayOf(cardId.toString()))

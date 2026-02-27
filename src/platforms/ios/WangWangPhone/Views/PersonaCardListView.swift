@@ -9,6 +9,7 @@ struct PersonaCardListView: View {
     @State private var newCardName = ""
     @State private var selectedPresetId: Int64 = -1
     @State private var selectedCardId: Int64?
+    @State private var editingCard: PersonaCard? = nil
     
     private let dbHelper = PersonaCardDbHelper()
     private let presetManager = ApiPresetManager.shared
@@ -40,6 +41,11 @@ struct PersonaCardListView: View {
                                         selectedCardId = card.id
                                     }
                                     .contextMenu {
+                                        Button {
+                                            editingCard = card
+                                        } label: {
+                                            Label("编辑", systemImage: "pencil")
+                                        }
                                         Button(role: .destructive) {
                                             deleteCard(card.id)
                                         } label: {
@@ -74,6 +80,18 @@ struct PersonaCardListView: View {
                         Image(systemName: "plus")
                     }
                 }
+            }
+            .sheet(item: $editingCard) { card in
+                EditCardSheet(
+                    card: card,
+                    presets: presets,
+                    onSave: { newName, newPresetId in
+                        let _ = dbHelper.updateCard(id: card.id, name: newName, apiPresetId: newPresetId)
+                        loadCards()
+                        editingCard = nil
+                    },
+                    onCancel: { editingCard = nil }
+                )
             }
             .sheet(isPresented: $showingNewCardSheet) {
                 NewCardSheet(
@@ -229,6 +247,60 @@ struct NewCardSheet: View {
                     }
                     .disabled(newCardName.trimmingCharacters(in: .whitespaces).isEmpty || selectedPresetId == -1)
                 }
+            }
+        }
+    }
+}
+
+struct EditCardSheet: View {
+    let card: PersonaCard
+    let presets: [ApiPreset]
+    let onSave: (String, Int64) -> Void
+    let onCancel: () -> Void
+    
+    @State private var editName: String = ""
+    @State private var editPresetId: Int64 = -1
+    
+    var body: some View {
+        NavigationView {
+            Form {
+                Section(header: Text("人设卡名称")) {
+                    TextField("人设卡名称", text: $editName)
+                }
+                
+                Section(header: Text("选择API预设")) {
+                    if presets.isEmpty {
+                        Text("暂无API预设")
+                            .foregroundColor(.secondary)
+                    } else {
+                        Picker("API预设", selection: $editPresetId) {
+                            ForEach(presets, id: \.id) { preset in
+                                Text(preset.name).tag(preset.id)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                    }
+                }
+            }
+            .navigationTitle("编辑人设卡")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        onCancel()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") {
+                        onSave(editName, editPresetId)
+                    }
+                    .disabled(editName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+            .onAppear {
+                editName = card.name
+                editPresetId = card.apiPresetId
             }
         }
     }

@@ -1,7 +1,7 @@
 import Foundation
 import SQLite3
 
-struct PersonaCard {
+struct PersonaCard: Identifiable {
     let id: Int64
     let name: String
     let apiPresetId: Int64
