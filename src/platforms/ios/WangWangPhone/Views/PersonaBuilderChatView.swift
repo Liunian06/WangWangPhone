@@ -3,6 +3,7 @@ import SwiftUI
 struct PersonaBuilderChatView: View {
     let cardId: Int64
     let onBack: () -> Void
+    var onOpenCard: ((Int64) -> Void)? = nil
     
     @State private var personaCard: PersonaCard?
     @State private var messages: [PersonaMessage] = []
@@ -462,8 +463,11 @@ struct PersonaBuilderChatView: View {
         
         // 自动跳转到新卡
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            // 关闭当前页面，回到列表后用户可以看到新分支卡
-            onBack()
+            if let onOpenCard = onOpenCard {
+                onOpenCard(newCardId)
+            } else {
+                onBack()
+            }
         }
     }
 }

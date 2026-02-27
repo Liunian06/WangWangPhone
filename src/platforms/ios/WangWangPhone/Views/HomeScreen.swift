@@ -971,6 +971,22 @@ struct ActivationView: View {
                             .background(Color(UIColor.secondarySystemGroupedBackground))
                             .cornerRadius(10)
 
+                        Button(action: {
+                            UIPasteboard.general.string = machineId
+                        }) {
+                            HStack {
+                                Spacer()
+                                Text("复制机器码")
+                                    .fontWeight(.medium)
+                                    .font(.subheadline)
+                                Spacer()
+                            }
+                            .frame(height: 40)
+                            .background(Color(red: 0.204, green: 0.78, blue: 0.349)) // #34C759
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                        }
+
                         Text("激活码")
                             .font(.caption)
                             .foregroundColor(.gray)
@@ -982,6 +998,24 @@ struct ActivationView: View {
                             .background(Color(UIColor.secondarySystemGroupedBackground))
                             .cornerRadius(10)
                             .disabled(isActivating)
+
+                        Button(action: {
+                            if let clipboardText = UIPasteboard.general.string {
+                                licenseKey = clipboardText
+                            }
+                        }) {
+                            HStack {
+                                Spacer()
+                                Text("粘贴激活码")
+                                    .fontWeight(.medium)
+                                    .font(.subheadline)
+                                Spacer()
+                            }
+                            .frame(height: 40)
+                            .background(Color(red: 0.345, green: 0.337, blue: 0.839)) // #5856D6
+                            .foregroundColor(.white)
+                            .cornerRadius(10)
+                        }
 
                         if let errorMessage {
                             Text(errorMessage)

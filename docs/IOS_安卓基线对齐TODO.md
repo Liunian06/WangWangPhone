@@ -411,7 +411,7 @@ TODO：
 
 ---
 
-### [ ] ACTIVATION-001：iOS 激活页缺少"复制机器码"和"粘贴激活码"便捷按钮
+### [x] ACTIVATION-001：iOS 激活页缺少"复制机器码"和"粘贴激活码"便捷按钮
 
 差异说明：
 
@@ -435,7 +435,7 @@ TODO：
 
 ---
 
-### [ ] PB-006：iOS 神笔马良分支创建后未直接跳转到新卡（行为与 Android 不一致）
+### [x] PB-006：iOS 神笔马良分支创建后未直接跳转到新卡（行为与 Android 不一致）
 
 差异说明：
 
@@ -449,8 +449,8 @@ TODO：
 
 TODO：
 
-- [ ] iOS `PersonaBuilderChatView` 增加 `onOpenCard` 回调参数
-- [ ] 分支创建成功后调用 `onOpenCard(newCardId)` 直接跳转
+- [x] iOS `PersonaBuilderChatView` 增加 `onOpenCard` 回调参数
+- [x] 分支创建成功后调用 `onOpenCard(newCardId)` 直接跳转
 
 验收标准：
 
@@ -537,5 +537,5 @@ TODO：
 | PB-005 | ✅ 已完成 |  | PersonaCardListView增加左上角返回按钮 |
 | REPO-001 | ✅ 已完成 |  | 清理BuildLog+补齐.gitignore |
 | REPO-002 | ✅ 已完成 |  | 业务界面已改为数据库驱动，静态数据保留为预览用途 |
-| ACTIVATION-001 | ⏳ 待修复 |  | iOS激活页缺少复制机器码+粘贴激活码按钮 |
-| PB-006 | ⏳ 待修复 |  | iOS分支创建后未直接跳转到新卡 |
+| ACTIVATION-001 | ✅ 已完成 |  | iOS激活页增加复制机器码+粘贴激活码按钮 |
+| PB-006 | ✅ 已完成 |  | PersonaBuilderChatView增加onOpenCard回调+分支跳转 |

@@ -88,10 +88,16 @@ struct PersonaCardListView: View {
                 get: { selectedCardId.map { CardIdWrapper(id: $0) } },
                 set: { selectedCardId = $0?.id }
             )) { wrapper in
-                PersonaBuilderChatView(cardId: wrapper.id) {
+                PersonaBuilderChatView(cardId: wrapper.id, onBack: {
                     selectedCardId = nil
                     loadCards()
-                }
+                }, onOpenCard: { newCardId in
+                    selectedCardId = nil
+                    loadCards()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        selectedCardId = newCardId
+                    }
+                })
             }
         }
         .onAppear {
