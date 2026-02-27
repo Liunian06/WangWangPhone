@@ -1,6 +1,6 @@
 # iOS 对齐安卓基线 TODO（全量差异修复版）
 
-更新时间：2026-02-26  
+更新时间：2026-02-27
 对齐基线：`Android`（`src/platforms/android`）  
 目标平台：`iOS`（`src/platforms/ios`）
 
@@ -20,20 +20,14 @@
 
 ## 1. 结论总览（先说结论）
 
-当前 iOS 不是“没做神笔马良”，而是“**主链路做了，但关键能力未完全对齐安卓**”。
+经过 2026-02-27 全量复查，**上一轮 P0/P1/P2 任务已全部完成**。
 
-神笔马良 iOS 已有：
+当前 iOS 与 Android 的差距已大幅缩小，仅剩 2 个小差异：
 
-- 人设卡列表：`src/platforms/ios/WangWangPhone/Views/PersonaCardListView.swift:3`
-- 人设对话：`src/platforms/ios/WangWangPhone/Views/PersonaBuilderChatView.swift:3`
-- 数据库支持：`src/platforms/ios/WangWangPhone/Core/PersonaCardDbHelper.swift:70`
+1. 激活页缺少"复制机器码"和"粘贴激活码"便捷按钮（ACTIVATION-001）
+2. 神笔马良分支创建后未直接跳转到新卡（PB-006）
 
-但 iOS 与安卓当前最大差距仍在：
-
-- 聊天系统（会话模型、联系人管理、会话设置）
-- 显示设置（壁纸设置缺失）
-- 神笔马良入口回退链路
-- Reset 逻辑一致性
+其余模块（聊天系统、显示设置、壁纸、联系人、Reset、构建产物等）均已对齐。
 
 ---
 
@@ -41,16 +35,17 @@
 
 | 模块 | Android 状态 | iOS 状态 | 对齐结论 |
 | --- | --- | --- | --- |
-| MainContainer / LockScreen | 完整 | 基本完整 | 部分对齐 |
-| Home 桌面布局/拖拽 | 完整 | 基本完整 | 部分对齐 |
-| DisplaySettings | 完整（锁屏/桌面壁纸+吧唧） | 吧唧可用，壁纸待实现 | 未对齐 |
-| API Presets | 完整 | 基本完整 | 部分对齐 |
-| Chat 数据层 | 会话+消息模型完整 | 仅消息表，缺会话层 | 未对齐 |
-| Chat UI 路由 | 主流程完整（新增/编辑/设置/预设） | 缺多个子页面与状态 | 未对齐 |
-| Contact 数据层 | 字段完整+更新能力 | 字段简化+无更新 | 未对齐 |
-| PersonaBuilder（神笔马良） | 完整 | 主链路可用，能力有缺口 | 部分对齐 |
-| Reset 到默认设置 | 清理布局/壁纸/天气/资料/自定义图标 | 漏清理自定义图标 | 未对齐 |
-| 构建产物治理 | 正常 | iOS 目录含 BuildLog 产物 | 未对齐 |
+| MainContainer / LockScreen | 完整 | 完整 | ✅ 已对齐 |
+| Home 桌面布局/拖拽 | 完整 | 完整 | ✅ 已对齐 |
+| DisplaySettings | 完整（锁屏/桌面壁纸+吧唧） | 完整 | ✅ 已对齐 |
+| API Presets | 完整 | 完整 | ✅ 已对齐 |
+| Chat 数据层 | 会话+消息模型完整 | 完整 | ✅ 已对齐 |
+| Chat UI 路由 | 主流程完整（新增/编辑/设置/预设） | 完整 | ✅ 已对齐 |
+| Contact 数据层 | 字段完整+更新能力 | 完整 | ✅ 已对齐 |
+| PersonaBuilder（神笔马良） | 完整（含分支跳转） | 分支创建后回退列表而非跳转 | 部分对齐 |
+| Reset 到默认设置 | 清理布局/壁纸/天气/资料/自定义图标 | 完整 | ✅ 已对齐 |
+| 构建产物治理 | 正常 | 完整 | ✅ 已对齐 |
+| 激活页 | 有复制机器码+粘贴激活码按钮 | 缺少便捷操作按钮 | 未对齐 |
 
 ---
 
@@ -416,6 +411,53 @@ TODO：
 
 ---
 
+### [ ] ACTIVATION-001：iOS 激活页缺少"复制机器码"和"粘贴激活码"便捷按钮
+
+差异说明：
+
+- Android `ActivationScreen` 有"复制机器码"按钮（绿色）和"粘贴激活码"按钮（紫色），方便用户操作。
+- iOS `ActivationView` 只有机器码展示和激活码输入框，缺少这两个便捷操作按钮。
+
+证据：
+
+- Android 复制机器码按钮：`src/platforms/android/app/src/main/java/com/WangWangPhone/ui/HomeScreen.kt:767`
+- Android 粘贴激活码按钮：`src/platforms/android/app/src/main/java/com/WangWangPhone/ui/HomeScreen.kt:785`
+- iOS 激活页无对应按钮：`src/platforms/ios/WangWangPhone/Views/HomeScreen.swift:955`
+
+TODO：
+
+- [ ] iOS `ActivationView` 增加"复制机器码"按钮（机器码展示框下方）
+- [ ] iOS `ActivationView` 增加"粘贴激活码"按钮（激活码输入框下方）
+
+验收标准：
+
+- iOS 激活页具备与 Android 一致的"复制机器码"和"粘贴激活码"快捷操作。
+
+---
+
+### [ ] PB-006：iOS 神笔马良分支创建后未直接跳转到新卡（行为与 Android 不一致）
+
+差异说明：
+
+- Android 分支创建后调用 `onOpenCard(newCardId)` 直接跳转到新分支卡的聊天页面。
+- iOS 分支创建后调用 `onBack()` 返回列表页，用户需要手动找到并点击新分支卡。
+
+证据：
+
+- Android 分支跳转：`src/platforms/android/app/src/main/java/com/WangWangPhone/ui/PersonaBuilderApp.kt:394`
+- iOS 分支回退到列表：`src/platforms/ios/WangWangPhone/Views/PersonaBuilderChatView.swift:466`
+
+TODO：
+
+- [ ] iOS `PersonaBuilderChatView` 增加 `onOpenCard` 回调参数
+- [ ] 分支创建成功后调用 `onOpenCard(newCardId)` 直接跳转
+
+验收标准：
+
+- iOS 创建分支后自动跳转到新分支卡的聊天页面，行为与 Android 一致。
+
+---
+
 ## P2（治理与清理）
 
 ### [x] REPO-001：iOS 构建产物进入仓库
@@ -463,18 +505,13 @@ TODO：
 
 ## 5. 建议修复顺序（直接照这个顺序做）
 
-1. `CHAT-001`  
-2. `CHAT-002`  
-3. `CHAT-003`  
-4. `CHAT-004`  
-5. `CHAT-005`  
-6. `CHAT-006`  
-7. `PB-001`  
-8. `PB-002`  
-9. `DISPLAY-001`  
-10. `RESET-001`  
-11. `P1` 全部  
-12. `P2` 全部
+1. ~~`CHAT-001` ~ `CHAT-007`~~（已完成）
+2. ~~`PB-001` ~ `PB-005`~~（已完成）
+3. ~~`DISPLAY-001` ~ `DISPLAY-002`~~（已完成）
+4. ~~`RESET-001` ~ `RESET-002`~~（已完成）
+5. ~~`REPO-001` ~ `REPO-002`~~（已完成）
+6. `ACTIVATION-001`（新增）
+7. `PB-006`（新增）
 
 ---
 
@@ -500,3 +537,5 @@ TODO：
 | PB-005 | ✅ 已完成 |  | PersonaCardListView增加左上角返回按钮 |
 | REPO-001 | ✅ 已完成 |  | 清理BuildLog+补齐.gitignore |
 | REPO-002 | ✅ 已完成 |  | 业务界面已改为数据库驱动，静态数据保留为预览用途 |
+| ACTIVATION-001 | ⏳ 待修复 |  | iOS激活页缺少复制机器码+粘贴激活码按钮 |
+| PB-006 | ⏳ 待修复 |  | iOS分支创建后未直接跳转到新卡 |
