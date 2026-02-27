@@ -1067,7 +1067,7 @@ struct ChatDetailView: View {
         // 获取会话级API预设
         let presetId = conversation?.apiPresetId ?? -1
         let chatPresets = ApiPresetManager.shared.getPresetsByType("chat")
-        let preset: ApiPresetInfo?
+        let preset: ApiPreset?
         if presetId != -1 {
             preset = ApiPresetManager.shared.getPresetById(presetId)
         } else {
@@ -1406,5 +1406,409 @@ struct ContactSelectionRow: View {
         }
         .buttonStyle(PlainButtonStyle())
         Divider().overlay(WeTheme.codeSeparator).padding(.leading, 68)
+    }
+}
+
+// MARK: - 添加联系人视图（对齐 Android AddContactScreen）
+struct AddContactView: View {
+    let onBack: () -> Void
+    let onContactAdded: () -> Void
+    
+    @State private var nickname = ""
+    @State private var wechatId = ""
+    @State private var region = ""
+    @State private var persona = ""
+    @State private var avatarImage: UIImage? = nil
+    @State private var showImagePicker = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // 导航栏
+            ZStack {
+                WeTheme.codeBackground.frame(height: 50)
+                Text("添加朋友").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                HStack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left").font(.system(size: 20)).foregroundColor(WeTheme.codeTextPrimary)
+                    }.padding(.leading, 12)
+                    Spacer()
+                }
+            }
+            Divider().overlay(WeTheme.codeSeparator)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // 头像
+                    Text("头像").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Button(action: { showImagePicker = true }) {
+                                if let img = avatarImage {
+                                    Image(uiImage: img).resizable().aspectRatio(contentMode: .fill)
+                                        .frame(width: 80, height: 80).clipShape(RoundedRectangle(cornerRadius: 8))
+                                } else {
+                                    RoundedRectangle(cornerRadius: 8).fill(Color(hex: 0xF5F5F5))
+                                        .frame(width: 80, height: 80).overlay(Text("📷").font(.system(size: 32)))
+                                }
+                            }
+                            Text("点击选择头像").font(.system(size: 12)).foregroundColor(WeTheme.codeTextHint)
+                        }
+                        Spacer()
+                    }
+                    .padding(16).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    // 昵称
+                    Text("昵称 *").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextField("请输入昵称", text: $nickname)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .padding(12).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    // 微信号
+                    Text("微信号").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextField("请输入微信号（选填）", text: $wechatId)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .padding(12).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    // 地区
+                    Text("地区").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextField("例如：北京 海淀", text: $region)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .padding(12).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    // 人设
+                    Text("人设信息 *").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextEditor(text: $persona)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .frame(height: 100).padding(8)
+                        .background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                        .overlay(
+                            Group {
+                                if persona.isEmpty {
+                                    Text("描述这个联系人的性格、职业等信息")
+                                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextHint)
+                                        .padding(.leading, 12).padding(.top, 16)
+                                }
+                            }, alignment: .topLeading
+                        )
+                    
+                    Spacer().frame(height: 16)
+                    
+                    // 添加按钮
+                    Button(action: {
+                        let trimNick = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimPersona = persona.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimNick.isEmpty, !trimPersona.isEmpty else { return }
+                        _ = ContactDbHelper.shared.addContact(nickname: trimNick, wechatId: wechatId, region: region, persona: trimPersona, avatarImage: avatarImage)
+                        onContactAdded()
+                    }) {
+                        Text("添加").font(.system(size: 16, weight: .medium)).foregroundColor(.white)
+                            .frame(maxWidth: .infinity).frame(height: 48)
+                            .background(!nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !persona.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? WeTheme.codeBrandGreen : Color(hex: 0xCCCCCC))
+                            .cornerRadius(8)
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .background(WeTheme.codeBackground)
+        .sheet(isPresented: $showImagePicker) {
+            ImagePicker(image: $avatarImage)
+        }
+    }
+}
+
+// MARK: - 编辑联系人视图（对齐 Android EditContactScreen）
+struct EditContactView: View {
+    let contactId: String
+    let onBack: () -> Void
+    let onContactUpdated: () -> Void
+    
+    @State private var nickname = ""
+    @State private var wechatId = ""
+    @State private var region = ""
+    @State private var persona = ""
+    @State private var avatarImage: UIImage? = nil
+    @State private var showImagePicker = false
+    @State private var hasNewAvatar = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                WeTheme.codeBackground.frame(height: 50)
+                Text("编辑联系人").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                HStack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left").font(.system(size: 20)).foregroundColor(WeTheme.codeTextPrimary)
+                    }.padding(.leading, 12)
+                    Spacer()
+                }
+            }
+            Divider().overlay(WeTheme.codeSeparator)
+            
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    // 头像
+                    Text("头像").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    HStack {
+                        Spacer()
+                        VStack(spacing: 8) {
+                            Button(action: { showImagePicker = true }) {
+                                if let img = avatarImage {
+                                    Image(uiImage: img).resizable().aspectRatio(contentMode: .fill)
+                                        .frame(width: 80, height: 80).clipShape(RoundedRectangle(cornerRadius: 8))
+                                } else {
+                                    RoundedRectangle(cornerRadius: 8).fill(Color(hex: 0xF5F5F5))
+                                        .frame(width: 80, height: 80).overlay(Text("📷").font(.system(size: 32)))
+                                }
+                            }
+                            Text("点击更换头像").font(.system(size: 12)).foregroundColor(WeTheme.codeTextHint)
+                        }
+                        Spacer()
+                    }
+                    .padding(16).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    Text("昵称 *").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextField("请输入昵称", text: $nickname)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .padding(12).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    Text("微信号").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextField("请输入微信号（选填）", text: $wechatId)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .padding(12).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    Text("地区").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextField("例如：北京 海淀", text: $region)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .padding(12).background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                    
+                    Text("人设信息 *").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                    TextEditor(text: $persona)
+                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                        .frame(height: 100).padding(8)
+                        .background(WeTheme.codeBackgroundCell).cornerRadius(8)
+                        .overlay(
+                            Group {
+                                if persona.isEmpty {
+                                    Text("描述这个联系人的性格、职业等信息")
+                                        .font(.system(size: 16)).foregroundColor(WeTheme.codeTextHint)
+                                        .padding(.leading, 12).padding(.top, 16)
+                                }
+                            }, alignment: .topLeading
+                        )
+                    
+                    Spacer().frame(height: 16)
+                    
+                    Button(action: {
+                        let trimNick = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+                        let trimPersona = persona.trimmingCharacters(in: .whitespacesAndNewlines)
+                        guard !trimNick.isEmpty, !trimPersona.isEmpty else { return }
+                        _ = ContactDbHelper.shared.updateContact(id: contactId, nickname: trimNick, wechatId: wechatId, region: region, persona: trimPersona, avatarImage: hasNewAvatar ? avatarImage : nil)
+                        onContactUpdated()
+                    }) {
+                        Text("保存").font(.system(size: 16, weight: .medium)).foregroundColor(.white)
+                            .frame(maxWidth: .infinity).frame(height: 48)
+                            .background(!nickname.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !persona.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? WeTheme.codeBrandGreen : Color(hex: 0xCCCCCC))
+                            .cornerRadius(8)
+                    }
+                }
+                .padding(16)
+            }
+        }
+        .background(WeTheme.codeBackground)
+        .onAppear { loadContact() }
+        .sheet(isPresented: $showImagePicker) {
+            ImagePicker(image: Binding(get: { avatarImage }, set: { newVal in avatarImage = newVal; hasNewAvatar = true }))
+        }
+    }
+    
+    private func loadContact() {
+        guard let contact = ContactDbHelper.shared.getContactById(contactId) else { return }
+        nickname = contact.nickname
+        wechatId = contact.wechatId
+        region = contact.region
+        persona = contact.persona
+        if let fileName = contact.avatarFileName,
+           let path = ContactDbHelper.shared.getAvatarFilePath(fileName) {
+            avatarImage = UIImage(contentsOfFile: path)
+        }
+    }
+}
+
+// MARK: - 聊天设置视图（对齐 Android ChatSettingsScreen）
+struct ChatSettingsView: View {
+    let chatId: String
+    let onBack: () -> Void
+    let onSelectApiPreset: () -> Void
+    
+    @State private var conversation: ConversationData? = nil
+    @State private var currentPreset: ApiPreset? = nil
+    @State private var isMuted = false
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                WeTheme.codeBackground.frame(height: 50)
+                Text("聊天设置").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                HStack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left").font(.system(size: 20)).foregroundColor(WeTheme.codeTextPrimary)
+                    }.padding(.leading, 12)
+                    Spacer()
+                }
+            }
+            Divider().overlay(WeTheme.codeSeparator)
+            
+            ScrollView {
+                VStack(spacing: 16) {
+                    // API预设设置
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("API预设").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                            .padding(.horizontal, 16).padding(.top, 12)
+                        
+                        if let preset = currentPreset {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack {
+                                    Text(preset.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                                    Spacer()
+                                    Text(preset.provider.uppercased()).font(.system(size: 12)).foregroundColor(WeTheme.codeBrandGreen)
+                                }
+                                Text("模型: \(preset.model)").font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary)
+                            }
+                            .padding(.horizontal, 16).padding(.vertical, 12)
+                        } else {
+                            Text("未选择API预设").font(.system(size: 16)).foregroundColor(WeTheme.codeTextHint)
+                                .padding(.horizontal, 16).padding(.vertical, 12)
+                        }
+                        
+                        Divider().overlay(WeTheme.codeSeparator).padding(.leading, 16)
+                        
+                        Button(action: onSelectApiPreset) {
+                            Text("更改API预设").font(.system(size: 16)).foregroundColor(WeTheme.codeBrandGreen)
+                                .padding(.horizontal, 16).padding(.vertical, 12)
+                        }
+                    }
+                    .background(WeTheme.codeBackgroundCell)
+                    
+                    // 其他设置
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("其他设置").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                            .padding(.horizontal, 16).padding(.top, 12)
+                        
+                        HStack {
+                            Text("消息免打扰").font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                            Spacer()
+                            Toggle("", isOn: $isMuted)
+                                .toggleStyle(SwitchToggleStyle(tint: WeTheme.codeBrandGreen))
+                                .labelsHidden()
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 12)
+                        .onChange(of: isMuted) { newValue in
+                            _ = ChatDbHelper.shared.setMuted(conversationId: chatId, isMuted: newValue)
+                        }
+                    }
+                    .background(WeTheme.codeBackgroundCell)
+                }
+                .padding(.top, 8)
+            }
+        }
+        .background(WeTheme.codeBackground)
+        .onAppear { loadData() }
+    }
+    
+    private func loadData() {
+        conversation = ChatDbHelper.shared.getConversationById(chatId)
+        isMuted = conversation?.isMuted ?? false
+        let presetId = conversation?.apiPresetId ?? -1
+        if presetId != -1 {
+            currentPreset = ApiPresetManager.shared.getPresetById(presetId)
+        }
+    }
+}
+
+// MARK: - API预设选择视图（对齐 Android ApiPresetSelectionScreen）
+struct ApiPresetSelectionView: View {
+    let onBack: () -> Void
+    let onPresetSelected: (Int64) -> Void
+    
+    @State private var chatPresets: [ApiPreset] = []
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                WeTheme.codeBackground.frame(height: 50)
+                Text("选择API预设").font(.system(size: 17, weight: .semibold)).foregroundColor(WeTheme.codeTextPrimary)
+                HStack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left").font(.system(size: 20)).foregroundColor(WeTheme.codeTextPrimary)
+                    }.padding(.leading, 12)
+                    Spacer()
+                }
+            }
+            Divider().overlay(WeTheme.codeSeparator)
+            
+            if chatPresets.isEmpty {
+                Spacer()
+                Text("暂无聊天API预设，请先在设置中添加").font(.system(size: 14)).foregroundColor(WeTheme.codeTextSecondary)
+                Spacer()
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 0) {
+                        ForEach(chatPresets) { preset in
+                            Button(action: { onPresetSelected(preset.id) }) {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack {
+                                        Text(preset.name).font(.system(size: 16)).foregroundColor(WeTheme.codeTextPrimary)
+                                        Spacer()
+                                        Text(preset.provider.uppercased()).font(.system(size: 12)).foregroundColor(WeTheme.codeBrandGreen)
+                                    }
+                                    Text("模型: \(preset.model)").font(.system(size: 12)).foregroundColor(WeTheme.codeTextSecondary)
+                                }
+                                .padding(.horizontal, 16).padding(.vertical, 12)
+                                .background(WeTheme.codeBackgroundCell)
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            Divider().overlay(WeTheme.codeSeparator).padding(.leading, 16)
+                        }
+                    }
+                }
+            }
+        }
+        .background(WeTheme.codeBackground)
+        .onAppear { chatPresets = ApiPresetManager.shared.getPresetsByType("chat") }
+    }
+}
+
+// MARK: - 图片选择器
+struct ImagePicker: UIViewControllerRepresentable {
+    @Binding var image: UIImage?
+    @Environment(\.presentationMode) var presentationMode
+    
+    func makeUIViewController(context: Context) -> UIImagePickerController {
+        let picker = UIImagePickerController()
+        picker.delegate = context.coordinator
+        picker.sourceType = .photoLibrary
+        return picker
+    }
+    
+    func updateUIViewController(_ uiViewController: UIImagePickerController, context: Context) {}
+    
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+    
+    class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+        let parent: ImagePicker
+        init(_ parent: ImagePicker) { self.parent = parent }
+        
+        func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+            if let uiImage = info[.originalImage] as? UIImage {
+                parent.image = uiImage
+            }
+            parent.presentationMode.wrappedValue.dismiss()
+        }
+        
+        func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+            parent.presentationMode.wrappedValue.dismiss()
+        }
     }
 }
