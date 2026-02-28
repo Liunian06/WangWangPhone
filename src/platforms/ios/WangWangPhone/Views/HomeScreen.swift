@@ -470,7 +470,7 @@ struct PageGridView: View {
                 }
             }
         }
-        .highPriorityGesture(
+        .simultaneousGesture(
             LongPressGesture(minimumDuration: homeLongPressMinimumDuration, maximumDistance: homeLongPressMaximumDistance)
                 .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
                 .onChanged { value in
@@ -722,7 +722,7 @@ struct DraggableDockIconView: View {
                 }
             }
         }
-        .highPriorityGesture(
+        .simultaneousGesture(
             LongPressGesture(minimumDuration: homeLongPressMinimumDuration, maximumDistance: homeLongPressMaximumDistance)
                 .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
                 .onChanged { value in
