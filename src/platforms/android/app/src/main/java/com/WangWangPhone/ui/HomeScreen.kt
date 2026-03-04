@@ -189,6 +189,9 @@ private fun lerpFloat(start: Float, end: Float, progress: Float): Float {
     return start + (end - start) * progress
 }
 
+private const val COLD_LAUNCH_OPEN_DELAY_MS = 100
+private const val COLD_LAUNCH_ANIMATION_MS = 260
+
 private val homeIconLabelTextStyle = TextStyle(
     platformStyle = PlatformTextStyle(includeFontPadding = true)
 )
@@ -864,6 +867,8 @@ fun HomeScreen() {
     var homeWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)) }
     var pendingLaunch by remember { mutableStateOf<AppLaunchRequest?>(null) }
     val launchProgress = remember { Animatable(0f) }
+    val warmedAppStates = remember { mutableStateMapOf<String, Boolean>() }
+    val keepAliveAppStates = remember { mutableStateMapOf<String, Boolean>() }
 
     fun openAppById(appId: String) {
         when (appId) {
@@ -880,13 +885,21 @@ fun HomeScreen() {
     }
 
     LaunchedEffect(pendingLaunch?.nonce) {
-        val launch = pendingLaunch ?: return@LaunchedEffect
+        val launchRequest = pendingLaunch ?: return@LaunchedEffect
         launchProgress.snapTo(0f)
+
+        // 冷启动：100ms 后开始进入应用，其余动画继续覆盖，降低感知卡顿
+        val openJob = launch {
+            delay(COLD_LAUNCH_OPEN_DELAY_MS.toLong())
+            openAppById(launchRequest.app.id)
+            warmedAppStates[launchRequest.app.id] = true
+        }
+
         launchProgress.animateTo(
             targetValue = 1f,
-            animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing)
+            animationSpec = tween(durationMillis = COLD_LAUNCH_ANIMATION_MS, easing = FastOutSlowInEasing)
         )
-        openAppById(launch.app.id)
+        openJob.join()
         pendingLaunch = null
     }
 
@@ -896,12 +909,18 @@ fun HomeScreen() {
             isDark = isDark,
             isActivated = isActivated,
             onAppLaunchRequest = { app, startRect, customIconPath ->
-                if (pendingLaunch == null && app.id in launchableAppIds) {
-                    pendingLaunch = AppLaunchRequest(
-                        app = app,
-                        customIconPath = customIconPath,
-                        startRect = startRect
-                    )
+                if (app.id in launchableAppIds && pendingLaunch == null) {
+                    val isWarmStart = warmedAppStates[app.id] == true
+                    if (isWarmStart) {
+                        // 热启动：直接进入，不再使用蒙版
+                        openAppById(app.id)
+                    } else {
+                        pendingLaunch = AppLaunchRequest(
+                            app = app,
+                            customIconPath = customIconPath,
+                            startRect = startRect
+                        )
+                    }
                 }
             },
             onActivationAlert = { showActivationAlert = true },
@@ -914,7 +933,8 @@ fun HomeScreen() {
                 app = launch.app,
                 customIconPath = launch.customIconPath,
                 startRect = launch.startRect,
-                progress = launchProgress.value
+                progress = launchProgress.value,
+                isDarkTheme = isDark
             )
         }
         
@@ -938,13 +958,27 @@ fun HomeScreen() {
             )
         }
 
-        if (showSettings) SettingsScreen(isActivated = isActivated, expiryDate = expiryDate,
-            onBack = { showSettings = false }, onNavigateToActivation = { showActivation = true },
-            onNavigateToDisplay = { showDisplaySettings = true },
-            onNavigateToChatApi = { showChatApiPresets = true },
-            onNavigateToImageApi = { showImageApiPresets = true },
-            onNavigateToVoiceApi = { showVoiceApiPresets = true },
-            onResetToDefault = { showResetConfirm = true })
+        KeepAliveAppLayer(
+            visible = showSettings,
+            keepAlive = keepAliveAppStates["settings"] == true
+        ) {
+            SettingsScreen(
+                isActivated = isActivated,
+                expiryDate = expiryDate,
+                onBack = {
+                    showSettings = false
+                    if (warmedAppStates["settings"] == true) {
+                        keepAliveAppStates["settings"] = true
+                    }
+                },
+                onNavigateToActivation = { showActivation = true },
+                onNavigateToDisplay = { showDisplaySettings = true },
+                onNavigateToChatApi = { showChatApiPresets = true },
+                onNavigateToImageApi = { showImageApiPresets = true },
+                onNavigateToVoiceApi = { showVoiceApiPresets = true },
+                onResetToDefault = { showResetConfirm = true }
+            )
+        }
         
         if (showResetConfirm) {
             androidx.compose.material3.AlertDialog(
@@ -985,14 +1019,118 @@ fun HomeScreen() {
         if (showChatApiPresets) ChatApiPresetsScreen(onBack = { showChatApiPresets = false })
         if (showImageApiPresets) ImageApiPresetsScreen(onBack = { showImageApiPresets = false })
         if (showVoiceApiPresets) VoiceApiPresetsScreen(onBack = { showVoiceApiPresets = false })
-        if (showChatApp) ChatAppScreen(onClose = { showChatApp = false })
-        if (showBrowserApp) BrowserAppScreen(onClose = { showBrowserApp = false })
-        if (showCalculatorApp) CalculatorAppScreen(onClose = { showCalculatorApp = false })
-        if (showWeatherApp) WeatherAppScreen(onClose = { showWeatherApp = false })
-        if (showCalendarApp) CalendarAppScreen(onClose = { showCalendarApp = false })
-        if (showCameraApp) CameraAppScreen(onClose = { showCameraApp = false })
-        if (showNotesApp) NotesAppScreen(onClose = { showNotesApp = false })
-        if (showPersonaBuilderApp) PersonaBuilderAppScreen(onClose = { showPersonaBuilderApp = false })
+
+        KeepAliveAppLayer(
+            visible = showChatApp,
+            keepAlive = keepAliveAppStates["chat"] == true
+        ) {
+            ChatAppScreen(
+                onClose = {
+                    showChatApp = false
+                    if (warmedAppStates["chat"] == true) {
+                        keepAliveAppStates["chat"] = true
+                    }
+                }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showBrowserApp,
+            keepAlive = keepAliveAppStates["safari"] == true
+        ) {
+            BrowserAppScreen(
+                onClose = {
+                    showBrowserApp = false
+                    if (warmedAppStates["safari"] == true) {
+                        keepAliveAppStates["safari"] = true
+                    }
+                }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showCalculatorApp,
+            keepAlive = keepAliveAppStates["calculator"] == true
+        ) {
+            CalculatorAppScreen(
+                onClose = {
+                    showCalculatorApp = false
+                    if (warmedAppStates["calculator"] == true) {
+                        keepAliveAppStates["calculator"] = true
+                    }
+                }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showWeatherApp,
+            keepAlive = keepAliveAppStates["weather_app"] == true
+        ) {
+            WeatherAppScreen(
+                onClose = {
+                    showWeatherApp = false
+                    if (warmedAppStates["weather_app"] == true) {
+                        keepAliveAppStates["weather_app"] = true
+                    }
+                }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showCalendarApp,
+            keepAlive = keepAliveAppStates["calendar"] == true
+        ) {
+            CalendarAppScreen(
+                onClose = {
+                    showCalendarApp = false
+                    if (warmedAppStates["calendar"] == true) {
+                        keepAliveAppStates["calendar"] = true
+                    }
+                }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showCameraApp,
+            keepAlive = keepAliveAppStates["camera"] == true
+        ) {
+            CameraAppScreen(
+                onClose = {
+                    showCameraApp = false
+                    if (warmedAppStates["camera"] == true) {
+                        keepAliveAppStates["camera"] = true
+                    }
+                }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showNotesApp,
+            keepAlive = keepAliveAppStates["notes"] == true
+        ) {
+            NotesAppScreen(
+                onClose = {
+                    showNotesApp = false
+                    if (warmedAppStates["notes"] == true) {
+                        keepAliveAppStates["notes"] = true
+                    }
+                }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showPersonaBuilderApp,
+            keepAlive = keepAliveAppStates["persona_builder"] == true
+        ) {
+            PersonaBuilderAppScreen(
+                onClose = {
+                    showPersonaBuilderApp = false
+                    if (warmedAppStates["persona_builder"] == true) {
+                        keepAliveAppStates["persona_builder"] = true
+                    }
+                }
+            )
+        }
         if (showActivation) ActivationScreen(onBack = { showActivation = false }, onActivated = {
             isActivated = licenseManager.isActivated(); expiryDate = licenseManager.getExpirationDateString()
         })
@@ -1004,12 +1142,15 @@ private fun AppLaunchTransitionOverlay(
     app: AppIcon,
     customIconPath: String?,
     startRect: Rect,
-    progress: Float
+    progress: Float,
+    isDarkTheme: Boolean
 ) {
     val clamped = progress.coerceIn(0f, 1f)
     val cornerRadius = lerpFloat(16f, 0f, clamped)
     val iconAlpha = (1f - clamped * 1.15f).coerceIn(0f, 1f)
     val iconScale = lerpFloat(1f, 1.2f, clamped)
+    val maskColor = if (isDarkTheme) Color.Black else Color.White
+    val panelColor = if (isDarkTheme) Color(0xFF111111) else Color(0xFFF8F8F8)
 
     BoxWithConstraints(
         modifier = Modifier
@@ -1027,7 +1168,7 @@ private fun AppLaunchTransitionOverlay(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.18f * clamped))
+                .background(maskColor.copy(alpha = 0.14f * clamped))
         )
 
         Box(
@@ -1036,7 +1177,7 @@ private fun AppLaunchTransitionOverlay(
                 .width(with(density) { width.toDp() })
                 .height(with(density) { height.toDp() })
                 .clip(RoundedCornerShape(cornerRadius.dp))
-                .background(Color(0xFF111111)),
+                .background(panelColor),
             contentAlignment = Alignment.Center
         ) {
             if (iconAlpha > 0f) {
@@ -1051,6 +1192,24 @@ private fun AppLaunchTransitionOverlay(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun KeepAliveAppLayer(
+    visible: Boolean,
+    keepAlive: Boolean,
+    content: @Composable () -> Unit
+) {
+    if (!visible && !keepAlive) return
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(if (visible) 5000f else -200f)
+            .graphicsLayer { alpha = if (visible) 1f else 0f }
+    ) {
+        content()
     }
 }
 
@@ -1465,7 +1624,7 @@ fun HomeScreenContent(
 
                     if (tapDetected) {
                         if (!isEditMode && startItem is AppIcon) {
-                            val app = startItem as AppIcon
+                            val app = startItem
                             val launchRect = when {
                                 isDockItem && startDockIndex >= 0 -> {
                                     appIconBounds[dockIconKey(startDockIndex, app.id)] ?: fallbackLaunchRect(touchX, touchY)
