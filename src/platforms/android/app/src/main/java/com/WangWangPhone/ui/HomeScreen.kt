@@ -166,6 +166,29 @@ const val TOTAL_CELLS = GRID_COLUMNS * GRID_ROWS
 
 data class WeatherInfo(val temp: String, val description: String, val icon: String, val range: String)
 
+private val launchableAppIds = setOf(
+    "settings",
+    "chat",
+    "safari",
+    "calculator",
+    "weather_app",
+    "calendar",
+    "camera",
+    "notes",
+    "persona_builder"
+)
+
+private data class AppLaunchRequest(
+    val app: AppIcon,
+    val customIconPath: String?,
+    val startRect: Rect,
+    val nonce: Long = System.nanoTime()
+)
+
+private fun lerpFloat(start: Float, end: Float, progress: Float): Float {
+    return start + (end - start) * progress
+}
+
 private val homeIconLabelTextStyle = TextStyle(
     platformStyle = PlatformTextStyle(includeFontPadding = true)
 )
@@ -839,24 +862,61 @@ fun HomeScreen() {
     var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
     var lockWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)) }
     var homeWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)) }
+    var pendingLaunch by remember { mutableStateOf<AppLaunchRequest?>(null) }
+    val launchProgress = remember { Animatable(0f) }
+
+    fun openAppById(appId: String) {
+        when (appId) {
+            "settings" -> showSettings = true
+            "chat" -> showChatApp = true
+            "safari" -> showBrowserApp = true
+            "calculator" -> showCalculatorApp = true
+            "weather_app" -> showWeatherApp = true
+            "calendar" -> showCalendarApp = true
+            "camera" -> showCameraApp = true
+            "notes" -> showNotesApp = true
+            "persona_builder" -> showPersonaBuilderApp = true
+        }
+    }
+
+    LaunchedEffect(pendingLaunch?.nonce) {
+        val launch = pendingLaunch ?: return@LaunchedEffect
+        launchProgress.snapTo(0f)
+        launchProgress.animateTo(
+            targetValue = 1f,
+            animationSpec = tween(durationMillis = 380, easing = FastOutSlowInEasing)
+        )
+        openAppById(launch.app.id)
+        pendingLaunch = null
+    }
+
     val isDark = isSystemInDarkTheme()
     Box(modifier = Modifier.fillMaxSize()) {
         HomeScreenContent(
             isDark = isDark,
             isActivated = isActivated,
-            onSettingsClick = { showSettings = true },
-            onChatClick = { showChatApp = true },
-            onBrowserClick = { showBrowserApp = true },
-            onCalculatorClick = { showCalculatorApp = true },
-            onWeatherClick = { showWeatherApp = true },
-            onCalendarClick = { showCalendarApp = true },
-            onCameraClick = { showCameraApp = true },
-            onNotesClick = { showNotesApp = true },
-            onPersonaBuilderClick = { showPersonaBuilderApp = true },
+            onAppLaunchRequest = { app, startRect, customIconPath ->
+                if (pendingLaunch == null && app.id in launchableAppIds) {
+                    pendingLaunch = AppLaunchRequest(
+                        app = app,
+                        customIconPath = customIconPath,
+                        startRect = startRect
+                    )
+                }
+            },
             onActivationAlert = { showActivationAlert = true },
             homeWallpaperPath = homeWallpaperPath,
             layoutReloadTrigger = layoutReloadTrigger
         )
+
+        pendingLaunch?.let { launch ->
+            AppLaunchTransitionOverlay(
+                app = launch.app,
+                customIconPath = launch.customIconPath,
+                startRect = launch.startRect,
+                progress = launchProgress.value
+            )
+        }
         
         if (showActivationAlert) {
              androidx.compose.material3.AlertDialog(
@@ -939,6 +999,103 @@ fun HomeScreen() {
     }
 }
 
+@Composable
+private fun AppLaunchTransitionOverlay(
+    app: AppIcon,
+    customIconPath: String?,
+    startRect: Rect,
+    progress: Float
+) {
+    val clamped = progress.coerceIn(0f, 1f)
+    val cornerRadius = lerpFloat(16f, 0f, clamped)
+    val iconAlpha = (1f - clamped * 1.15f).coerceIn(0f, 1f)
+    val iconScale = lerpFloat(1f, 1.2f, clamped)
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .zIndex(9000f)
+    ) {
+        val density = LocalDensity.current
+        val endWidth = constraints.maxWidth.toFloat()
+        val endHeight = constraints.maxHeight.toFloat()
+        val left = lerpFloat(startRect.left, 0f, clamped)
+        val top = lerpFloat(startRect.top, 0f, clamped)
+        val width = lerpFloat(startRect.width, endWidth, clamped)
+        val height = lerpFloat(startRect.height, endHeight, clamped)
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.18f * clamped))
+        )
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
+                .width(with(density) { width.toDp() })
+                .height(with(density) { height.toDp() })
+                .clip(RoundedCornerShape(cornerRadius.dp))
+                .background(Color(0xFF111111)),
+            contentAlignment = Alignment.Center
+        ) {
+            if (iconAlpha > 0f) {
+                LaunchIconPreview(
+                    app = app,
+                    customIconPath = customIconPath,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = iconAlpha
+                        scaleX = iconScale
+                        scaleY = iconScale
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun LaunchIconPreview(
+    app: AppIcon,
+    customIconPath: String?,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val iconSize = 78.dp
+    val iconShape = RoundedCornerShape(20.dp)
+    val customBitmap = remember(customIconPath) {
+        customIconPath?.let { android.graphics.BitmapFactory.decodeFile(it) }
+    }
+
+    Box(
+        modifier = modifier
+            .size(iconSize)
+            .clip(iconShape)
+            .background(app.color),
+        contentAlignment = Alignment.Center
+    ) {
+        if (customBitmap != null) {
+            Image(
+                bitmap = customBitmap.asImageBitmap(),
+                contentDescription = app.name,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else if (app.useImage) {
+            val resId = context.resources.getIdentifier(app.icon, "drawable", context.packageName)
+            if (resId != 0) {
+                Image(
+                    painter = androidx.compose.ui.res.painterResource(id = resId),
+                    contentDescription = app.name,
+                    modifier = Modifier.fillMaxSize().padding(10.dp)
+                )
+            }
+        } else {
+            Text(text = app.icon, fontSize = 42.sp)
+        }
+    }
+}
+
 /**
  * 将所有应用和Widget分配到多个页面
  * 第一页：Widget + 聊天 + 设置（仅保留核心应用）
@@ -1000,15 +1157,7 @@ fun distributeItemsToPages(
 fun HomeScreenContent(
     isDark: Boolean,
     isActivated: Boolean,
-    onSettingsClick: () -> Unit,
-    onChatClick: () -> Unit = {},
-    onBrowserClick: () -> Unit = {},
-    onCalculatorClick: () -> Unit = {},
-    onWeatherClick: () -> Unit = {},
-    onCalendarClick: () -> Unit = {},
-    onCameraClick: () -> Unit = {},
-    onNotesClick: () -> Unit = {},
-    onPersonaBuilderClick: () -> Unit = {},
+    onAppLaunchRequest: (app: AppIcon, startRect: Rect, customIconPath: String?) -> Unit = { _, _, _ -> },
     onActivationAlert: () -> Unit,
     homeWallpaperPath: String? = null,
     layoutReloadTrigger: Int = 0
@@ -1045,6 +1194,25 @@ fun HomeScreenContent(
     var gridAreaSize by remember { mutableStateOf(IntSize.Zero) }
     var dockAreaOffset by remember { mutableStateOf(Offset.Zero) }
     var dockAreaSize by remember { mutableStateOf(IntSize.Zero) }
+    val appIconBounds = remember { mutableStateMapOf<String, Rect>() }
+    val launchIconSizePx = with(LocalDensity.current) { 56.dp.toPx() }
+
+    fun gridIconKey(pageIndex: Int, cellIndex: Int, appId: String): String {
+        return "grid:$pageIndex:$cellIndex:$appId"
+    }
+
+    fun dockIconKey(dockIndex: Int, appId: String): String {
+        return "dock:$dockIndex:$appId"
+    }
+
+    fun fallbackLaunchRect(touchX: Float, touchY: Float): Rect {
+        val half = launchIconSizePx / 2f
+        val safeLeft = (touchX - half).coerceAtLeast(0f)
+        val safeTop = (touchY - half).coerceAtLeast(0f)
+        val safeRight = safeLeft + launchIconSizePx
+        val safeBottom = safeTop + launchIconSizePx
+        return Rect(safeLeft, safeTop, safeRight, safeBottom)
+    }
 
     // 从数据库加载布局
     LaunchedEffect(isDark, layoutReloadTrigger) {
@@ -1297,28 +1465,34 @@ fun HomeScreenContent(
 
                     if (tapDetected) {
                         if (!isEditMode && startItem is AppIcon) {
-                            if (startItem!!.id == "settings") {
-                                onSettingsClick()
-                            } else {
-                                if (isActivated) {
-                                    if (startItem!!.id == "chat") onChatClick()
-                                    else if (startItem!!.id == "safari") onBrowserClick()
-                                    else if (startItem!!.id == "calculator") onCalculatorClick()
-                                    else if (startItem!!.id == "weather_app") onWeatherClick()
-                                    else if (startItem!!.id == "calendar") onCalendarClick()
-                                    else if (startItem!!.id == "camera") onCameraClick()
-                                    else if (startItem!!.id == "notes") onNotesClick()
-                                    else if (startItem!!.id == "persona_builder") onPersonaBuilderClick()
-                                } else {
-                                    onActivationAlert()
+                            val app = startItem as AppIcon
+                            val launchRect = when {
+                                isDockItem && startDockIndex >= 0 -> {
+                                    appIconBounds[dockIconKey(startDockIndex, app.id)] ?: fallbackLaunchRect(touchX, touchY)
                                 }
+
+                                startPageIndex >= 0 && startCellIndex >= 0 -> {
+                                    appIconBounds[gridIconKey(startPageIndex, startCellIndex, app.id)]
+                                        ?: fallbackLaunchRect(touchX, touchY)
+                                }
+
+                                else -> fallbackLaunchRect(touchX, touchY)
+                            }
+
+                            if (app.id == "settings") {
+                                onAppLaunchRequest(app, launchRect, customIcons[app.id])
+                            } else if (isActivated) {
+                                if (app.id in launchableAppIds) {
+                                    onAppLaunchRequest(app, launchRect, customIcons[app.id])
+                                }
+                            } else {
+                                onActivationAlert()
                             }
                         } else if (isEditMode) {
                             isEditMode = false; saveCurrentLayout()
                         }
                     } else if (longPressTriggered) {
                         if (!isEditMode) isEditMode = true
-                        val startPos = down.position
                         draggedItem = startItem
                         if (isDockItem) {
                             dragSource = "dock"
@@ -1596,7 +1770,20 @@ fun HomeScreenContent(
                                             .fillMaxSize()
                                             .padding(top = 4.dp, bottom = 2.dp)
                                     ) {
-                                        Box(modifier = Modifier.size(iconSize), contentAlignment = Alignment.Center) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(iconSize)
+                                                .onGloballyPositioned { coordinates ->
+                                                    appIconBounds[gridIconKey(pageIndex, cellIndex, item.id)] = Rect(
+                                                        offset = coordinates.positionInRoot(),
+                                                        size = Size(
+                                                            coordinates.size.width.toFloat(),
+                                                            coordinates.size.height.toFloat()
+                                                        )
+                                                    )
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
                                             val customIconPath = customIcons[item.id]
                                             if (customIconPath != null) {
                                                 val bitmap = remember(customIconPath) { android.graphics.BitmapFactory.decodeFile(customIconPath) }
@@ -1686,6 +1873,15 @@ fun HomeScreenContent(
                                 RepeatMode.Reverse), label = "dwa_$dockIndex")
 
                         Box(modifier = Modifier.size(60.dp)
+                            .onGloballyPositioned { coordinates ->
+                                appIconBounds[dockIconKey(dockIndex, app.id)] = Rect(
+                                    offset = coordinates.positionInRoot(),
+                                    size = Size(
+                                        coordinates.size.width.toFloat(),
+                                        coordinates.size.height.toFloat()
+                                    )
+                                )
+                            }
                             .graphicsLayer {
                                 if (isEditMode) rotationZ = dwa
                                 if (isDraggedFromDock) alpha = 0f
