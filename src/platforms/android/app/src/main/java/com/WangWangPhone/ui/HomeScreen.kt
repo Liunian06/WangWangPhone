@@ -1566,7 +1566,6 @@ fun HomeScreenContent(
         }
     }
 
-
     fun copyCurrentLayoutToPreview() {
         previewPages.clear()
         allPages.forEach { previewPages.add(it.toMutableMap()) }
@@ -1581,8 +1580,8 @@ fun HomeScreenContent(
         previewDockApps.clear()
     }
 
-    fun isPreviewableApp(item: GridItem?): Boolean {
-        return item is AppIcon && item.spanX == 1 && item.spanY == 1
+    fun isPreviewableGridItem(item: GridItem?): Boolean {
+        return item is AppIcon || item is WidgetItem || item is WebWidgetGridItem
     }
 
     fun occupiedCells(startCell: Int, item: GridItem): Set<Int> {
@@ -1709,7 +1708,53 @@ fun HomeScreenContent(
         return result
     }
 
-    fun updateAppDragPreview(currentItem: AppIcon) {
+    fun buildMultiSpanPreviewPage(
+        basePage: Map<Int, GridItem>,
+        draggedItem: GridItem,
+        targetCell: Int
+    ): MutableMap<Int, GridItem>? {
+        if (targetCell !in 0 until TOTAL_CELLS) return null
+        if (targetCell % GRID_COLUMNS + draggedItem.spanX > GRID_COLUMNS) return null
+        if (targetCell / GRID_COLUMNS + draggedItem.spanY > GRID_ROWS) return null
+
+        val orderedEntries = basePage.entries
+            .filter { it.value.id != draggedItem.id }
+            .sortedBy { it.key }
+
+        val insertionIndex = orderedEntries.indexOfFirst { (cell, item) ->
+            val cells = occupiedCells(cell, item)
+            targetCell <= (cells.maxOrNull() ?: cell)
+        }.let { if (it == -1) orderedEntries.size else it }
+
+        val orderedItems = mutableListOf<GridItem>()
+        orderedEntries.forEachIndexed { index, entry ->
+            if (index == insertionIndex) {
+                orderedItems.add(draggedItem)
+            }
+            orderedItems.add(entry.value)
+        }
+        if (insertionIndex == orderedEntries.size) {
+            orderedItems.add(draggedItem)
+        }
+
+        val result = mutableMapOf<Int, GridItem>()
+        orderedItems.forEach { item ->
+            if (item.id == draggedItem.id) {
+                if (!checkOccupancy(result, targetCell, item.spanX, item.spanY, null)) {
+                    return null
+                }
+                result[targetCell] = item
+            } else {
+                val availableCell = (0 until TOTAL_CELLS).firstOrNull {
+                    checkOccupancy(result, it, item.spanX, item.spanY, null)
+                } ?: return null
+                result[availableCell] = item
+            }
+        }
+        return result
+    }
+
+    fun updateDragPreview(currentItem: GridItem) {
         copyCurrentLayoutToPreview()
         hasDragPreview = true
         canCommitDragPreview = false
@@ -1721,12 +1766,14 @@ fun HomeScreenContent(
         }
 
         if (isOverDock(dragOverlayX, dragOverlayY)) {
-            val canDropToDock = dragSource == "dock" || previewDockApps.size < maxDockApps
-            if (canDropToDock) {
-                val insertIndex = getDockDropIndexFromGlobal(dragOverlayX, dragSource == "dock")
-                    .coerceIn(0, previewDockApps.size)
-                previewDockApps.add(insertIndex, currentItem)
-                canCommitDragPreview = true
+            if (currentItem is AppIcon) {
+                val canDropToDock = dragSource == "dock" || previewDockApps.size < maxDockApps
+                if (canDropToDock) {
+                    val insertIndex = getDockDropIndexFromGlobal(dragOverlayX, dragSource == "dock")
+                        .coerceIn(0, previewDockApps.size)
+                    previewDockApps.add(insertIndex, currentItem)
+                    canCommitDragPreview = true
+                }
             }
             return
         }
@@ -1736,18 +1783,25 @@ fun HomeScreenContent(
             return
         }
 
-        val sourceCell = if (dragSource == "grid" && dragSourcePageIndex == currentPage) {
-            dragSourceCellIndex
+        val previewPage = if (currentItem is AppIcon && currentItem.spanX == 1 && currentItem.spanY == 1) {
+            val sourceCell = if (dragSource == "grid" && dragSourcePageIndex == currentPage) {
+                dragSourceCellIndex
+            } else {
+                null
+            }
+            buildSingleCellPreviewPage(
+                basePage = allPages[currentPage],
+                draggedApp = currentItem,
+                targetCell = highlightCellIndex,
+                sourceCell = sourceCell
+            )
         } else {
-            null
-        }
-
-        val previewPage = buildSingleCellPreviewPage(
-            basePage = allPages[currentPage],
-            draggedApp = currentItem,
-            targetCell = highlightCellIndex,
-            sourceCell = sourceCell
-        ) ?: return
+            buildMultiSpanPreviewPage(
+                basePage = allPages[currentPage],
+                draggedItem = currentItem,
+                targetCell = highlightCellIndex
+            )
+        } ?: return
 
         previewPages[currentPage].clear()
         previewPages[currentPage].putAll(previewPage)
@@ -1758,37 +1812,47 @@ fun HomeScreenContent(
 
     // 自动翻页逻辑
     var autoScrollJob by remember { mutableStateOf<Job?>(null) }
+    var autoScrollTargetPage by remember { mutableIntStateOf(-1) }
+    val autoScrollEdgeThresholdPx = with(LocalDensity.current) { 72.dp.toPx() }
+    val autoScrollDelayMs = 240L
     fun handleAutoScroll(globalX: Float) {
         val displayMetrics = context.resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels.toFloat()
-        val edgeThreshold = 100f // 固定 100px 边缘
         val currentPage = pagerState.currentPage
+        val targetPage = when {
+            globalX < autoScrollEdgeThresholdPx && currentPage > 0 -> currentPage - 1
+            globalX > screenWidth - autoScrollEdgeThresholdPx && currentPage < pageCount - 1 -> currentPage + 1
+            else -> -1
+        }
 
-        if (globalX < edgeThreshold && currentPage > 0) {
-            if (autoScrollJob?.isActive != true) {
-                autoScrollJob = coroutineScope.launch {
-                    delay(500)
-                    if (pagerState.currentPage > 0) {
-                        pagerState.scrollToPage(pagerState.currentPage - 1)
-                    }
-                }
-            }
-        } else if (globalX > screenWidth - edgeThreshold && currentPage < pageCount - 1) {
-            if (autoScrollJob?.isActive != true) {
-                autoScrollJob = coroutineScope.launch {
-                    delay(500)
-                    if (pagerState.currentPage < pageCount - 1) {
-                        pagerState.scrollToPage(pagerState.currentPage + 1)
-                    }
-                }
-            }
-        } else {
+        if (targetPage == -1) {
             autoScrollJob?.cancel()
             autoScrollJob = null
+            autoScrollTargetPage = -1
+            return
+        }
+
+        if (autoScrollTargetPage == targetPage && autoScrollJob?.isActive == true) {
+            return
+        }
+
+        autoScrollJob?.cancel()
+        autoScrollTargetPage = targetPage
+        autoScrollJob = coroutineScope.launch {
+            delay(autoScrollDelayMs)
+            if (pagerState.currentPage != targetPage) {
+                pagerState.animateScrollToPage(targetPage)
+                draggedItem?.let { dragged ->
+                    if (isPreviewableGridItem(dragged)) {
+                        updateDragPreview(dragged)
+                    }
+                }
+            }
         }
     }
 
-    // 全局手势处理
+    // ??????
+
     val renderedPages = if (hasDragPreview) previewPages else allPages
     val renderedDockApps = if (hasDragPreview) previewDockApps else dockApps
 
@@ -1909,11 +1973,11 @@ fun HomeScreenContent(
                             dragOverlayY = touchY
                         }
 
-                        hasDragPreview = isPreviewableApp(startItem)
+                        hasDragPreview = isPreviewableGridItem(startItem)
                         canCommitDragPreview = false
                         copyCurrentLayoutToPreview()
-                        if (startItem is AppIcon && isPreviewableApp(startItem)) {
-                            updateAppDragPreview(startItem)
+                        if (isPreviewableGridItem(startItem)) {
+                            updateDragPreview(startItem)
                         }
 
                         try {
@@ -1939,8 +2003,8 @@ fun HomeScreenContent(
                                                 highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
                                             } else { highlightCellIndex = -1 }
                                         } else { highlightCellIndex = -1 }
-                                        if (startItem is AppIcon && isPreviewableApp(startItem)) {
-                                            updateAppDragPreview(startItem)
+                                        if (isPreviewableGridItem(startItem)) {
+                                            updateDragPreview(startItem)
                                         }
                                     } else {
                                         autoScrollJob?.cancel(); autoScrollJob = null
@@ -2124,7 +2188,7 @@ fun HomeScreenContent(
                         val cwPx = twPx / GRID_COLUMNS; val chPx = thPx / GRID_ROWS
 
                         // 高亮目标格子
-                        if (highlightCellIndex in 0 until TOTAL_CELLS && draggedItem != null && pageIndex == pagerState.currentPage && !(hasDragPreview && draggedItem is AppIcon)) {
+                        if (highlightCellIndex in 0 until TOTAL_CELLS && draggedItem != null && pageIndex == pagerState.currentPage && !hasDragPreview) {
                             val hr = highlightCellIndex / GRID_COLUMNS; val hc = highlightCellIndex % GRID_COLUMNS
                             val spanX = draggedItem!!.spanX
                             val spanY = draggedItem!!.spanY
@@ -2140,7 +2204,7 @@ fun HomeScreenContent(
 
                         // 渲染网格内容
                         currentPageGrid.forEach { (cellIndex, item) ->
-                            val isDraggedFromHere = draggedItem?.id == item.id && dragSource == "grid" && dragSourcePageIndex == pageIndex
+                            val isDraggedFromHere = draggedItem?.id == item.id && (hasDragPreview || (dragSource == "grid" && dragSourcePageIndex == pageIndex))
 
                             val row = cellIndex / GRID_COLUMNS; val col = cellIndex % GRID_COLUMNS
                             val infT = rememberInfiniteTransition(label = "w_${item.id}")
@@ -2152,9 +2216,17 @@ fun HomeScreenContent(
 
                             val itemWidth = cwPx * item.spanX
                             val itemHeight = chPx * item.spanY
+                            val animatedGridOffset by animateIntOffsetAsState(
+                                targetValue = IntOffset(col * cwPx, row * chPx),
+                                animationSpec = spring(
+                                    dampingRatio = 0.82f,
+                                    stiffness = Spring.StiffnessMediumLow
+                                ),
+                                label = "grid_pos_${item.id}_${pageIndex}"
+                            )
 
                             Box(modifier = Modifier
-                                .offset { IntOffset(col * cwPx, row * chPx) }
+                                .offset { animatedGridOffset }
                                 .width(with(density) { itemWidth.toDp() }).height(with(density) { itemHeight.toDp() })
                                 .graphicsLayer {
                                     if (isEditMode) rotationZ = wAngle
@@ -2284,7 +2356,7 @@ fun HomeScreenContent(
                     if (dockApps.isEmpty() && isEditMode) Text("拖拽应用到此处", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
 
                     renderedDockApps.forEachIndexed { dockIndex, app ->
-                        val isDraggedFromDock = draggedItem?.id == app.id && dragSource == "dock"
+                        val isDraggedFromDock = draggedItem?.id == app.id && (hasDragPreview || dragSource == "dock")
                         val dwt = rememberInfiniteTransition(label = "dw_$dockIndex")
                         val dwa by dwt.animateFloat(
                             initialValue = if (dockIndex % 2 == 0) -1.5f else 1.5f,
