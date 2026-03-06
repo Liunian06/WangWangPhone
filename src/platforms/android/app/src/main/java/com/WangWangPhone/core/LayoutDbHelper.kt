@@ -178,7 +178,8 @@ class LayoutDbHelper(context: Context) : SQLiteOpenHelper(
         wallpaperDbHelper: WallpaperDbHelper,
         weatherCacheDbHelper: WeatherCacheDbHelper,
         userProfileDbHelper: UserProfileDbHelper,
-        iconCustomizationDbHelper: IconCustomizationDbHelper
+        iconCustomizationDbHelper: IconCustomizationDbHelper,
+        webWidgetDbHelper: WebWidgetDbHelper
     ): Boolean {
         return try {
             val db = writableDatabase

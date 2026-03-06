@@ -71,6 +71,10 @@ import com.WangWangPhone.core.UserProfileDbHelper
 import com.WangWangPhone.core.WallpaperDbHelper
 import com.WangWangPhone.core.WallpaperType
 import com.WangWangPhone.core.WeatherCacheDbHelper
+import com.WangWangPhone.core.WebWidgetDbHelper
+import com.WangWangPhone.core.WebWidgetRecord
+import com.WangWangPhone.core.webWidgetLayoutId
+import com.WangWangPhone.core.widgetIdFromLayoutId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -114,6 +118,15 @@ data class WidgetItem(
     override val type = "widget"
 }
 
+data class WebWidgetGridItem(
+    val widget: WebWidgetRecord,
+    override val id: String = webWidgetLayoutId(widget.id),
+    override val spanX: Int = widget.spanX,
+    override val spanY: Int = widget.spanY
+) : GridItem {
+    override val type = "web_widget"
+}
+
 private const val BADGE_WIDGET_ID = "badge_widget"
 
 fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
@@ -128,6 +141,7 @@ fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
         Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
     AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
     AppIcon("persona_builder", "神笔马良", "✨", Brush.linearGradient(listOf(Color(0xFFFFD700), Color(0xFFFFA500)))),
+    AppIcon("widget_market", "Widgets", "W", Brush.linearGradient(listOf(Color(0xFF7F7FD5), Color(0xFF91EAE4)))),
     // 第二批应用
     AppIcon("photos", "照片", "🖼️", Brush.linearGradient(listOf(Color(0xFFFDEB71), Color(0xFFF8D800)))),
     AppIcon("video", "视频", "🎬", Brush.linearGradient(listOf(Color(0xFFA18CD1), Color(0xFFFBC2EB)))),
@@ -175,7 +189,8 @@ private val launchableAppIds = setOf(
     "calendar",
     "camera",
     "notes",
-    "persona_builder"
+    "persona_builder",
+    "widget_market"
 )
 
 private data class AppLaunchRequest(
@@ -427,24 +442,32 @@ suspend fun fetchWeather(city: String): WeatherInfo {
  * 2. 如果没有缓存，则请求网络并保存到数据库
  */
 @Composable
-fun WidgetContent(widgetType: String, badgeImagePath: String? = null, modifier: Modifier = Modifier) {
-    if (widgetType == "badge") {
-        BadgeWidget(imagePath = badgeImagePath, modifier = modifier)
-        return
+fun WidgetContent(item: GridItem, badgeImagePath: String? = null, modifier: Modifier = Modifier) {
+    when (item) {
+        is WebWidgetGridItem -> {
+            WebWidgetView(widget = item.widget, modifier = modifier)
+            return
+        }
+        is WidgetItem -> {
+            if (item.widgetType == "badge") {
+                BadgeWidget(imagePath = badgeImagePath, modifier = modifier)
+                return
+            }
+        }
+        else -> return
     }
 
+    val widgetType = item.widgetType
     var city by remember { mutableStateOf("...") }
     var weather by remember { mutableStateOf<WeatherInfo?>(null) }
     val context = LocalContext.current
     val weatherCacheDbHelper = remember { com.WangWangPhone.core.WeatherCacheDbHelper(context) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(widgetType) {
         city = fetchLocation(weatherCacheDbHelper)
         if (city.isNotEmpty() && city != "...") {
-            // 先查缓存
             val cached = weatherCacheDbHelper.getTodayWeatherCache(city)
             if (cached != null && !isUnknownWeather(cached.temp, cached.description)) {
-                // 今天已经请求过，直接使用缓存
                 val localizedDescription = localizeWeatherDescription(cached.description)
                 weather = WeatherInfo(
                     temp = cached.temp,
@@ -453,10 +476,8 @@ fun WidgetContent(widgetType: String, badgeImagePath: String? = null, modifier: 
                     range = cached.range
                 )
             } else {
-                // 没有缓存，或缓存是“天气未知”，请求网络重试
                 val freshWeather = fetchWeather(city)
                 weather = freshWeather
-                // 只有有效天气才缓存，未知天气下次启动继续重试
                 if (!isUnknownWeather(freshWeather.temp, freshWeather.description)) {
                     weatherCacheDbHelper.saveWeatherCache(
                         com.WangWangPhone.core.WeatherCacheRecord(
@@ -469,7 +490,6 @@ fun WidgetContent(widgetType: String, badgeImagePath: String? = null, modifier: 
                         )
                     )
                 }
-                // 清除过期缓存
                 weatherCacheDbHelper.clearExpiredCache()
             }
         }
@@ -851,6 +871,7 @@ fun HomeScreen() {
     var showCameraApp by remember { mutableStateOf(false) }
     var showNotesApp by remember { mutableStateOf(false) }
     var showPersonaBuilderApp by remember { mutableStateOf(false) }
+    var showWidgetMarketApp by remember { mutableStateOf(false) }
     var showActivationAlert by remember { mutableStateOf(false) }
     var showResetConfirm by remember { mutableStateOf(false) }
     var layoutReloadTrigger by remember { mutableIntStateOf(0) }
@@ -861,6 +882,7 @@ fun HomeScreen() {
     val weatherCacheDbHelper = remember { WeatherCacheDbHelper(context) }
     val userProfileDbHelper = remember { UserProfileDbHelper(context) }
     val iconDbHelper = remember { IconCustomizationDbHelper(context) }
+    val webWidgetDbHelper = remember { WebWidgetDbHelper(context) }
     var isActivated by remember { mutableStateOf(licenseManager.isActivated()) }
     var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
     var lockWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)) }
@@ -881,6 +903,7 @@ fun HomeScreen() {
             "camera" -> showCameraApp = true
             "notes" -> showNotesApp = true
             "persona_builder" -> showPersonaBuilderApp = true
+            "widget_market" -> showWidgetMarketApp = true
         }
     }
 
@@ -989,7 +1012,7 @@ fun HomeScreen() {
                     androidx.compose.material3.TextButton(
                         onClick = {
                             showResetConfirm = false
-                            if (layoutDbHelper.resetToDefaultSettings(wallpaperDbHelper, weatherCacheDbHelper, userProfileDbHelper, iconDbHelper)) {
+                            if (layoutDbHelper.resetToDefaultSettings(wallpaperDbHelper, weatherCacheDbHelper, userProfileDbHelper, iconDbHelper, webWidgetDbHelper)) {
                                 // 强制重新加载以应用默认设置
                                 android.widget.Toast.makeText(context, "设置已恢复", android.widget.Toast.LENGTH_SHORT).show()
                                 // 简单粗暴的做法是重启，或者通过重置状态来更新UI
@@ -1115,6 +1138,22 @@ fun HomeScreen() {
                         keepAliveAppStates["notes"] = true
                     }
                 }
+            )
+        }
+
+        KeepAliveAppLayer(
+            visible = showWidgetMarketApp,
+            keepAlive = keepAliveAppStates["widget_market"] == true
+        ) {
+            WidgetMarketAppScreen(
+                isDark = isDark,
+                onClose = {
+                    showWidgetMarketApp = false
+                    if (warmedAppStates["widget_market"] == true) {
+                        keepAliveAppStates["widget_market"] = true
+                    }
+                },
+                onLayoutChanged = { layoutReloadTrigger++ }
             )
         }
 
@@ -1267,7 +1306,7 @@ fun distributeItemsToPages(
     val pages = mutableListOf<MutableMap<Int, GridItem>>()
 
     // 分离核心应用（聊天+设置）和其余应用
-    val coreAppIds = setOf("chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes")
+    val coreAppIds = setOf("chat", "settings", "safari", "calculator", "weather_app", "calendar", "camera", "notes", "widget_market")
     val coreApps = allApps.filter { it.id in coreAppIds }
     val otherApps = allApps.filter { it.id !in coreAppIds }.toMutableList()
 
@@ -1324,6 +1363,7 @@ fun HomeScreenContent(
     val context = LocalContext.current
     val layoutDbHelper = remember { LayoutDbHelper(context) }
     val iconDbHelper = remember { IconCustomizationDbHelper(context) }
+    val webWidgetDbHelper = remember { WebWidgetDbHelper(context) }
     val defaultApps = remember(isDark) { getDefaultApps(isDark) }
     val defaultWidgets = remember { getDefaultWidgets() }
     var customIcons by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -1376,6 +1416,7 @@ fun HomeScreenContent(
     // 从数据库加载布局
     LaunchedEffect(isDark, layoutReloadTrigger) {
         val savedLayout = layoutDbHelper.getLayout()
+        val webWidgetMap = webWidgetDbHelper.getAllWidgets().associateBy { it.id }
         allPages.clear(); dockApps.clear()
 
         if (savedLayout.isNotEmpty()) {
@@ -1394,6 +1435,12 @@ fun HomeScreenContent(
                     val widget = defaultWidgets.find { it.id == li.appId }
                     if (widget != null) {
                         page[li.position] = widget
+                    } else {
+                        val webWidgetId = widgetIdFromLayoutId(li.appId)
+                        val webWidget = webWidgetId?.let { webWidgetMap[it] }
+                        if (webWidget != null) {
+                            page[li.position] = WebWidgetGridItem(webWidget)
+                        }
                     }
                 }
             }
@@ -1902,9 +1949,9 @@ fun HomeScreenContent(
                                 // pointerInput 已移除
                                 , contentAlignment = Alignment.Center
                             ) {
-                                if (item is WidgetItem) {
+                                if (item is WidgetItem || item is WebWidgetGridItem) {
                                     WidgetContent(
-                                        widgetType = item.widgetType,
+                                        item = item,
                                         badgeImagePath = customIcons[BADGE_WIDGET_ID],
                                         modifier = Modifier.fillMaxSize().padding(8.dp)
                                     )
@@ -2094,9 +2141,9 @@ fun HomeScreenContent(
                         .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f; alpha = 0.85f },
                     contentAlignment = Alignment.Center
                 ) {
-                    if (draggedItem is WidgetItem) {
+                    if (draggedItem is WidgetItem || draggedItem is WebWidgetGridItem) {
                         WidgetContent(
-                            (draggedItem as WidgetItem).widgetType,
+                            item = draggedItem as GridItem,
                             badgeImagePath = customIcons[BADGE_WIDGET_ID],
                             modifier = Modifier.fillMaxSize()
                         )
