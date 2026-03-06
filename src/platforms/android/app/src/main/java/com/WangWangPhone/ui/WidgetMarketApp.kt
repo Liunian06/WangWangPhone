@@ -859,6 +859,8 @@ private fun defaultCssTemplate(): String {
           height: 100%;
           border-radius: 20px;
           padding: 16px;
+          color: #FFFFFF;
+          overflow: hidden;
           background: linear-gradient(135deg, #07C160 0%, #06AD56 100%);
           display: flex;
           flex-direction: column;

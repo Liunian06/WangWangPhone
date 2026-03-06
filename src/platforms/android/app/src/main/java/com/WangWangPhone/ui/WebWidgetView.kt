@@ -140,18 +140,22 @@ fun WebWidgetView(
                         "UTF-8",
                         null
                     )
+                    tag = document
                     webViewRef = this
                 }
             },
             update = { view ->
-                loadError = null
-                view.loadDataWithBaseURL(
-                    "https://widget.local/",
-                    document,
-                    "text/html",
-                    "UTF-8",
-                    null
-                )
+                if (view.tag != document) {
+                    loadError = null
+                    view.loadDataWithBaseURL(
+                        "https://widget.local/",
+                        document,
+                        "text/html",
+                        "UTF-8",
+                        null
+                    )
+                    view.tag = document
+                }
             },
             modifier = Modifier.fillMaxSize()
         )
@@ -195,6 +199,7 @@ private fun buildWidgetDocument(widget: WebWidgetRecord): String {
                     margin: 0;
                     padding: 0;
                     overflow: hidden;
+                    display: flex;
                     background: transparent;
                     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
                     color: white;
@@ -205,6 +210,10 @@ private fun buildWidgetDocument(widget: WebWidgetRecord): String {
                 #widget-root {
                     width: 100%;
                     height: 100%;
+                    display: flex;
+                    flex: 1;
+                    min-width: 0;
+                    min-height: 0;
                 }
                 ${widget.cssCode}
             </style>

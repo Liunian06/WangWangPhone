@@ -1407,6 +1407,7 @@ fun HomeScreenContent(
     val maxDockApps = 4
     var isEditMode by remember { mutableStateOf(false) }
     var pageCount by remember { mutableIntStateOf(1) }
+    var gestureHoldingItem by remember { mutableStateOf(false) }
 
     // 拖拽状态
     var draggedItem by remember { mutableStateOf<GridItem?>(null) }
@@ -1448,6 +1449,24 @@ fun HomeScreenContent(
     }
 
     // 从数据库加载布局
+    fun normalizeGridPages(keepTrailingEmpty: Boolean) {
+        val compactPages = allPages
+            .filter { it.isNotEmpty() }
+            .map { it.toMutableMap() }
+            .toMutableList()
+
+        if (compactPages.isEmpty()) {
+            compactPages.add(mutableMapOf())
+        }
+        if (keepTrailingEmpty && compactPages.last().isNotEmpty()) {
+            compactPages.add(mutableMapOf())
+        }
+
+        allPages.clear()
+        compactPages.forEach { allPages.add(it) }
+        pageCount = allPages.size.coerceAtLeast(1)
+    }
+
     LaunchedEffect(isDark, layoutReloadTrigger) {
         val savedLayout = layoutDbHelper.getLayout()
         val webWidgetMap = webWidgetDbHelper.getAllWidgets().associateBy { it.id }
@@ -1492,21 +1511,6 @@ fun HomeScreenContent(
             // 确保默认应用和组件存在
             val allSavedIds = savedLayout.map { it.appId }.toSet()
 
-            // 添加缺失的 Widget 到第一页
-            if (allPages.isEmpty()) allPages.add(mutableMapOf())
-            for (widget in defaultWidgets) {
-                if (widget.id !in allSavedIds) {
-                    val page0 = allPages[0]
-                    for (i in 0 until TOTAL_CELLS) {
-                        if (checkOccupancy(page0, i, widget.spanX, widget.spanY, null)) {
-                            page0[i] = widget
-                            break
-                        }
-                    }
-                }
-            }
-
-            // 添加缺失的 App
             for (app in defaultApps) {
                 if (app.id !in allSavedIds) {
                     var placed = false
@@ -1535,12 +1539,13 @@ fun HomeScreenContent(
             }
         }
 
-        pageCount = allPages.size.coerceAtLeast(1)
+        normalizeGridPages(keepTrailingEmpty = false)
     }
 
     fun saveCurrentLayout() {
+        val compactPages = allPages.filter { it.isNotEmpty() }
         val items = mutableListOf<LayoutItem>()
-        allPages.forEachIndexed { pageIdx, page ->
+        compactPages.forEachIndexed { pageIdx, page ->
             val areaName = if (pageIdx == 0) "grid" else "grid_$pageIdx"
             page.forEach { (ci, item) ->
                 items.add(LayoutItem(appId = item.id, position = ci, area = areaName))
@@ -1548,6 +1553,12 @@ fun HomeScreenContent(
         }
         dockApps.forEachIndexed { i, app -> items.add(LayoutItem(appId = app.id, position = i, area = "dock")) }
         layoutDbHelper.saveLayout(items)
+    }
+
+    fun exitEditMode() {
+        normalizeGridPages(keepTrailingEmpty = false)
+        isEditMode = false
+        saveCurrentLayout()
     }
 
     fun getCellFromGlobal(gx: Float, gy: Float): Int {
@@ -1580,6 +1591,13 @@ fun HomeScreenContent(
 
     val pagerState = rememberPagerState(pageCount = { pageCount })
     val coroutineScope = rememberCoroutineScope()
+
+    LaunchedEffect(pageCount) {
+        val lastPageIndex = (pageCount - 1).coerceAtLeast(0)
+        if (pagerState.currentPage > lastPageIndex) {
+            pagerState.scrollToPage(lastPageIndex)
+        }
+    }
 
     fun getDockDropIndexFromGlobal(gx: Float, isDockSource: Boolean): Int {
         val slotCount = when {
@@ -1666,74 +1684,39 @@ fun HomeScreenContent(
         sourceCell: Int?
     ): MutableMap<Int, GridItem>? {
         if (targetCell !in 0 until TOTAL_CELLS) return null
+        if (targetCell % GRID_COLUMNS + draggedApp.spanX > GRID_COLUMNS) return null
+        if (targetCell / GRID_COLUMNS + draggedApp.spanY > GRID_ROWS) return null
+
+        val orderedEntries = basePage.entries
+            .filter { it.value.id != draggedApp.id }
+            .sortedBy { it.key }
+
+        val insertionIndex = orderedEntries.indexOfFirst { (cell, item) ->
+            val cells = occupiedCells(cell, item)
+            targetCell <= (cells.maxOrNull() ?: cell)
+        }.let { if (it == -1) orderedEntries.size else it }
+
+        val orderedItems = mutableListOf<GridItem>()
+        orderedEntries.forEachIndexed { index, entry ->
+            if (index == insertionIndex) {
+                orderedItems.add(draggedApp)
+            }
+            orderedItems.add(entry.value)
+        }
+        if (insertionIndex == orderedEntries.size) {
+            orderedItems.add(draggedApp)
+        }
 
         val result = mutableMapOf<Int, GridItem>()
-        val blocked = BooleanArray(TOTAL_CELLS)
-        val appByCell = mutableMapOf<Int, AppIcon>()
-
-        basePage.forEach { (cell, item) ->
-            if (item.id == draggedApp.id) return@forEach
-            if (item is AppIcon && item.spanX == 1 && item.spanY == 1) {
-                appByCell[cell] = item
-            } else {
-                result[cell] = item
-                occupiedCells(cell, item).forEach { blocked[it] = true }
-            }
-        }
-
-        val slots = mutableListOf<Int>()
-        val sequence = mutableListOf<AppIcon?>()
-        for (cell in 0 until TOTAL_CELLS) {
-            if (!blocked[cell]) {
-                slots.add(cell)
-                sequence.add(appByCell[cell])
-            }
-        }
-        if (slots.isEmpty()) return null
-
-        val targetSlotIndex = findNearestSlotIndex(slots, targetCell)
-        if (targetSlotIndex == -1) return null
-        val sourceSlotIndex = sourceCell?.let { cell ->
-            slots.indexOf(cell).takeIf { it >= 0 }
-        }
-
-        if (sourceSlotIndex != null) {
-            if (targetSlotIndex > sourceSlotIndex) {
-                for (index in sourceSlotIndex until targetSlotIndex) {
-                    sequence[index] = sequence[index + 1]
+        orderedItems.forEach { item ->
+            val preferredCell = if (item.id == draggedApp.id) targetCell else null
+            val availableCell = when {
+                preferredCell != null && checkOccupancy(result, preferredCell, item.spanX, item.spanY, null) -> preferredCell
+                else -> (0 until TOTAL_CELLS).firstOrNull {
+                    checkOccupancy(result, it, item.spanX, item.spanY, null)
                 }
-                sequence[targetSlotIndex] = draggedApp
-            } else if (targetSlotIndex < sourceSlotIndex) {
-                for (index in sourceSlotIndex downTo targetSlotIndex + 1) {
-                    sequence[index] = sequence[index - 1]
-                }
-                sequence[targetSlotIndex] = draggedApp
-            } else {
-                sequence[sourceSlotIndex] = draggedApp
-            }
-        } else {
-            if (sequence[targetSlotIndex] == null) {
-                sequence[targetSlotIndex] = draggedApp
-            } else {
-                val emptyIndex = findNearestEmptyIndex(sequence, targetSlotIndex) ?: return null
-                if (emptyIndex > targetSlotIndex) {
-                    for (index in emptyIndex downTo targetSlotIndex + 1) {
-                        sequence[index] = sequence[index - 1]
-                    }
-                } else if (emptyIndex < targetSlotIndex) {
-                    for (index in emptyIndex until targetSlotIndex) {
-                        sequence[index] = sequence[index + 1]
-                    }
-                }
-                sequence[targetSlotIndex] = draggedApp
-            }
-        }
-
-        slots.forEachIndexed { index, cell ->
-            val app = sequence[index]
-            if (app != null) {
-                result[cell] = app
-            }
+            } ?: return null
+            result[availableCell] = item
         }
         return result
     }
@@ -1852,7 +1835,7 @@ fun HomeScreenContent(
         }
     }
 
-    if (isEditMode) BackHandler { isEditMode = false; saveCurrentLayout() }
+    if (isEditMode) BackHandler { exitEditMode() }
 
     // 自动翻页逻辑
     var autoScrollJob by remember { mutableStateOf<Job?>(null) }
@@ -1972,14 +1955,19 @@ fun HomeScreenContent(
                 }
 
                 if (startItem != null) {
+                    gestureHoldingItem = true
                     var longPressTriggered = false
                     var tapDetected = false
                     try {
                         withTimeout(viewConfiguration.longPressTimeoutMillis) {
                             while (true) {
                                 val event = awaitPointerEvent()
+                                event.changes.forEach { change ->
+                                    if (change.positionChange() != Offset.Zero || change.changedToUp()) {
+                                        change.consume()
+                                    }
+                                }
                                 if (event.changes.all { it.changedToUp() }) {
-                                    event.changes.forEach { it.consume() }
                                     tapDetected = true
                                     break
                                 }
@@ -2020,10 +2008,12 @@ fun HomeScreenContent(
                                 onActivationAlert()
                             }
                         } else if (isEditMode) {
-                            isEditMode = false; saveCurrentLayout()
+                            exitEditMode()
                         }
                     } else if (longPressTriggered) {
                         if (!isEditMode) isEditMode = true
+                        normalizeGridPages(keepTrailingEmpty = true)
+                        coroutineScope.launch { pagerState.scrollToPage(pagerState.currentPage) }
                         draggedItem = startItem
                         if (isDockItem) {
                             dragSource = "dock"
@@ -2200,6 +2190,7 @@ fun HomeScreenContent(
                                         }
                                     }
                                 }
+                                normalizeGridPages(keepTrailingEmpty = isEditMode)
                                 saveCurrentLayout()
                             }
                         } finally {
@@ -2208,6 +2199,7 @@ fun HomeScreenContent(
                             draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
                         }
                     }
+                    gestureHoldingItem = false
                 }
             }
         }
@@ -2232,7 +2224,7 @@ fun HomeScreenContent(
             HorizontalPager(
                 state = pagerState,
                 modifier = Modifier.fillMaxWidth().weight(1f),
-                userScrollEnabled = draggedItem == null // 拖拽时禁止翻页
+                userScrollEnabled = draggedItem == null && !gestureHoldingItem
             ) { pageIndex ->
                 if (pageIndex < allPages.size) {
                     val currentPageGrid = renderedPages[pageIndex]
@@ -2370,6 +2362,24 @@ fun HomeScreenContent(
                                         badgeImagePath = customIcons[BADGE_WIDGET_ID],
                                         modifier = Modifier.fillMaxSize().padding(8.dp)
                                     )
+                                    if (isEditMode && draggedItem == null) {
+                                        Box(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(top = 6.dp, end = 6.dp)
+                                                .size(22.dp)
+                                                .clip(CircleShape)
+                                                .background(Color(0xFFFF3B30))
+                                                .clickable {
+                                                    allPages.getOrNull(pageIndex)?.remove(cellIndex)
+                                                    normalizeGridPages(keepTrailingEmpty = true)
+                                                    saveCurrentLayout()
+                                                },
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("X", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                 } else if (item is AppIcon) {
                                     val itemWidthDp = with(density) { itemWidth.toDp() }
                                     val itemHeightDp = with(density) { itemHeight.toDp() }
