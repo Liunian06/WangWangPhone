@@ -1861,6 +1861,7 @@ fun HomeScreenContent(
             delay(autoScrollDelayMs)
             if (pagerState.currentPage != targetPage) {
                 pagerState.animateScrollToPage(targetPage)
+                autoScrollTargetPage = -1
                 draggedItem?.let { dragged ->
                     if (isPreviewableGridItem(dragged)) {
                         updateDragPreview(dragged)
@@ -1874,6 +1875,27 @@ fun HomeScreenContent(
 
     val renderedPages = if (hasDragPreview) previewPages else allPages
     val renderedDockApps = if (hasDragPreview) previewDockApps else dockApps
+    val edgePreviewVisible = draggedItem != null && autoScrollTargetPage != -1 && gridAreaSize.height > 0
+    val edgePreviewDirection = when {
+        autoScrollTargetPage == -1 -> 0
+        autoScrollTargetPage < pagerState.currentPage -> -1
+        else -> 1
+    }
+    val edgePreviewAlpha by animateFloatAsState(
+        targetValue = if (edgePreviewVisible) 1f else 0f,
+        animationSpec = tween(durationMillis = 180),
+        label = "edge_preview_alpha"
+    )
+    val edgePreviewPulse = rememberInfiniteTransition(label = "edge_preview_pulse")
+    val edgePreviewScale by edgePreviewPulse.animateFloat(
+        initialValue = 0.96f,
+        targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(
+            tween(560, easing = FastOutSlowInEasing),
+            RepeatMode.Reverse
+        ),
+        label = "edge_preview_scale"
+    )
 
     Box(modifier = Modifier.fillMaxSize()
         .pointerInput(isActivated) {
@@ -2228,11 +2250,42 @@ fun HomeScreenContent(
 
                             val row = cellIndex / GRID_COLUMNS; val col = cellIndex % GRID_COLUMNS
                             val infT = rememberInfiniteTransition(label = "w_${item.id}")
-                            val wAngle by infT.animateFloat(
-                                initialValue = if (cellIndex % 2 == 0) -1.5f else 1.5f,
-                                targetValue = if (cellIndex % 2 == 0) 1.5f else -1.5f,
-                                animationSpec = infiniteRepeatable(tween(150 + (cellIndex % 3) * 50, easing = LinearEasing),
-                                    RepeatMode.Reverse), label = "wa_${item.id}")
+                            val wiggleRotation by infT.animateFloat(
+                                initialValue = if (cellIndex % 2 == 0) -1.2f else 1.2f,
+                                targetValue = if (cellIndex % 2 == 0) 1.2f else -1.2f,
+                                animationSpec = infiniteRepeatable(
+                                    tween(190 + (cellIndex % 4) * 18, easing = LinearEasing),
+                                    RepeatMode.Reverse
+                                ),
+                                label = "wa_${item.id}"
+                            )
+                            val wiggleScale by infT.animateFloat(
+                                initialValue = 1.0f,
+                                targetValue = 1.018f,
+                                animationSpec = infiniteRepeatable(
+                                    tween(260 + (cellIndex % 5) * 20, easing = FastOutSlowInEasing),
+                                    RepeatMode.Reverse
+                                ),
+                                label = "ws_${item.id}"
+                            )
+                            val wiggleShiftX by infT.animateFloat(
+                                initialValue = if (cellIndex % 2 == 0) -0.8f else 0.8f,
+                                targetValue = if (cellIndex % 2 == 0) 0.8f else -0.8f,
+                                animationSpec = infiniteRepeatable(
+                                    tween(220 + (cellIndex % 3) * 16, easing = LinearEasing),
+                                    RepeatMode.Reverse
+                                ),
+                                label = "wx_${item.id}"
+                            )
+                            val wiggleShiftY by infT.animateFloat(
+                                initialValue = -0.6f,
+                                targetValue = 0.6f,
+                                animationSpec = infiniteRepeatable(
+                                    tween(280 + (cellIndex % 4) * 22, easing = FastOutSlowInEasing),
+                                    RepeatMode.Reverse
+                                ),
+                                label = "wy_${item.id}"
+                            )
 
                             val itemWidth = cwPx * item.spanX
                             val itemHeight = chPx * item.spanY
@@ -2249,7 +2302,13 @@ fun HomeScreenContent(
                                 .offset { animatedGridOffset }
                                 .width(with(density) { itemWidth.toDp() }).height(with(density) { itemHeight.toDp() })
                                 .graphicsLayer {
-                                    if (isEditMode) rotationZ = wAngle
+                                    if (isEditMode) {
+                                        rotationZ = wiggleRotation
+                                        translationX = wiggleShiftX
+                                        translationY = wiggleShiftY
+                                        scaleX = wiggleScale
+                                        scaleY = wiggleScale
+                                    }
                                     if (isDraggedFromHere) alpha = 0f
                                 }
                                 // pointerInput 已移除
@@ -2394,11 +2453,33 @@ fun HomeScreenContent(
                     renderedDockApps.forEachIndexed { dockIndex, app ->
                         val isDraggedFromDock = draggedItem?.id == app.id && (hasDragPreview || dragSource == "dock")
                         val dwt = rememberInfiniteTransition(label = "dw_$dockIndex")
-                        val dwa by dwt.animateFloat(
-                            initialValue = if (dockIndex % 2 == 0) -1.5f else 1.5f,
-                            targetValue = if (dockIndex % 2 == 0) 1.5f else -1.5f,
-                            animationSpec = infiniteRepeatable(tween(150 + (dockIndex % 3) * 50, easing = LinearEasing),
-                                RepeatMode.Reverse), label = "dwa_$dockIndex")
+                        val dockWiggleRotation by dwt.animateFloat(
+                            initialValue = if (dockIndex % 2 == 0) -1.15f else 1.15f,
+                            targetValue = if (dockIndex % 2 == 0) 1.15f else -1.15f,
+                            animationSpec = infiniteRepeatable(
+                                tween(195 + (dockIndex % 4) * 18, easing = LinearEasing),
+                                RepeatMode.Reverse
+                            ),
+                            label = "dwa_$dockIndex"
+                        )
+                        val dockWiggleScale by dwt.animateFloat(
+                            initialValue = 1.0f,
+                            targetValue = 1.016f,
+                            animationSpec = infiniteRepeatable(
+                                tween(250 + (dockIndex % 4) * 18, easing = FastOutSlowInEasing),
+                                RepeatMode.Reverse
+                            ),
+                            label = "dws_$dockIndex"
+                        )
+                        val dockWiggleShiftY by dwt.animateFloat(
+                            initialValue = -0.5f,
+                            targetValue = 0.5f,
+                            animationSpec = infiniteRepeatable(
+                                tween(270 + (dockIndex % 3) * 14, easing = FastOutSlowInEasing),
+                                RepeatMode.Reverse
+                            ),
+                            label = "dwy_$dockIndex"
+                        )
                         val animatedDockOffset by animateIntOffsetAsState(
                             targetValue = IntOffset(
                                 dockLeftFor(dockIndex, renderedDockApps.size),
@@ -2424,7 +2505,12 @@ fun HomeScreenContent(
                                 )
                             }
                             .graphicsLayer {
-                                if (isEditMode) rotationZ = dwa
+                                if (isEditMode) {
+                                    rotationZ = dockWiggleRotation
+                                    translationY = dockWiggleShiftY
+                                    scaleX = dockWiggleScale
+                                    scaleY = dockWiggleScale
+                                }
                                 if (isDraggedFromDock) alpha = 0f
                             },
                             contentAlignment = Alignment.Center
@@ -2455,6 +2541,71 @@ fun HomeScreenContent(
         }
 
         // 拖拽浮动覆盖层 - 在顶层 Box 中，不在 Column 内，避免布局重排导致闪屏
+        if (edgePreviewVisible) {
+            val density = LocalDensity.current
+            val overlayWidth = 78.dp
+            val overlayWidthPx = with(density) { overlayWidth.roundToPx() }
+            val overlayHeightDp = with(density) { gridAreaSize.height.toDp() }
+            val overlayTopPx = gridAreaOffset.y.roundToInt()
+            val overlayLeftPx = gridAreaOffset.x.roundToInt()
+            val isLeftPreview = edgePreviewDirection < 0
+            Box(
+                modifier = Modifier.fillMaxSize().zIndex(9500f),
+                contentAlignment = Alignment.TopStart
+            ) {
+                Box(
+                    modifier = Modifier
+                        .offset {
+                            IntOffset(
+                                if (isLeftPreview) overlayLeftPx else overlayLeftPx + gridAreaSize.width - overlayWidthPx,
+                                overlayTopPx
+                            )
+                        }
+                        .width(overlayWidth)
+                        .height(overlayHeightDp)
+                        .graphicsLayer {
+                            alpha = edgePreviewAlpha
+                            scaleX = edgePreviewScale
+                            scaleY = edgePreviewScale
+                        }
+                        .background(
+                            brush = if (isLeftPreview) {
+                                Brush.horizontalGradient(
+                                    listOf(Color.White.copy(alpha = 0.22f), Color.White.copy(alpha = 0.06f), Color.Transparent)
+                                )
+                            } else {
+                                Brush.horizontalGradient(
+                                    listOf(Color.Transparent, Color.White.copy(alpha = 0.06f), Color.White.copy(alpha = 0.22f))
+                                )
+                            },
+                            shape = RoundedCornerShape(24.dp)
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(24.dp))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 6.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = if (isLeftPreview) "?" else "?",
+                            color = Color.White,
+                            fontSize = 38.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isLeftPreview) "???" else "???",
+                            color = Color.White,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        }
+
         if (draggedItem != null) {
             val density = LocalDensity.current
             // Dynamically calculate drag overlay size based on grid size
