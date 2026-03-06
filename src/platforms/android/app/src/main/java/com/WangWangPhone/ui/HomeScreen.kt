@@ -2068,6 +2068,7 @@ fun HomeScreenContent(
                                         dockApps.clear()
                                         dockApps.addAll(previewDockApps)
                                         pageCount = allPages.size.coerceAtLeast(1)
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                     }
                                 } else if (isOverDock(dragOverlayX, dragOverlayY) && currentItem is AppIcon) {
                                     val dropDockIndex = getDockDropIndexFromGlobal(
@@ -2234,13 +2235,37 @@ fun HomeScreenContent(
                             val hr = highlightCellIndex / GRID_COLUMNS; val hc = highlightCellIndex % GRID_COLUMNS
                             val spanX = draggedItem!!.spanX
                             val spanY = draggedItem!!.spanY
+                            val highlightTransition = rememberInfiniteTransition(label = "drop_highlight")
+                            val highlightScale by highlightTransition.animateFloat(
+                                initialValue = 0.99f,
+                                targetValue = 1.02f,
+                                animationSpec = infiniteRepeatable(
+                                    tween(520, easing = FastOutSlowInEasing),
+                                    RepeatMode.Reverse
+                                ),
+                                label = "drop_highlight_scale"
+                            )
+                            val highlightAlpha by highlightTransition.animateFloat(
+                                initialValue = 0.12f,
+                                targetValue = 0.24f,
+                                animationSpec = infiniteRepeatable(
+                                    tween(520, easing = FastOutSlowInEasing),
+                                    RepeatMode.Reverse
+                                ),
+                                label = "drop_highlight_alpha"
+                            )
 
                             if (hc + spanX <= GRID_COLUMNS && hr + spanY <= GRID_ROWS) {
                                 Box(modifier = Modifier
                                     .offset { IntOffset(hc * cwPx + 4, hr * chPx + 4) }
                                     .width(with(density) { (cwPx * spanX - 8).toDp() })
                                     .height(with(density) { (chPx * spanY - 8).toDp() })
-                                    .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp)))
+                                    .graphicsLayer {
+                                        scaleX = highlightScale
+                                        scaleY = highlightScale
+                                    }
+                                    .background(Color.White.copy(alpha = highlightAlpha), RoundedCornerShape(14.dp))
+                                    .border(2.dp, Color.White.copy(alpha = 0.78f), RoundedCornerShape(14.dp)))
                             }
                         }
 
@@ -2486,8 +2511,8 @@ fun HomeScreenContent(
                                 dockTopPx
                             ),
                             animationSpec = spring(
-                                dampingRatio = 0.84f,
-                                stiffness = Spring.StiffnessMediumLow
+                                dampingRatio = 0.8f,
+                                stiffness = Spring.StiffnessLow
                             ),
                             label = "dock_pos_${app.id}_$dockIndex"
                         )
@@ -2590,7 +2615,7 @@ fun HomeScreenContent(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            text = if (isLeftPreview) "?" else "?",
+                            text = if (isLeftPreview) "<" else ">",
                             color = Color.White,
                             fontSize = 38.sp,
                             fontWeight = FontWeight.Bold
@@ -2615,6 +2640,49 @@ fun HomeScreenContent(
             val itemHeight = cellHeightDp * draggedItem!!.spanY
             val itemWidthPx = with(density) { itemWidth.toPx() }
             val itemHeightPx = with(density) { itemHeight.toPx() }
+            val baseOverlayOffset = IntOffset(
+                (dragOverlayX - itemWidthPx / 2f).roundToInt(),
+                (dragOverlayY - itemHeightPx * 0.38f).roundToInt()
+            )
+            var snapTargetOffset = baseOverlayOffset
+            val snapThresholdPx = with(density) { 54.dp.toPx() }
+            if (!isOverDock(dragOverlayX, dragOverlayY) && highlightCellIndex in 0 until TOTAL_CELLS && gridAreaSize.width > 0) {
+                val cellWidthPx = gridAreaSize.width.toFloat() / GRID_COLUMNS
+                val cellHeightPx = gridAreaSize.height.toFloat() / GRID_ROWS
+                val targetCol = highlightCellIndex % GRID_COLUMNS
+                val targetRow = highlightCellIndex / GRID_COLUMNS
+                val targetLeft = (gridAreaOffset.x + targetCol * cellWidthPx).roundToInt()
+                val targetTop = (gridAreaOffset.y + targetRow * cellHeightPx).roundToInt()
+                val deltaX = targetLeft - baseOverlayOffset.x
+                val deltaY = targetTop - baseOverlayOffset.y
+                if (kotlin.math.abs(deltaX) < snapThresholdPx || kotlin.math.abs(deltaY) < snapThresholdPx) {
+                    snapTargetOffset = IntOffset(
+                        lerpFloat(baseOverlayOffset.x.toFloat(), targetLeft.toFloat(), 0.24f).roundToInt(),
+                        lerpFloat(baseOverlayOffset.y.toFloat(), targetTop.toFloat(), 0.24f).roundToInt()
+                    )
+                }
+            } else if (isOverDock(dragOverlayX, dragOverlayY) && draggedItem is AppIcon && dockAreaSize.width > 0) {
+                val previewIndex = renderedDockApps.indexOfFirst { it.id == draggedItem!!.id }
+                if (previewIndex >= 0) {
+                    val dockSlotCount = renderedDockApps.size.coerceAtLeast(1)
+                    val dockSlotWidth = dockAreaSize.width.toFloat() / dockSlotCount.toFloat()
+                    val targetLeft = (dockAreaOffset.x + dockSlotWidth * previewIndex + (dockSlotWidth - itemWidthPx) / 2f).roundToInt()
+                    val targetTop = (dockAreaOffset.y + (dockAreaSize.height - itemHeightPx) / 2f).roundToInt()
+                    val deltaX = targetLeft - baseOverlayOffset.x
+                    val deltaY = targetTop - baseOverlayOffset.y
+                    if (kotlin.math.abs(deltaX) < snapThresholdPx * 1.2f || kotlin.math.abs(deltaY) < snapThresholdPx * 1.2f) {
+                        snapTargetOffset = IntOffset(
+                            lerpFloat(baseOverlayOffset.x.toFloat(), targetLeft.toFloat(), 0.3f).roundToInt(),
+                            lerpFloat(baseOverlayOffset.y.toFloat(), targetTop.toFloat(), 0.3f).roundToInt()
+                        )
+                    }
+                }
+            }
+            val animatedOverlayOffset by animateIntOffsetAsState(
+                targetValue = snapTargetOffset,
+                animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessLow),
+                label = "drag_overlay_offset"
+            )
             val dragOverlayScale by animateFloatAsState(
                 targetValue = 1.08f,
                 animationSpec = spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow),
@@ -2632,12 +2700,7 @@ fun HomeScreenContent(
             ) {
                 Box(
                     modifier = Modifier
-                        .offset {
-                            IntOffset(
-                                (dragOverlayX - itemWidthPx / 2f).roundToInt(),
-                                (dragOverlayY - itemHeightPx * 0.38f).roundToInt()
-                            )
-                        }
+                        .offset { animatedOverlayOffset }
                         .size(itemWidth, itemHeight)
                         .graphicsLayer {
                             scaleX = dragOverlayScale
