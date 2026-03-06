@@ -2007,8 +2007,6 @@ fun HomeScreenContent(
                             } else {
                                 onActivationAlert()
                             }
-                        } else if (isEditMode) {
-                            exitEditMode()
                         }
                     } else if (longPressTriggered) {
                         if (!isEditMode) isEditMode = true
@@ -2200,6 +2198,34 @@ fun HomeScreenContent(
                         }
                     }
                     gestureHoldingItem = false
+                } else if (isEditMode) {
+                    var blankTapDetected = false
+                    try {
+                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { change ->
+                                    if (change.positionChange() != Offset.Zero || change.changedToUp()) {
+                                        change.consume()
+                                    }
+                                }
+                                if (event.changes.all { it.changedToUp() }) {
+                                    blankTapDetected = true
+                                    break
+                                }
+                                val movedTooMuch = event.changes.any {
+                                    val change = it.positionChange()
+                                    change.x * change.x + change.y * change.y > 100
+                                }
+                                if (movedTooMuch) break
+                            }
+                        }
+                    } catch (_: PointerEventTimeoutCancellationException) {
+                    }
+
+                    if (blankTapDetected) {
+                        exitEditMode()
+                    }
                 }
             }
         }
