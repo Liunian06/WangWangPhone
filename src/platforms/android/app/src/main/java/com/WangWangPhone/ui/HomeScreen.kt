@@ -87,6 +87,7 @@ import java.net.URLEncoder
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 // 定义统一的网格项类型
@@ -1394,6 +1395,10 @@ fun HomeScreenContent(
     var dockAreaOffset by remember { mutableStateOf(Offset.Zero) }
     var dockAreaSize by remember { mutableStateOf(IntSize.Zero) }
     val appIconBounds = remember { mutableStateMapOf<String, Rect>() }
+    val previewPages = remember { mutableStateListOf<MutableMap<Int, GridItem>>() }
+    val previewDockApps = remember { mutableStateListOf<AppIcon>() }
+    var hasDragPreview by remember { mutableStateOf(false) }
+    var canCommitDragPreview by remember { mutableStateOf(false) }
     val launchIconSizePx = with(LocalDensity.current) { 56.dp.toPx() }
 
     fun gridIconKey(pageIndex: Int, cellIndex: Int, appId: String): String {
@@ -1544,6 +1549,9 @@ fun HomeScreenContent(
         return getDockSlotFromGlobal(gx, dockApps.size)
     }
 
+    val pagerState = rememberPagerState(pageCount = { pageCount })
+    val coroutineScope = rememberCoroutineScope()
+
     fun getDockDropIndexFromGlobal(gx: Float, isDockSource: Boolean): Int {
         val slotCount = when {
             dockApps.isEmpty() -> 1
@@ -1558,11 +1566,195 @@ fun HomeScreenContent(
         }
     }
 
-    if (isEditMode) BackHandler { isEditMode = false; saveCurrentLayout() }
 
-    // Pager state
-    val pagerState = rememberPagerState(pageCount = { pageCount })
-    val coroutineScope = rememberCoroutineScope()
+    fun copyCurrentLayoutToPreview() {
+        previewPages.clear()
+        allPages.forEach { previewPages.add(it.toMutableMap()) }
+        previewDockApps.clear()
+        previewDockApps.addAll(dockApps)
+    }
+
+    fun clearDragPreview() {
+        hasDragPreview = false
+        canCommitDragPreview = false
+        previewPages.clear()
+        previewDockApps.clear()
+    }
+
+    fun isPreviewableApp(item: GridItem?): Boolean {
+        return item is AppIcon && item.spanX == 1 && item.spanY == 1
+    }
+
+    fun occupiedCells(startCell: Int, item: GridItem): Set<Int> {
+        val cells = linkedSetOf<Int>()
+        val startRow = startCell / GRID_COLUMNS
+        val startCol = startCell % GRID_COLUMNS
+        for (rowOffset in 0 until item.spanY) {
+            for (colOffset in 0 until item.spanX) {
+                val row = startRow + rowOffset
+                val col = startCol + colOffset
+                if (row in 0 until GRID_ROWS && col in 0 until GRID_COLUMNS) {
+                    cells.add(row * GRID_COLUMNS + col)
+                }
+            }
+        }
+        return cells
+    }
+
+    fun findNearestSlotIndex(slots: List<Int>, targetCell: Int): Int {
+        if (slots.isEmpty()) return -1
+        var bestIndex = 0
+        var bestDistance = Int.MAX_VALUE
+        slots.forEachIndexed { index, cell ->
+            val distance = abs(cell - targetCell)
+            if (distance < bestDistance) {
+                bestDistance = distance
+                bestIndex = index
+            }
+        }
+        return bestIndex
+    }
+
+    fun findNearestEmptyIndex(sequence: List<AppIcon?>, targetIndex: Int): Int? {
+        var bestIndex: Int? = null
+        var bestDistance = Int.MAX_VALUE
+        sequence.forEachIndexed { index, app ->
+            if (app == null) {
+                val distance = abs(index - targetIndex)
+                if (distance < bestDistance) {
+                    bestDistance = distance
+                    bestIndex = index
+                }
+            }
+        }
+        return bestIndex
+    }
+
+    fun buildSingleCellPreviewPage(
+        basePage: Map<Int, GridItem>,
+        draggedApp: AppIcon,
+        targetCell: Int,
+        sourceCell: Int?
+    ): MutableMap<Int, GridItem>? {
+        if (targetCell !in 0 until TOTAL_CELLS) return null
+
+        val result = mutableMapOf<Int, GridItem>()
+        val blocked = BooleanArray(TOTAL_CELLS)
+        val appByCell = mutableMapOf<Int, AppIcon>()
+
+        basePage.forEach { (cell, item) ->
+            if (item.id == draggedApp.id) return@forEach
+            if (item is AppIcon && item.spanX == 1 && item.spanY == 1) {
+                appByCell[cell] = item
+            } else {
+                result[cell] = item
+                occupiedCells(cell, item).forEach { blocked[it] = true }
+            }
+        }
+
+        val slots = mutableListOf<Int>()
+        val sequence = mutableListOf<AppIcon?>()
+        for (cell in 0 until TOTAL_CELLS) {
+            if (!blocked[cell]) {
+                slots.add(cell)
+                sequence.add(appByCell[cell])
+            }
+        }
+        if (slots.isEmpty()) return null
+
+        val targetSlotIndex = findNearestSlotIndex(slots, targetCell)
+        if (targetSlotIndex == -1) return null
+        val sourceSlotIndex = sourceCell?.let { cell ->
+            slots.indexOf(cell).takeIf { it >= 0 }
+        }
+
+        if (sourceSlotIndex != null) {
+            if (targetSlotIndex > sourceSlotIndex) {
+                for (index in sourceSlotIndex until targetSlotIndex) {
+                    sequence[index] = sequence[index + 1]
+                }
+                sequence[targetSlotIndex] = draggedApp
+            } else if (targetSlotIndex < sourceSlotIndex) {
+                for (index in sourceSlotIndex downTo targetSlotIndex + 1) {
+                    sequence[index] = sequence[index - 1]
+                }
+                sequence[targetSlotIndex] = draggedApp
+            } else {
+                sequence[sourceSlotIndex] = draggedApp
+            }
+        } else {
+            if (sequence[targetSlotIndex] == null) {
+                sequence[targetSlotIndex] = draggedApp
+            } else {
+                val emptyIndex = findNearestEmptyIndex(sequence, targetSlotIndex) ?: return null
+                if (emptyIndex > targetSlotIndex) {
+                    for (index in emptyIndex downTo targetSlotIndex + 1) {
+                        sequence[index] = sequence[index - 1]
+                    }
+                } else if (emptyIndex < targetSlotIndex) {
+                    for (index in emptyIndex until targetSlotIndex) {
+                        sequence[index] = sequence[index + 1]
+                    }
+                }
+                sequence[targetSlotIndex] = draggedApp
+            }
+        }
+
+        slots.forEachIndexed { index, cell ->
+            val app = sequence[index]
+            if (app != null) {
+                result[cell] = app
+            }
+        }
+        return result
+    }
+
+    fun updateAppDragPreview(currentItem: AppIcon) {
+        copyCurrentLayoutToPreview()
+        hasDragPreview = true
+        canCommitDragPreview = false
+
+        if (dragSource == "dock" && dragSourceDockIndex in previewDockApps.indices) {
+            previewDockApps.removeAt(dragSourceDockIndex)
+        } else if (dragSource == "grid" && dragSourcePageIndex in previewPages.indices) {
+            previewPages[dragSourcePageIndex].remove(dragSourceCellIndex)
+        }
+
+        if (isOverDock(dragOverlayX, dragOverlayY)) {
+            val canDropToDock = dragSource == "dock" || previewDockApps.size < maxDockApps
+            if (canDropToDock) {
+                val insertIndex = getDockDropIndexFromGlobal(dragOverlayX, dragSource == "dock")
+                    .coerceIn(0, previewDockApps.size)
+                previewDockApps.add(insertIndex, currentItem)
+                canCommitDragPreview = true
+            }
+            return
+        }
+
+        val currentPage = pagerState.currentPage
+        if (highlightCellIndex == -1 || currentPage !in allPages.indices || currentPage !in previewPages.indices) {
+            return
+        }
+
+        val sourceCell = if (dragSource == "grid" && dragSourcePageIndex == currentPage) {
+            dragSourceCellIndex
+        } else {
+            null
+        }
+
+        val previewPage = buildSingleCellPreviewPage(
+            basePage = allPages[currentPage],
+            draggedApp = currentItem,
+            targetCell = highlightCellIndex,
+            sourceCell = sourceCell
+        ) ?: return
+
+        previewPages[currentPage].clear()
+        previewPages[currentPage].putAll(previewPage)
+        canCommitDragPreview = true
+    }
+
+    if (isEditMode) BackHandler { isEditMode = false; saveCurrentLayout() }
 
     // 自动翻页逻辑
     var autoScrollJob by remember { mutableStateOf<Job?>(null) }
@@ -1597,6 +1789,9 @@ fun HomeScreenContent(
     }
 
     // 全局手势处理
+    val renderedPages = if (hasDragPreview) previewPages else allPages
+    val renderedDockApps = if (hasDragPreview) previewDockApps else dockApps
+
     Box(modifier = Modifier.fillMaxSize()
         .pointerInput(isActivated) {
             awaitEachGesture {
@@ -1714,6 +1909,13 @@ fun HomeScreenContent(
                             dragOverlayY = touchY
                         }
 
+                        hasDragPreview = isPreviewableApp(startItem)
+                        canCommitDragPreview = false
+                        copyCurrentLayoutToPreview()
+                        if (startItem is AppIcon && isPreviewableApp(startItem)) {
+                            updateAppDragPreview(startItem)
+                        }
+
                         try {
                             while (true) {
                                 val event = awaitPointerEvent()
@@ -1732,11 +1934,14 @@ fun HomeScreenContent(
                                             if (rawCell >= 0) {
                                                 val targetCol = rawCell % GRID_COLUMNS
                                                 val targetRow = rawCell / GRID_COLUMNS
-                                                val safeCol = targetCol.coerceAtMost(GRID_COLUMNS - startItem!!.spanX)
-                                                val safeRow = targetRow.coerceAtMost(GRID_ROWS - startItem!!.spanY)
+                                                val safeCol = targetCol.coerceAtMost(GRID_COLUMNS - startItem.spanX)
+                                                val safeRow = targetRow.coerceAtMost(GRID_ROWS - startItem.spanY)
                                                 highlightCellIndex = safeRow * GRID_COLUMNS + safeCol
                                             } else { highlightCellIndex = -1 }
                                         } else { highlightCellIndex = -1 }
+                                        if (startItem is AppIcon && isPreviewableApp(startItem)) {
+                                            updateAppDragPreview(startItem)
+                                        }
                                     } else {
                                         autoScrollJob?.cancel(); autoScrollJob = null
                                     }
@@ -1750,7 +1955,15 @@ fun HomeScreenContent(
                                 val sourcePage = if (dragSourcePageIndex < allPages.size && dragSourcePageIndex >= 0) allPages[dragSourcePageIndex] else null
                                 val targetPage = if (currentPage < allPages.size) allPages[currentPage] else null
 
-                                if (isOverDock(dragOverlayX, dragOverlayY) && currentItem is AppIcon) {
+                                if (currentItem is AppIcon && hasDragPreview) {
+                                    if (canCommitDragPreview) {
+                                        allPages.clear()
+                                        previewPages.forEach { allPages.add(it.toMutableMap()) }
+                                        dockApps.clear()
+                                        dockApps.addAll(previewDockApps)
+                                        pageCount = allPages.size.coerceAtLeast(1)
+                                    }
+                                } else if (isOverDock(dragOverlayX, dragOverlayY) && currentItem is AppIcon) {
                                     val dropDockIndex = getDockDropIndexFromGlobal(
                                         gx = dragOverlayX,
                                         isDockSource = dragSource == "dock"
@@ -1859,6 +2072,7 @@ fun HomeScreenContent(
                             }
                         } finally {
                             autoScrollJob?.cancel(); autoScrollJob = null
+                            clearDragPreview()
                             draggedItem = null; highlightCellIndex = -1; dragSourceDockIndex = -1; dragSource = "grid"
                         }
                     }
@@ -1889,7 +2103,7 @@ fun HomeScreenContent(
                 userScrollEnabled = draggedItem == null // 拖拽时禁止翻页
             ) { pageIndex ->
                 if (pageIndex < allPages.size) {
-                    val currentPageGrid = allPages[pageIndex]
+                    val currentPageGrid = renderedPages[pageIndex]
 
                     BoxWithConstraints(
                         modifier = Modifier
@@ -1910,7 +2124,7 @@ fun HomeScreenContent(
                         val cwPx = twPx / GRID_COLUMNS; val chPx = thPx / GRID_ROWS
 
                         // 高亮目标格子
-                        if (highlightCellIndex in 0 until TOTAL_CELLS && draggedItem != null && pageIndex == pagerState.currentPage) {
+                        if (highlightCellIndex in 0 until TOTAL_CELLS && draggedItem != null && pageIndex == pagerState.currentPage && !(hasDragPreview && draggedItem is AppIcon)) {
                             val hr = highlightCellIndex / GRID_COLUMNS; val hc = highlightCellIndex % GRID_COLUMNS
                             val spanX = draggedItem!!.spanX
                             val spanY = draggedItem!!.spanY
@@ -2058,18 +2272,18 @@ fun HomeScreenContent(
                     .onGloballyPositioned { dockAreaOffset = it.positionInRoot(); dockAreaSize = it.size }
             ) {
                 val isDraggingOverDock = draggedItem != null && dragSource == "grid" &&
-                    isOverDock(dragOverlayX, dragOverlayY) && dockApps.size < maxDockApps && draggedItem is AppIcon
+                    isOverDock(dragOverlayX, dragOverlayY) && renderedDockApps.size < maxDockApps && draggedItem is AppIcon
                 Box(modifier = Modifier.fillMaxSize().background(
                     if (isDraggingOverDock) Color(0xFF007AFF).copy(alpha = 0.4f) else Color.White.copy(alpha = 0.3f)
                 ).blur(20.dp))
 
                 Row(modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = if (dockApps.isEmpty()) Arrangement.Center else Arrangement.SpaceAround,
+                    horizontalArrangement = if (renderedDockApps.isEmpty()) Arrangement.Center else Arrangement.SpaceAround,
                     verticalAlignment = Alignment.CenterVertically) {
                     if (dockApps.isEmpty() && !isEditMode) Text("长按拖入应用", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
                     if (dockApps.isEmpty() && isEditMode) Text("拖拽应用到此处", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
 
-                    dockApps.forEachIndexed { dockIndex, app ->
+                    renderedDockApps.forEachIndexed { dockIndex, app ->
                         val isDraggedFromDock = draggedItem?.id == app.id && dragSource == "dock"
                         val dwt = rememberInfiniteTransition(label = "dw_$dockIndex")
                         val dwa by dwt.animateFloat(
