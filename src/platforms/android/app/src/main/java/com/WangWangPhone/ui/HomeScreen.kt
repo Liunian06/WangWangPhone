@@ -144,7 +144,7 @@ fun getDefaultApps(isDark: Boolean): List<AppIcon> = listOf(
         Brush.linearGradient(listOf(Color.White, Color.LightGray)), useImage = true),
     AppIcon("wangwang", "汪汪", "🐶", Brush.linearGradient(listOf(Color.White, Color.LightGray))),
     AppIcon("persona_builder", "神笔马良", "✨", Brush.linearGradient(listOf(Color(0xFFFFD700), Color(0xFFFFA500)))),
-    AppIcon("widget_market", "Widgets", "W", Brush.linearGradient(listOf(Color(0xFF7F7FD5), Color(0xFF91EAE4)))),
+    AppIcon("widget_market", "组件市场", "ic_widget_market", Brush.linearGradient(listOf(Color(0xFF07C160), Color(0xFF06AD56))), useImage = true),
     // 第二批应用
     AppIcon("photos", "照片", "🖼️", Brush.linearGradient(listOf(Color(0xFFFDEB71), Color(0xFFF8D800)))),
     AppIcon("video", "视频", "🎬", Brush.linearGradient(listOf(Color(0xFFA18CD1), Color(0xFFFBC2EB)))),
@@ -910,6 +910,18 @@ fun HomeScreen() {
         }
     }
 
+    fun closeSettingsRoot() {
+        showVoiceApiPresets = false
+        showImageApiPresets = false
+        showChatApiPresets = false
+        showIconCustomization = false
+        showDisplaySettings = false
+        showSettings = false
+        if (warmedAppStates["settings"] == true) {
+            keepAliveAppStates["settings"] = true
+        }
+    }
+
     LaunchedEffect(pendingLaunch?.nonce) {
         val launchRequest = pendingLaunch ?: return@LaunchedEffect
         launchProgress.snapTo(0f)
@@ -991,12 +1003,7 @@ fun HomeScreen() {
             SettingsScreen(
                 isActivated = isActivated,
                 expiryDate = expiryDate,
-                onBack = {
-                    showSettings = false
-                    if (warmedAppStates["settings"] == true) {
-                        keepAliveAppStates["settings"] = true
-                    }
-                },
+                onBack = { closeSettingsRoot() },
                 onNavigateToActivation = { showActivation = true },
                 onNavigateToDisplay = { showDisplaySettings = true },
                 onNavigateToChatApi = { showChatApiPresets = true },
@@ -1033,18 +1040,6 @@ fun HomeScreen() {
                 }
             )
         }
-
-        if (showDisplaySettings) DisplaySettingsScreen(wallpaperDbHelper = wallpaperDbHelper,
-            onBack = { showDisplaySettings = false }, onWallpaperChanged = {
-                lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)
-                homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
-            }, onNavigateToIconCustomization = { showIconCustomization = true },
-            onBadgeWidgetChanged = { layoutReloadTrigger++ })
-        if (showIconCustomization) IconCustomizationScreen(onBack = { showIconCustomization = false },
-            onIconChanged = { layoutReloadTrigger++ })
-        if (showChatApiPresets) ChatApiPresetsScreen(onBack = { showChatApiPresets = false })
-        if (showImageApiPresets) ImageApiPresetsScreen(onBack = { showImageApiPresets = false })
-        if (showVoiceApiPresets) VoiceApiPresetsScreen(onBack = { showVoiceApiPresets = false })
 
         KeepAliveAppLayer(
             visible = showChatApp,
@@ -1173,6 +1168,36 @@ fun HomeScreen() {
                 }
             )
         }
+
+        if (showDisplaySettings) DisplaySettingsScreen(
+            wallpaperDbHelper = wallpaperDbHelper,
+            onBack = { showDisplaySettings = false },
+            onWallpaperChanged = {
+                lockWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)
+                homeWallpaperPath = wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)
+            },
+            onNavigateToIconCustomization = { showIconCustomization = true },
+            onBadgeWidgetChanged = { layoutReloadTrigger++ }
+        )
+        if (showIconCustomization) IconCustomizationScreen(
+            onBack = { showIconCustomization = false },
+            onIconChanged = { layoutReloadTrigger++ }
+        )
+        if (showChatApiPresets) ChatApiPresetsScreen(onBack = { showChatApiPresets = false })
+        if (showImageApiPresets) ImageApiPresetsScreen(onBack = { showImageApiPresets = false })
+        if (showVoiceApiPresets) VoiceApiPresetsScreen(onBack = { showVoiceApiPresets = false })
+
+        BackHandler(enabled = showSettings || showDisplaySettings || showIconCustomization || showChatApiPresets || showImageApiPresets || showVoiceApiPresets) {
+            when {
+                showVoiceApiPresets -> showVoiceApiPresets = false
+                showImageApiPresets -> showImageApiPresets = false
+                showChatApiPresets -> showChatApiPresets = false
+                showIconCustomization -> showIconCustomization = false
+                showDisplaySettings -> showDisplaySettings = false
+                showSettings -> closeSettingsRoot()
+            }
+        }
+
         if (showActivation) ActivationScreen(onBack = { showActivation = false }, onActivated = {
             isActivated = licenseManager.isActivated(); expiryDate = licenseManager.getExpirationDateString()
         })

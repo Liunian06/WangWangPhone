@@ -1,6 +1,5 @@
 package com.WangWangPhone.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -33,8 +32,6 @@ fun PersonaCardListScreen(
     onCardSelected: (Long) -> Unit,
     onBack: () -> Unit
 ) {
-    BackHandler { onBack() }
-
     var cards by remember { mutableStateOf<List<PersonaCard>>(emptyList()) }
     var presets by remember { mutableStateOf<List<ApiPreset>>(emptyList()) }
     var showNewCardDialog by remember { mutableStateOf(false) }

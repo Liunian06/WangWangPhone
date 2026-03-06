@@ -11,6 +11,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -20,6 +22,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -29,11 +33,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -62,6 +69,127 @@ private enum class WidgetMarketView {
     LIST,
     EDIT
 }
+
+@Composable
+private fun WidgetMarketPageFrame(
+    title: String,
+    backAction: Pair<String, () -> Unit>? = null,
+    actions: List<Pair<String, () -> Unit>> = emptyList(),
+    primaryAction: Pair<String, () -> Unit>? = null,
+    content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(WeTheme.Background)
+            .statusBarsPadding()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(50.dp)
+                .background(WeTheme.Background),
+            contentAlignment = Alignment.Center
+        ) {
+            backAction?.let { (label, action) ->
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    WeIcon(
+                        "ic_nav_back",
+                        "<",
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable { action() },
+                        tint = WeTheme.TextPrimary
+                    )
+                    Text(
+                        text = label,
+                        color = WeTheme.TextPrimary,
+                        fontSize = 15.sp,
+                        modifier = Modifier.clickable { action() }
+                    )
+                }
+            }
+
+            Text(
+                text = title,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+                color = WeTheme.TextPrimary
+            )
+
+            Row(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                actions.forEach { (label, action) ->
+                    Text(
+                        text = label,
+                        color = WeTheme.BrandGreen,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.clickable { action() }
+                    )
+                }
+                primaryAction?.let { (label, action) ->
+                    Button(
+                        onClick = action,
+                        shape = RoundedCornerShape(999.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WeTheme.BrandGreen,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text(label)
+                    }
+                }
+            }
+        }
+        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+        content()
+    }
+}
+
+@Composable
+private fun WidgetMarketPanel(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = WeTheme.BackgroundCell)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            content = content
+        )
+    }
+}
+
+@Composable
+private fun widgetFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = WeTheme.TextPrimary,
+    unfocusedTextColor = WeTheme.TextPrimary,
+    focusedContainerColor = WeTheme.BackgroundCell,
+    unfocusedContainerColor = WeTheme.BackgroundCell,
+    focusedBorderColor = WeTheme.BrandGreen,
+    unfocusedBorderColor = WeTheme.Separator,
+    focusedLabelColor = WeTheme.BrandGreen,
+    unfocusedLabelColor = WeTheme.TextSecondary,
+    focusedSupportingTextColor = WeTheme.TextSecondary,
+    unfocusedSupportingTextColor = WeTheme.TextSecondary,
+    cursorColor = WeTheme.BrandGreen
+)
 
 @Composable
 fun WidgetMarketAppScreen(
@@ -208,80 +336,102 @@ private fun WidgetMarketListScreen(
     onAddToDesktop: (WebWidgetRecord) -> Unit,
     onDelete: (WebWidgetRecord) -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "小组件市场",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onImport) { Text("导入") }
-                TextButton(onClick = onCreate) { Text("新建") }
-                TextButton(onClick = onBack) { Text("关闭") }
-            }
-        }
-
+    WidgetMarketPageFrame(
+        title = "组件市场",
+        actions = listOf(
+            "导入" to onImport,
+            "新建" to onCreate,
+            "关闭" to onBack
+        )
+    ) {
         if (widgets.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("还没有组件，先新建一个吧")
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                WidgetMarketPanel(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "还没有组件",
+                        color = WeTheme.TextPrimary,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "\u5148\u65b0\u5efa\u4e00\u4e2a\u7ec4\u4ef6\uff0c\u6216\u8005\u5bfc\u5165\u5df2\u6709\u7ec4\u4ef6\u5305\u3002",
+                        color = WeTheme.TextSecondary,
+                        fontSize = 14.sp
+                    )
+                    Button(
+                        onClick = onCreate,
+                        shape = RoundedCornerShape(999.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WeTheme.BrandGreen,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("导入图片")
+                    }
+                }
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(widgets, key = { it.id }) { widget ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f))
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(widget.name, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-                                    Spacer(modifier = Modifier.height(4.dp))
-                                    Text("尺寸 ${widget.spanX} x ${widget.spanY}", color = Color(0xFF666666), fontSize = 13.sp)
-                                }
-                                Box(
-                                    modifier = Modifier
-                                        .width(72.dp)
-                                        .height(72.dp)
-                                        .background(Color(0xFFF1F3F5), RoundedCornerShape(16.dp))
-                                        .padding(6.dp)
-                                ) {
-                                    WebWidgetView(widget = widget, modifier = Modifier.fillMaxSize(), cornerRadiusDp = 12.dp)
-                                }
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            ActionChipRow(
-                                actions = listOf(
-                                    "编辑" to { onEdit(widget) },
-                                    "加到桌面" to { onAddToDesktop(widget) },
-                                    "导出" to { onExport(widget) },
-                                    "删除" to { onDelete(widget) }
+                    WidgetMarketPanel(modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = widget.name,
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = WeTheme.TextPrimary
                                 )
-                            )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "?? ${widget.spanX} x ${widget.spanY}",
+                                    color = WeTheme.TextSecondary,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .width(84.dp)
+                                    .height(84.dp)
+                                    .background(WeTheme.SearchBarBg, RoundedCornerShape(18.dp))
+                                    .padding(8.dp)
+                            ) {
+                                WebWidgetView(
+                                    widget = widget,
+                                    modifier = Modifier.fillMaxSize(),
+                                    cornerRadiusDp = 14.dp
+                                )
+                            }
                         }
+                        Divider(color = WeTheme.Separator, thickness = 0.5.dp)
+                        ActionChipRow(
+                            actions = listOf(
+                                "\u7f16\u8f91" to { onEdit(widget) },
+                                "\u52a0\u5230\u684c\u9762" to { onAddToDesktop(widget) },
+                                "导出" to { onExport(widget) },
+                                "删除" to { onDelete(widget) }
+                            )
+                        )
                     }
                 }
-                item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -305,7 +455,9 @@ private fun WidgetEditorScreen(
     var htmlCode by remember(initialWidgetId) { mutableStateOf(initialRecord?.htmlCode ?: defaultHtmlTemplate()) }
     var cssCode by remember(initialWidgetId) { mutableStateOf(initialRecord?.cssCode ?: defaultCssTemplate()) }
     var jsCode by remember(initialWidgetId) { mutableStateOf(initialRecord?.jsCode ?: defaultJsTemplate()) }
-    var assets by remember(initialWidgetId) { mutableStateOf(if (initialWidgetId != null) dbHelper.getWidgetAssets(initialWidgetId) else emptyList()) }
+    var assets by remember(initialWidgetId) {
+        mutableStateOf(if (initialWidgetId != null) dbHelper.getWidgetAssets(initialWidgetId) else emptyList())
+    }
 
     fun toast(message: String) {
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
@@ -317,10 +469,10 @@ private fun WidgetEditorScreen(
         val record = dbHelper.importAssetFromUri(currentWidgetId, uri)
         if (record != null) {
             assets = dbHelper.getWidgetAssets(currentWidgetId)
-            toast("图片已导入")
+            toast("\u56fe\u7247\u5df2\u5bfc\u5165")
             onLayoutChanged()
         } else {
-            toast("图片导入失败")
+            toast("\u56fe\u7247\u5bfc\u5165\u5931\u8d25")
         }
     }
 
@@ -328,13 +480,13 @@ private fun WidgetEditorScreen(
         val parsedSpanX = spanXText.toIntOrNull()?.coerceIn(1, GRID_COLUMNS)
         val parsedSpanY = spanYText.toIntOrNull()?.coerceIn(1, GRID_ROWS)
         if (parsedSpanX == null || parsedSpanY == null) {
-            toast("尺寸请输入 1 到 ${GRID_COLUMNS} / ${GRID_ROWS} 之间的整数")
+            toast("\u5c3a\u5bf8\u8bf7\u8f93\u5165 1 \u5230 ${GRID_COLUMNS} / ${GRID_ROWS} \u4e4b\u95f4\u7684\u6574\u6570")
             return null
         }
 
         val record = WebWidgetRecord(
             id = widgetId ?: java.util.UUID.randomUUID().toString(),
-            name = widgetName.trim().ifBlank { "未命名组件" },
+            name = widgetName.trim().ifBlank { "\u672a\u547d\u540d\u7ec4\u4ef6" },
             htmlCode = htmlCode,
             cssCode = cssCode,
             jsCode = jsCode,
@@ -348,10 +500,10 @@ private fun WidgetEditorScreen(
             widgetId = record.id
             assets = dbHelper.getWidgetAssets(record.id)
             onSaved(record.id)
-            toast("组件已保存")
+            toast("\u7ec4\u4ef6\u5df2\u4fdd\u5b58")
             record.id
         } else {
-            toast("组件保存失败")
+            toast("\u7ec4\u4ef6\u4fdd\u5b58\u5931\u8d25")
             null
         }
     }
@@ -359,7 +511,7 @@ private fun WidgetEditorScreen(
     val previewRecord = remember(widgetId, widgetName, spanXText, spanYText, htmlCode, cssCode, jsCode) {
         WebWidgetRecord(
             id = widgetId ?: "preview",
-            name = widgetName.ifBlank { "未命名组件" },
+            name = widgetName.ifBlank { "\u672a\u547d\u540d\u7ec4\u4ef6" },
             htmlCode = htmlCode,
             cssCode = cssCode,
             jsCode = jsCode,
@@ -370,49 +522,45 @@ private fun WidgetEditorScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(if (widgetId == null) "新建组件" else "编辑组件", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = onBack) { Text("返回") }
-                Button(onClick = { saveWidget() }) { Text("保存") }
-            }
-        }
-
+    WidgetMarketPageFrame(
+        title = if (widgetId == null) "\u65b0\u5efa\u7ec4\u4ef6" else "\u7f16\u8f91\u7ec4\u4ef6",
+        backAction = "\u8fd4\u56de" to onBack,
+        primaryAction = "\u4fdd\u5b58" to { saveWidget() }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            OutlinedTextField(
-                value = widgetName,
-                onValueChange = { widgetName = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("组件名称") }
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            WidgetMarketPanel {
+                Text("\u57fa\u7840\u4fe1\u606f", fontWeight = FontWeight.SemiBold, color = WeTheme.TextPrimary)
                 OutlinedTextField(
-                    value = spanXText,
-                    onValueChange = { spanXText = it.filter { ch -> ch.isDigit() }.take(2) },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("宽度格数") },
-                    supportingText = { Text("1 - $GRID_COLUMNS") }
+                    value = widgetName,
+                    onValueChange = { widgetName = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("\u7ec4\u4ef6\u540d\u79f0") },
+                    colors = widgetFieldColors()
                 )
-                OutlinedTextField(
-                    value = spanYText,
-                    onValueChange = { spanYText = it.filter { ch -> ch.isDigit() }.take(2) },
-                    modifier = Modifier.weight(1f),
-                    label = { Text("高度格数") },
-                    supportingText = { Text("1 - $GRID_ROWS") }
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = spanXText,
+                        onValueChange = { spanXText = it.filter { ch -> ch.isDigit() }.take(2) },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("\u5bbd\u5ea6\u683c\u6570") },
+                        supportingText = { Text("1 - $GRID_COLUMNS") },
+                        colors = widgetFieldColors()
+                    )
+                    OutlinedTextField(
+                        value = spanYText,
+                        onValueChange = { spanYText = it.filter { ch -> ch.isDigit() }.take(2) },
+                        modifier = Modifier.weight(1f),
+                        label = { Text("\u9ad8\u5ea6\u683c\u6570") },
+                        supportingText = { Text("1 - $GRID_ROWS") },
+                        colors = widgetFieldColors()
+                    )
+                }
             }
 
             CodeEditorField(
@@ -434,69 +582,74 @@ private fun WidgetEditorScreen(
                 minLines = 8
             )
 
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f))) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("资源管理", fontWeight = FontWeight.SemiBold)
-                    if (widgetId == null) {
-                        Text("先保存组件，再导入图片资源", color = Color(0xFF666666), fontSize = 13.sp)
+            WidgetMarketPanel {
+                Text("\u8d44\u6e90\u7ba1\u7406", fontWeight = FontWeight.SemiBold, color = WeTheme.TextPrimary)
+                if (widgetId == null) {
+                    Text("\u5148\u4fdd\u5b58\u7ec4\u4ef6\uff0c\u518d\u5bfc\u5165\u56fe\u7247\u8d44\u6e90", color = WeTheme.TextSecondary, fontSize = 13.sp)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            if (widgetId != null) importImageLauncher.launch("image/*") else toast("\u8bf7\u5148\u4fdd\u5b58\u7ec4\u4ef6")
+                        },
+                        shape = RoundedCornerShape(999.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = WeTheme.BrandGreen,
+                            contentColor = Color.White
+                        )
+                    ) {
+                        Text("\u5bfc\u5165\u56fe\u7247")
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { if (widgetId != null) importImageLauncher.launch("image/*") else toast("请先保存组件") }) {
-                            Text("导入图片")
+                    TextButton(onClick = {
+                        val currentWidgetId = widgetId
+                        if (currentWidgetId == null) {
+                            toast("\u8bf7\u5148\u4fdd\u5b58\u7ec4\u4ef6")
+                        } else {
+                            saveWidget()
                         }
-                        TextButton(onClick = {
-                            val currentWidgetId = widgetId
-                            if (currentWidgetId == null) {
-                                toast("请先保存组件")
-                            } else {
-                                saveWidget()
+                    }) {
+                        Text("\u5237\u65b0\u8d44\u6e90", color = WeTheme.BrandGreen)
+                    }
+                }
+                if (assets.isEmpty()) {
+                    Text("\u6682\u65e0\u56fe\u7247\u8d44\u6e90", color = WeTheme.TextSecondary, fontSize = 13.sp)
+                } else {
+                    assets.forEach { asset ->
+                        AssetRow(
+                            widgetId = widgetId ?: return@forEach,
+                            asset = asset,
+                            dbHelper = dbHelper,
+                            onCopy = { value ->
+                                clipboardManager.setPrimaryClip(ClipData.newPlainText("widget-asset", value))
+                                toast("\u8d44\u6e90\u5730\u5740\u5df2\u590d\u5236")
+                            },
+                            onDelete = {
+                                val currentWidgetId = widgetId ?: return@AssetRow
+                                dbHelper.deleteAsset(currentWidgetId, asset.id)
+                                assets = dbHelper.getWidgetAssets(currentWidgetId)
+                                toast("\u8d44\u6e90\u5df2\u5220\u9664")
+                                onLayoutChanged()
                             }
-                        }) {
-                            Text("刷新资源")
-                        }
-                    }
-                    if (assets.isEmpty()) {
-                        Text("暂无图片资源", color = Color(0xFF666666), fontSize = 13.sp)
-                    } else {
-                        assets.forEach { asset ->
-                            AssetRow(
-                                widgetId = widgetId ?: return@forEach,
-                                asset = asset,
-                                dbHelper = dbHelper,
-                                onCopy = { text ->
-                                    clipboardManager.setPrimaryClip(ClipData.newPlainText("widget-asset", text))
-                                    toast("资源地址已复制")
-                                },
-                                onDelete = {
-                                    val currentWidgetId = widgetId ?: return@AssetRow
-                                    dbHelper.deleteAsset(currentWidgetId, asset.id)
-                                    assets = dbHelper.getWidgetAssets(currentWidgetId)
-                                    toast("资源已删除")
-                                    onLayoutChanged()
-                                }
-                            )
-                        }
+                        )
                     }
                 }
             }
 
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f))) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("实时预览", fontWeight = FontWeight.SemiBold)
-                    Text(
-                        text = "当前预览尺寸：${previewRecord.spanX} x ${previewRecord.spanY}",
-                        color = Color(0xFF666666),
-                        fontSize = 13.sp
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(220.dp)
-                            .background(Color(0xFFF3F4F6), RoundedCornerShape(20.dp))
-                            .padding(10.dp)
-                    ) {
-                        WebWidgetView(widget = previewRecord, modifier = Modifier.fillMaxSize(), cornerRadiusDp = 16.dp)
-                    }
+            WidgetMarketPanel {
+                Text("\u5b9e\u65f6\u9884\u89c8", fontWeight = FontWeight.SemiBold, color = WeTheme.TextPrimary)
+                Text(
+                    text = "\u5f53\u524d\u9884\u89c8\u5c3a\u5bf8\uff1a${previewRecord.spanX} x ${previewRecord.spanY}",
+                    color = WeTheme.TextSecondary,
+                    fontSize = 13.sp
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(220.dp)
+                        .background(WeTheme.SearchBarBg, RoundedCornerShape(20.dp))
+                        .padding(10.dp)
+                ) {
+                    WebWidgetView(widget = previewRecord, modifier = Modifier.fillMaxSize(), cornerRadiusDp = 16.dp)
                 }
             }
 
@@ -505,6 +658,7 @@ private fun WidgetEditorScreen(
     }
 }
 
+
 @Composable
 private fun CodeEditorField(
     title: String,
@@ -512,19 +666,19 @@ private fun CodeEditorField(
     onValueChange: (String) -> Unit,
     minLines: Int
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.96f))) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(title, fontWeight = FontWeight.SemiBold)
-            OutlinedTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                minLines = minLines,
-                textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp)
-            )
-        }
+    WidgetMarketPanel {
+        Text(title, fontWeight = FontWeight.SemiBold, color = WeTheme.TextPrimary)
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            minLines = minLines,
+            textStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = 13.sp),
+            colors = widgetFieldColors()
+        )
     }
 }
+
 
 @Composable
 private fun AssetRow(
@@ -537,17 +691,21 @@ private fun AssetRow(
     val assetUrl = remember(widgetId, asset.id, asset.storedName) {
         dbHelper.getAssetUrl(widgetId, asset.storedName)
     }
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFF8F9FA))) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = WeTheme.SearchBarBg)
+    ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(asset.originalName, fontWeight = FontWeight.Medium, fontSize = 13.sp)
-            Text(assetUrl, color = Color(0xFF666666), fontSize = 12.sp)
+            Text(asset.originalName, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = WeTheme.TextPrimary)
+            Text(assetUrl, color = WeTheme.TextSecondary, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { onCopy(assetUrl) }) { Text("复制地址") }
-                TextButton(onClick = onDelete) { Text("删除", color = Color.Red) }
+                TextButton(onClick = { onCopy(assetUrl) }) { Text("复制地址", color = WeTheme.BrandGreen) }
+                TextButton(onClick = onDelete) { Text("删除", color = Color(0xFFFF3B30)) }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -557,17 +715,36 @@ private fun ActionChipRow(actions: List<Pair<String, () -> Unit>>) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         actions.forEach { (label, action) ->
+            val isPrimary = label == "\u52a0\u5230\u684c\u9762"
+            val isDanger = label == "删除"
+            val borderColor = when {
+                isPrimary -> WeTheme.BrandGreen.copy(alpha = 0.35f)
+                isDanger -> Color(0xFFFF3B30).copy(alpha = 0.28f)
+                else -> WeTheme.Separator
+            }
+            val backgroundColor = when {
+                isPrimary -> WeTheme.BrandGreen.copy(alpha = if (WeTheme.isDark) 0.12f else 0.08f)
+                isDanger -> Color(0xFFFF3B30).copy(alpha = if (WeTheme.isDark) 0.12f else 0.08f)
+                else -> WeTheme.Background
+            }
+            val textColor = when {
+                isPrimary -> WeTheme.BrandGreen
+                isDanger -> Color(0xFFFF3B30)
+                else -> WeTheme.TextPrimary
+            }
             Box(
                 modifier = Modifier
-                    .border(1.dp, Color(0xFFD0D7DE), RoundedCornerShape(999.dp))
+                    .border(1.dp, borderColor, RoundedCornerShape(999.dp))
+                    .background(backgroundColor, RoundedCornerShape(999.dp))
                     .clickable { action() }
                     .padding(horizontal = 12.dp, vertical = 8.dp)
             ) {
-                Text(label, fontSize = 13.sp)
+                Text(label, fontSize = 13.sp, color = textColor)
             }
         }
     }
 }
+
 
 private fun addWebWidgetToDesktop(
     widget: WebWidgetRecord,
@@ -682,7 +859,7 @@ private fun defaultCssTemplate(): String {
           height: 100%;
           border-radius: 20px;
           padding: 16px;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          background: linear-gradient(135deg, #07C160 0%, #06AD56 100%);
           display: flex;
           flex-direction: column;
           justify-content: center;

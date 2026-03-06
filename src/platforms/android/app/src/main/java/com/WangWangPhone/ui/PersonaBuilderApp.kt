@@ -109,6 +109,15 @@ fun PersonaBuilderAppScreen(onClose: () -> Unit) {
     
     var showCardList by remember { mutableStateOf(true) }
     var selectedCardId by remember { mutableStateOf<Long?>(null) }
+
+    BackHandler {
+        if (showCardList) {
+            onClose()
+        } else {
+            showCardList = true
+            selectedCardId = null
+        }
+    }
     
     if (showCardList) {
         PersonaCardListScreen(
@@ -144,8 +153,6 @@ fun PersonaBuilderChatScreen(
     onBack: () -> Unit,
     onOpenCard: (Long) -> Unit
 ) {
-    BackHandler { onBack() }
-
     val context = LocalContext.current
     val dbHelper = remember { PersonaCardDbHelper(context) }
     val presetDbHelper = remember { ApiPresetDbHelper(context) }
