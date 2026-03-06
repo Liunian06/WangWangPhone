@@ -36,12 +36,12 @@ if (publicKeyFile.exists()) {
 
 android {
     namespace 'com.WangWangPhone'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.WangWangPhone"
         minSdk 31
-        targetSdk 35
+        targetSdk 36
         versionCode versionProps['VERSION_CODE']?.toInteger() ?: 1
         versionName versionProps['VERSION_NAME'] ?: "1.0.0"
 
