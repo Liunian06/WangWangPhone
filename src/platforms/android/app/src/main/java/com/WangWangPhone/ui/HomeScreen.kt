@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.PointerEventTimeoutCancellationException
 import androidx.compose.ui.input.pointer.changedToUp
 import androidx.compose.ui.input.pointer.pointerInput
@@ -52,6 +53,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -1399,6 +1401,8 @@ fun HomeScreenContent(
     val previewDockApps = remember { mutableStateListOf<AppIcon>() }
     var hasDragPreview by remember { mutableStateOf(false) }
     var canCommitDragPreview by remember { mutableStateOf(false) }
+    var lastPreviewTargetKey by remember { mutableStateOf("") }
+    val haptic = LocalHapticFeedback.current
     val launchIconSizePx = with(LocalDensity.current) { 56.dp.toPx() }
 
     fun gridIconKey(pageIndex: Int, cellIndex: Int, appId: String): String {
@@ -1576,6 +1580,7 @@ fun HomeScreenContent(
     fun clearDragPreview() {
         hasDragPreview = false
         canCommitDragPreview = false
+        lastPreviewTargetKey = ""
         previewPages.clear()
         previewDockApps.clear()
     }
@@ -1773,6 +1778,13 @@ fun HomeScreenContent(
                         .coerceIn(0, previewDockApps.size)
                     previewDockApps.add(insertIndex, currentItem)
                     canCommitDragPreview = true
+                    val previewTargetKey = "dock:$insertIndex"
+                    if (previewTargetKey != lastPreviewTargetKey) {
+                        if (lastPreviewTargetKey.isNotEmpty()) {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                        lastPreviewTargetKey = previewTargetKey
+                    }
                 }
             }
             return
@@ -1806,6 +1818,13 @@ fun HomeScreenContent(
         previewPages[currentPage].clear()
         previewPages[currentPage].putAll(previewPage)
         canCommitDragPreview = true
+        val previewTargetKey = "grid:$currentPage:$highlightCellIndex"
+        if (previewTargetKey.isNotEmpty() && previewTargetKey != lastPreviewTargetKey) {
+            if (lastPreviewTargetKey.isNotEmpty()) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+            lastPreviewTargetKey = previewTargetKey
+        }
     }
 
     if (isEditMode) BackHandler { isEditMode = false; saveCurrentLayout() }
@@ -1976,6 +1995,7 @@ fun HomeScreenContent(
                         hasDragPreview = isPreviewableGridItem(startItem)
                         canCommitDragPreview = false
                         copyCurrentLayoutToPreview()
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                         if (isPreviewableGridItem(startItem)) {
                             updateDragPreview(startItem)
                         }
@@ -2310,7 +2330,7 @@ fun HomeScreenContent(
                 }
             }
 
-            // 页面指示器（小圆点）
+            // ??????????
             if (pageCount > 1) {
                 Row(
                     modifier = Modifier
@@ -2334,8 +2354,6 @@ fun HomeScreenContent(
                     }
                 }
             }
-
-            // Dock 栏
             Box(
                 modifier = Modifier
                     .padding(bottom = 20.dp, start = 15.dp, end = 15.dp)
@@ -2349,11 +2367,29 @@ fun HomeScreenContent(
                     if (isDraggingOverDock) Color(0xFF007AFF).copy(alpha = 0.4f) else Color.White.copy(alpha = 0.3f)
                 ).blur(20.dp))
 
-                Row(modifier = Modifier.fillMaxSize(),
-                    horizontalArrangement = if (renderedDockApps.isEmpty()) Arrangement.Center else Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically) {
-                    if (dockApps.isEmpty() && !isEditMode) Text("长按拖入应用", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
-                    if (dockApps.isEmpty() && isEditMode) Text("拖拽应用到此处", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val density = LocalDensity.current
+                    val dockIconSizePx = with(density) { 60.dp.roundToPx() }
+                    val dockWidthPx = constraints.maxWidth
+                    val dockHeightPx = constraints.maxHeight
+                    val dockTopPx = ((dockHeightPx - dockIconSizePx) / 2f).roundToInt()
+
+                    fun dockLeftFor(index: Int, count: Int): Int {
+                        val slotCount = count.coerceAtLeast(1)
+                        val slotWidth = dockWidthPx / slotCount.toFloat()
+                        return (slotWidth * index + (slotWidth - dockIconSizePx) / 2f).roundToInt()
+                    }
+
+                    if (renderedDockApps.isEmpty() && !isEditMode) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("长按拖入应用", color = Color.White.copy(alpha = 0.4f), fontSize = 12.sp)
+                        }
+                    }
+                    if (renderedDockApps.isEmpty() && isEditMode) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("拖拽应用到此处", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+                        }
+                    }
 
                     renderedDockApps.forEachIndexed { dockIndex, app ->
                         val isDraggedFromDock = draggedItem?.id == app.id && (hasDragPreview || dragSource == "dock")
@@ -2363,8 +2399,21 @@ fun HomeScreenContent(
                             targetValue = if (dockIndex % 2 == 0) 1.5f else -1.5f,
                             animationSpec = infiniteRepeatable(tween(150 + (dockIndex % 3) * 50, easing = LinearEasing),
                                 RepeatMode.Reverse), label = "dwa_$dockIndex")
+                        val animatedDockOffset by animateIntOffsetAsState(
+                            targetValue = IntOffset(
+                                dockLeftFor(dockIndex, renderedDockApps.size),
+                                dockTopPx
+                            ),
+                            animationSpec = spring(
+                                dampingRatio = 0.84f,
+                                stiffness = Spring.StiffnessMediumLow
+                            ),
+                            label = "dock_pos_${app.id}_$dockIndex"
+                        )
 
-                        Box(modifier = Modifier.size(60.dp)
+                        Box(modifier = Modifier
+                            .offset { animatedDockOffset }
+                            .size(60.dp)
                             .onGloballyPositioned { coordinates ->
                                 appIconBounds[dockIconKey(dockIndex, app.id)] = Rect(
                                     offset = coordinates.positionInRoot(),
@@ -2377,9 +2426,8 @@ fun HomeScreenContent(
                             .graphicsLayer {
                                 if (isEditMode) rotationZ = dwa
                                 if (isDraggedFromDock) alpha = 0f
-                            }
-                            // pointerInput 已移除，统一到外层处理
-                            , contentAlignment = Alignment.Center
+                            },
+                            contentAlignment = Alignment.Center
                         ) {
                             val customIconPath = customIcons[app.id]
                             if (customIconPath != null) {
@@ -2409,11 +2457,23 @@ fun HomeScreenContent(
         // 拖拽浮动覆盖层 - 在顶层 Box 中，不在 Column 内，避免布局重排导致闪屏
         if (draggedItem != null) {
             val density = LocalDensity.current
-            // 根据网格尺寸动态计算Widget浮层大小
+            // Dynamically calculate drag overlay size based on grid size
             val cellWidthDp = if (gridAreaSize.width > 0) with(density) { (gridAreaSize.width / GRID_COLUMNS).toDp() } else 75.dp
             val cellHeightDp = if (gridAreaSize.height > 0) with(density) { (gridAreaSize.height / GRID_ROWS).toDp() } else 90.dp
             val itemWidth = cellWidthDp * draggedItem!!.spanX
             val itemHeight = cellHeightDp * draggedItem!!.spanY
+            val itemWidthPx = with(density) { itemWidth.toPx() }
+            val itemHeightPx = with(density) { itemHeight.toPx() }
+            val dragOverlayScale by animateFloatAsState(
+                targetValue = 1.08f,
+                animationSpec = spring(dampingRatio = 0.78f, stiffness = Spring.StiffnessMediumLow),
+                label = "drag_overlay_scale"
+            )
+            val dragOverlayAlpha by animateFloatAsState(
+                targetValue = 0.94f,
+                animationSpec = tween(durationMillis = 120),
+                label = "drag_overlay_alpha"
+            )
 
             Box(
                 modifier = Modifier.fillMaxSize().zIndex(10000f),
@@ -2421,10 +2481,19 @@ fun HomeScreenContent(
             ) {
                 Box(
                     modifier = Modifier
-                        .offset { IntOffset((dragOverlayX - 30 * density.density).roundToInt(),
-                            (dragOverlayY - 30 * density.density).roundToInt()) }
+                        .offset {
+                            IntOffset(
+                                (dragOverlayX - itemWidthPx / 2f).roundToInt(),
+                                (dragOverlayY - itemHeightPx * 0.38f).roundToInt()
+                            )
+                        }
                         .size(itemWidth, itemHeight)
-                        .graphicsLayer { scaleX = 1.15f; scaleY = 1.15f; alpha = 0.85f },
+                        .graphicsLayer {
+                            scaleX = dragOverlayScale
+                            scaleY = dragOverlayScale
+                            alpha = dragOverlayAlpha
+                            shadowElevation = 24.dp.toPx()
+                        },
                     contentAlignment = Alignment.Center
                 ) {
                     if (draggedItem is WidgetItem || draggedItem is WebWidgetGridItem) {
