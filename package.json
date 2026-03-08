@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/Liunian06/WangWangPhone#readme",
   "dependencies": {
-    "better-sqlite3": "^12.6.2"
+    "better-sqlite3": "^12.6.2",
+    "xlsx": "^0.18.5"
   }
 }
