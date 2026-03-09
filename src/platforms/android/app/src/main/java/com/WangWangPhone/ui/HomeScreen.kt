@@ -1983,7 +1983,9 @@ fun HomeScreenContent(
                     }
 
                     if (tapDetected) {
-                        if (!isEditMode && startItem is AppIcon) {
+                        if (isEditMode) {
+                            exitEditMode()
+                        } else if (startItem is AppIcon) {
                             val app = startItem
                             val launchRect = when {
                                 isDockItem && startDockIndex >= 0 -> {
