@@ -84,12 +84,32 @@
             vertical-align: top;
         }
         .batch-license-cell {
-            max-width: 360px;
-            font-family: 'SF Mono', 'Fira Code', monospace;
+            width: 140px;
+            white-space: nowrap;
+        }
+        .batch-license-trigger {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 92px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(99, 102, 241, 0.12);
+            border: 1px solid rgba(99, 102, 241, 0.18);
+            color: #4f46e5;
             font-size: 12px;
-            white-space: normal;
-            word-break: break-all;
-            line-height: 1.5;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+            cursor: default;
+        }
+        [data-theme="dark"] .batch-license-trigger {
+            color: #c4b5fd;
+            background: rgba(167, 139, 250, 0.14);
+            border-color: rgba(167, 139, 250, 0.22);
+        }
+        .batch-license-empty {
+            color: var(--text-secondary);
+            font-size: 13px;
         }
         .batch-status-ok {
             color: var(--success);
@@ -174,7 +194,7 @@
                             <th style="width: 120px;">QQID</th>
                             <th style="width: 120px;">激活时长</th>
                             <th style="width: 120px;">授权级别</th>
-                            <th>激活码</th>
+                            <th style="width: 140px;">激活码</th>
                             <th style="width: 180px;">处理结果</th>
                         </tr>
                     </thead>
@@ -313,6 +333,14 @@
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
     }
+    function renderLicenseCell(license) {
+        if (!license) {
+            return '<span class="batch-license-empty">-</span>';
+        }
+
+        const safeLicense = escapeHtml(license);
+        return '<span class="batch-license-trigger" title="' + safeLicense + '">悬浮查看</span>';
+    }
 
     function syncButtons() {
         const hasRows = state.rows.length > 0;
@@ -346,7 +374,7 @@
                 <td>${escapeHtml(row.qqId || '-')}</td>
                 <td>${escapeHtml(row.days)}</td>
                 <td>${escapeHtml(row.level)}</td>
-                <td class="batch-license-cell">${escapeHtml(row.license || '')}</td>
+                <td class="batch-license-cell">${renderLicenseCell(row.license)}</td>
                 <td class="${statusClass}">${escapeHtml(statusText)}</td>
             `;
             tableBodyEl.appendChild(tr);

@@ -549,7 +549,7 @@
             <div class="card">
                 <div class="form-group"><label>机器码 (Machine ID)</label><input type="text" id="mid" placeholder="粘贴用户提供的机器码 (例如: WIN-XXXXXX)"></div>
                 <div style="display: flex; gap: 20px;">
-                    <div class="form-group" style="flex: 1;"><label>小红书 ID</label><input type="number" id="xhs" placeholder="用于溯源记录"></div>
+                    <div class="form-group" style="flex: 1;"><label>小红书 ID</label><input type="text" id="xhs" placeholder="支持纯数字或字母数字混合"></div>
                     <div class="form-group" style="flex: 1;"><label>QQ ID</label><input type="number" id="qq" placeholder="用于溯源记录"></div>
                 </div>
                 <div style="display: flex; gap: 20px;">
@@ -1091,7 +1091,7 @@
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({
                         mid: document.getElementById('mid').value,
-                        xhs: parseInt(document.getElementById('xhs').value) || 0,
+                        xhs: document.getElementById('xhs').value.trim(),
                         qq: parseInt(document.getElementById('qq').value) || 0,
                         days: daysResult.days,
                         type: document.getElementById('type').value

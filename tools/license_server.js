@@ -113,6 +113,17 @@ function parseIntegerField(value, fieldName, options = {}) {
     return { ok: true, value: parsed };
 }
 
+function parseStringField(value, options = {}) {
+    const { allowEmpty = true } = options;
+    const text = normalizeString(value);
+
+    if (!text && !allowEmpty) {
+        return { ok: false, error: '字段不能为空' };
+    }
+
+    return { ok: true, value: text };
+}
+
 function validateBatchRow(row, index) {
     const machineId = normalizeString(row.mid || row.machineId || row.deviceCode || row['设备码']);
     if (!machineId) {
@@ -133,12 +144,11 @@ function validateBatchRow(row, index) {
         return { success: false, error: '授权级别仅支持 standard / pro' };
     }
 
-    const xhsResult = parseIntegerField(row.xhs || row.xhsId || row['小红书ID'], '小红书ID', {
-        allowEmpty: true,
-        min: 0
+    const xhsResult = parseStringField(row.xhs || row.xhsId || row['小红书ID'], {
+        allowEmpty: true
     });
     if (!xhsResult.ok) {
-        return { success: false, error: xhsResult.error };
+        return { success: false, error: '小红书ID格式不正确' };
     }
 
     const qqResult = parseIntegerField(row.qq || row.qqId || row['QQID'], 'QQID', {
@@ -163,7 +173,7 @@ function validateBatchRow(row, index) {
     };
 }
 
-function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = 0, qqID = 0, ip = '127.0.0.1') {
+function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = '', qqID = 0, ip = '127.0.0.1') {
     try {
         const privateKeyPath = path.join(__dirname, 'keys/private.pem');
         if (!fs.existsSync(privateKeyPath)) {
@@ -172,11 +182,12 @@ function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = 0, qqID =
 
         const privateKey = fs.readFileSync(privateKeyPath);
         const exp = Math.floor(Date.now() / 1000) + (daysValid * 24 * 60 * 60);
+        const normalizedXhsId = normalizeString(xhsID);
         const payload = {
             mid: machineId,
             exp,
             type,
-            xhs: xhsID,
+            xhs: normalizedXhsId,
             qq: qqID,
             salt: crypto.randomBytes(8).toString('hex')
         };
@@ -190,7 +201,7 @@ function signLicense(machineId, daysValid = 365, type = 'pro', xhsID = 0, qqID =
         const license = `WANGWANG-${Buffer.from(data).toString('base64')}.${signature}`;
 
         const stmt = db.prepare('INSERT INTO sign_logs (machine_id, license_key, expiration_time, license_type, xhs_id, qq_id, client_ip) VALUES (?, ?, ?, ?, ?, ?, ?)');
-        stmt.run(machineId, license, exp, type, xhsID, qqID, ip);
+        stmt.run(machineId, license, exp, type, normalizedXhsId, qqID, ip);
 
         return { success: true, license };
     } catch (err) {
