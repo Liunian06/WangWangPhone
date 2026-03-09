@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -82,6 +83,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -1958,27 +1960,16 @@ fun HomeScreenContent(
                     gestureHoldingItem = true
                     var longPressTriggered = false
                     var tapDetected = false
-                    try {
-                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                event.changes.forEach { change ->
-                                    if (change.positionChange() != Offset.Zero || change.changedToUp()) {
-                                        change.consume()
-                                    }
-                                }
-                                if (event.changes.all { it.changedToUp() }) {
-                                    tapDetected = true
-                                    break
-                                }
-                                val movedTooMuch = event.changes.any {
-                                    val change = it.positionChange()
-                                    change.x * change.x + change.y * change.y > 100
-                                }
-                                if (movedTooMuch) break
-                            }
-                        }
-                    } catch (_: PointerEventTimeoutCancellationException) {
+                    var completedBeforeTimeout = false
+                    val upChange = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        val result = waitForUpOrCancellation()
+                        completedBeforeTimeout = true
+                        result
+                    }
+                    if (completedBeforeTimeout) {
+                        tapDetected = upChange != null
+                        upChange?.consume()
+                    } else {
                         longPressTriggered = true
                     }
 
@@ -2201,31 +2192,14 @@ fun HomeScreenContent(
                     }
                     gestureHoldingItem = false
                 } else if (isEditMode) {
-                    var blankTapDetected = false
-                    try {
-                        withTimeout(viewConfiguration.longPressTimeoutMillis) {
-                            while (true) {
-                                val event = awaitPointerEvent()
-                                event.changes.forEach { change ->
-                                    if (change.positionChange() != Offset.Zero || change.changedToUp()) {
-                                        change.consume()
-                                    }
-                                }
-                                if (event.changes.all { it.changedToUp() }) {
-                                    blankTapDetected = true
-                                    break
-                                }
-                                val movedTooMuch = event.changes.any {
-                                    val change = it.positionChange()
-                                    change.x * change.x + change.y * change.y > 100
-                                }
-                                if (movedTooMuch) break
-                            }
-                        }
-                    } catch (_: PointerEventTimeoutCancellationException) {
+                    var completedBeforeTimeout = false
+                    val upChange = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                        val result = waitForUpOrCancellation()
+                        completedBeforeTimeout = true
+                        result
                     }
-
-                    if (blankTapDetected) {
+                    if (completedBeforeTimeout && upChange != null) {
+                        upChange.consume()
                         exitEditMode()
                     }
                 }
