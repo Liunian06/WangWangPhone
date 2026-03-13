@@ -1746,6 +1746,7 @@ fun ChatDetailScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(if (WeTheme.isDark) Color(0xFF191919) else Color(0xFFF7F7F7))
+                .imePadding()
                 .windowInsetsPadding(WindowInsets.navigationBars.only(WindowInsetsSides.Bottom))
         ) {
             Row(
