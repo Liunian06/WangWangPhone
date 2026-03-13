@@ -1859,12 +1859,21 @@ fun ChatDetailScreen(
                                   // 调用LLM API获取AI回复
                                   scope.launch {
                                       val llmService = LlmApiService()
+                                      
+                                      // 获取位置和天气信息（如果可用）
+                                      val userProfile = UserProfileDbHelper(context).getUserProfile()
+                                      val location = userProfile?.location
+                                      val weather = userProfile?.weather
+                                      
                                       val aiResponse = llmService.sendChatRequest(
+                                          context = context,
                                           preset = preset,
                                           aiPersona = aiPersona,
                                           userPersona = userPersona,
                                           messages = historyMessages,
-                                          userMessage = messageText
+                                          userMessage = messageText,
+                                          location = location,
+                                          weather = weather
                                       )
                                       
                                       if (aiResponse != null) {

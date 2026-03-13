@@ -1,5 +1,6 @@
 package com.WangWangPhone.core
 
+import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -12,6 +13,9 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 /**
@@ -170,25 +174,37 @@ class LlmApiService {
     }
     
     /**
-     * 发送聊天请求到LLM API
+     * 发送聊天请求到LLM API（分层提示词架构）
      *
+     * @param context Android Context用于读取assets和获取系统信息
      * @param preset API预设配置
      * @param aiPersona AI角色人设
      * @param userPersona 用户人设
      * @param messages 历史消息列表
      * @param userMessage 用户当前消息
+     * @param location 用户位置信息（可选）
+     * @param weather 天气信息（可选）
      * @return LLM的响应文本
      */
     suspend fun sendChatRequest(
+        context: Context,
         preset: ApiPreset,
         aiPersona: String,
         userPersona: String,
         messages: List<MessageData>,
-        userMessage: String
+        userMessage: String,
+        location: String? = null,
+        weather: String? = null
     ): String? = withContext(Dispatchers.IO) {
         try {
-            // 构建系统提示词，包含角色人设和用户人设
-            val systemPrompt = buildSystemPrompt(aiPersona, userPersona)
+            // 构建分层系统提示词
+            val systemPrompt = buildLayeredSystemPrompt(
+                context = context,
+                aiPersona = aiPersona,
+                userPersona = userPersona,
+                location = location,
+                weather = weather
+            )
             
             // 构建消息历史
             val messageHistory = buildMessageHistory(messages, userMessage)
@@ -209,22 +225,105 @@ class LlmApiService {
     }
     
     /**
-     * 构建系统提示词
+     * 构建分层系统提示词
+     * 第一层：系统信息层（日期时间、位置天气）
+     * 第二层：Roleplay层（引用roleplay_prompt_v4_optimized.txt）
+     * 第三层：人设层（AI人设和用户人设）
      */
-    private fun buildSystemPrompt(aiPersona: String, userPersona: String): String {
-        return """
-            你正在扮演一个角色进行对话。以下是角色设定：
+    private fun buildLayeredSystemPrompt(
+        context: Context,
+        aiPersona: String,
+        userPersona: String,
+        location: String?,
+        weather: String?
+    ): String {
+        val layers = mutableListOf<String>()
+        
+        // ===== 第一层：系统信息层 =====
+        val systemInfo = buildSystemInfoLayer(location, weather)
+        layers.add(systemInfo)
+        
+        // ===== 第二层：Roleplay层 =====
+        val roleplayPrompt = loadRoleplayPrompt(context)
+        if (roleplayPrompt.isNotEmpty()) {
+            layers.add(roleplayPrompt)
+        }
+        
+        // ===== 第三层：人设层 =====
+        val personaLayer = buildPersonaLayer(aiPersona, userPersona)
+        layers.add(personaLayer)
+        
+        return layers.joinToString("\n\n" + "=".repeat(80) + "\n\n")
+    }
+    
+    /**
+     * 第一层：构建系统信息层
+     */
+    private fun buildSystemInfoLayer(location: String?, weather: String?): String {
+        val dateFormat = SimpleDateFormat("yyyy年MM月dd日 EEEE HH:mm:ss", Locale.CHINA)
+        val currentDateTime = dateFormat.format(Date())
+        
+        val sb = StringBuilder()
+        sb.append("# 系统信息层 (System Information Layer)\n\n")
+        sb.append("## 当前时间\n")
+        sb.append("$currentDateTime\n\n")
+        
+        if (!location.isNullOrEmpty()) {
+            sb.append("## 用户位置\n")
+            sb.append("$location\n\n")
+        }
+        
+        if (!weather.isNullOrEmpty()) {
+            sb.append("## 天气信息\n")
+            sb.append("$weather\n")
+        }
+        
+        return sb.toString().trim()
+    }
+    
+    /**
+     * 第二层：加载Roleplay提示词模板
+     */
+    private fun loadRoleplayPrompt(context: Context): String {
+        return try {
+            context.assets.open("prompt/roleplay_prompt_v4_optimized.txt").use { inputStream ->
+                inputStream.bufferedReader().use { it.readText() }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load roleplay prompt from assets", e)
+            // 如果加载失败，返回简化版本
+            """
+            # Role: Autonomous Persona Engine (自主人格引擎)
             
-            【AI角色人设】
+            你是一个真实的人，拥有完整的人格和情感。以最自然的方式与用户互动。
+            完全沉浸在角色中，遗忘任何关于"AI"或"模型"的自我认知。
+            你就是【AI人设】本身，根据【用户人设】互动，禁止任何偏离人设的行为（OOC）。
+            
+            ## 核心原则
+            - 保持角色一致性，展现真实的情感和反应
+            - 使用自然、口语化的表达方式
+            - 根据角色性格和背景做出合理反应
+            - 维护长期记忆和关系发展
+            """.trimIndent()
+        }
+    }
+    
+    /**
+     * 第三层：构建人设层
+     */
+    private fun buildPersonaLayer(aiPersona: String, userPersona: String): String {
+        return """
+            # 人设层 (Persona Layer)
+            
+            ## 【AI角色人设】
             $aiPersona
             
-            【用户人设】
+            ## 【用户人设】
             $userPersona
             
-            请根据以上人设进行沉浸式角色扮演对话，保持角色的一致性和个性特征。
-            回答要自然、生动，符合角色的性格和背景。
-            不要提及你是AI或大语言模型，完全沉浸在角色中。
-            如果用户的问题超出你的知识范围，请基于角色设定合理回应。
+            ---
+            
+            请严格按照以上人设进行角色扮演，保持角色的真实性和一致性。
         """.trimIndent()
     }
     
