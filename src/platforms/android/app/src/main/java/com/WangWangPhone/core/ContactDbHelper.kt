@@ -121,10 +121,56 @@ class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
         }
     }
 
+    /**
+     * 直接保存 Bitmap 到存储
+     */
+    fun saveBitmapToStorage(bitmap: Bitmap, prefix: String): String? {
+        return try {
+            val fileName = "${prefix}${UUID.randomUUID()}.jpg"
+            val destFile = File(getContactImagesDir(), fileName)
+
+            FileOutputStream(destFile).use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            }
+
+            fileName
+        } catch (e: IOException) {
+            e.printStackTrace()
+            null
+        }
+    }
+
     fun addContact(nickname: String, wechatId: String, region: String, persona: String, avatarUri: Uri?): String? {
         return try {
             val contactId = UUID.randomUUID().toString()
             val avatarFileName = avatarUri?.let { copyImageToStorage(it, "contact_") } ?: ""
+
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COLUMN_ID, contactId)
+                put(COLUMN_NICKNAME, nickname)
+                put(COLUMN_WECHAT_ID, wechatId)
+                put(COLUMN_REGION, region)
+                put(COLUMN_PERSONA, persona)
+                put(COLUMN_AVATAR_FILE, avatarFileName)
+                put(COLUMN_CREATED_AT, System.currentTimeMillis() / 1000)
+                put(COLUMN_UPDATED_AT, System.currentTimeMillis() / 1000)
+            }
+            db.insert(TABLE_CONTACTS, null, values)
+            contactId
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    /**
+     * 添加联系人（使用 Bitmap）
+     */
+    fun addContact(nickname: String, wechatId: String, region: String, persona: String, avatarBitmap: Bitmap?): String? {
+        return try {
+            val contactId = UUID.randomUUID().toString()
+            val avatarFileName = avatarBitmap?.let { saveBitmapToStorage(it, "contact_") } ?: ""
 
             val db = writableDatabase
             val values = ContentValues().apply {
@@ -231,6 +277,38 @@ class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
                     if (oldFile.exists()) oldFile.delete()
                 }
                 avatarFileName = copyImageToStorage(avatarUri, "contact_") ?: avatarFileName
+            }
+            
+            val db = writableDatabase
+            val values = ContentValues().apply {
+                put(COLUMN_NICKNAME, nickname)
+                put(COLUMN_WECHAT_ID, wechatId)
+                put(COLUMN_REGION, region)
+                put(COLUMN_PERSONA, persona)
+                put(COLUMN_AVATAR_FILE, avatarFileName)
+                put(COLUMN_UPDATED_AT, System.currentTimeMillis() / 1000)
+            }
+            db.update(TABLE_CONTACTS, values, "$COLUMN_ID = ?", arrayOf(id)) > 0
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
+    }
+
+    /**
+     * 更新联系人（使用 Bitmap）
+     */
+    fun updateContact(id: String, nickname: String, wechatId: String, region: String, persona: String, avatarBitmap: Bitmap?): Boolean {
+        return try {
+            val contact = getContactById(id) ?: return false
+            var avatarFileName = contact.avatarFileName
+            
+            if (avatarBitmap != null) {
+                if (avatarFileName.isNotEmpty()) {
+                    val oldFile = File(getContactImagesDir(), avatarFileName)
+                    if (oldFile.exists()) oldFile.delete()
+                }
+                avatarFileName = saveBitmapToStorage(avatarBitmap, "contact_") ?: avatarFileName
             }
             
             val db = writableDatabase

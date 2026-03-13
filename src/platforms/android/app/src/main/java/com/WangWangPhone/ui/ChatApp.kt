@@ -1,8 +1,10 @@
 
 package com.WangWangPhone.ui
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import java.io.FileOutputStream
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1296,16 +1298,71 @@ fun MomentsTab(
     onNicknameChanged: (String) -> Unit,
     onSignatureChanged: (String) -> Unit
 ) {
+    val context = LocalContext.current
     val avatarSize = 64.dp
     val avatarOverlap = 22.dp
     val coverHeight = 300.dp
 
+    // 裁切相关状态
+    var showAvatarCropScreen by remember { mutableStateOf(false) }
+    var showCoverCropScreen by remember { mutableStateOf(false) }
+    var tempAvatarUri by remember { mutableStateOf<Uri?>(null) }
+    var tempCoverUri by remember { mutableStateOf<Uri?>(null) }
+
     // 图片选择器
     val coverLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { onCoverChanged(it) }
+        uri?.let {
+            tempCoverUri = it
+            showCoverCropScreen = true
+        }
     }
     val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        uri?.let { onAvatarChanged(it) }
+        uri?.let {
+            tempAvatarUri = it
+            showAvatarCropScreen = true
+        }
+    }
+
+    // 显示头像裁切界面
+    if (showAvatarCropScreen && tempAvatarUri != null) {
+        ImageCropScreen(
+            imageUri = tempAvatarUri!!,
+            onCropComplete = { bitmap ->
+                // 保存裁切后的图片并通知父组件
+                val tempFile = File(context.cacheDir, "cropped_avatar_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(tempFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                onAvatarChanged(Uri.fromFile(tempFile))
+                showAvatarCropScreen = false
+            },
+            onCancel = {
+                showAvatarCropScreen = false
+                tempAvatarUri = null
+            }
+        )
+        return
+    }
+
+    // 显示封面裁切界面
+    if (showCoverCropScreen && tempCoverUri != null) {
+        ImageCropScreen(
+            imageUri = tempCoverUri!!,
+            onCropComplete = { bitmap ->
+                // 保存裁切后的图片并通知父组件
+                val tempFile = File(context.cacheDir, "cropped_cover_${System.currentTimeMillis()}.jpg")
+                FileOutputStream(tempFile).use { out ->
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+                }
+                onCoverChanged(Uri.fromFile(tempFile))
+                showCoverCropScreen = false
+            },
+            onCancel = {
+                showCoverCropScreen = false
+                tempCoverUri = null
+            }
+        )
+        return
     }
 
     // 编辑对话框状态
@@ -2091,13 +2148,42 @@ fun AddContactScreen(
     var region by remember { mutableStateOf("") }
     var persona by remember { mutableStateOf("") }
     var avatarUri by remember { mutableStateOf<Uri?>(null) }
+    var croppedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showCropScreen by remember { mutableStateOf(false) }
+    var tempImageUri by remember { mutableStateOf<Uri?>(null) }
     
     val context = LocalContext.current
     val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        avatarUri = uri
+        uri?.let {
+            tempImageUri = it
+            showCropScreen = true
+        }
     }
     
-    BackHandler { onBack() }
+    BackHandler {
+        if (showCropScreen) {
+            showCropScreen = false
+        } else {
+            onBack()
+        }
+    }
+    
+    // 显示裁切界面
+    if (showCropScreen && tempImageUri != null) {
+        ImageCropScreen(
+            imageUri = tempImageUri!!,
+            onCropComplete = { bitmap ->
+                croppedBitmap = bitmap
+                avatarUri = tempImageUri
+                showCropScreen = false
+            },
+            onCancel = {
+                showCropScreen = false
+                tempImageUri = null
+            }
+        )
+        return
+    }
     
     Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
         Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
@@ -2121,26 +2207,13 @@ fun AddContactScreen(
                             .clickable { avatarLauncher.launch("image/*") },
                         contentAlignment = Alignment.Center
                     ) {
-                        if (avatarUri != null) {
-                            val bitmap = remember(avatarUri) {
-                                try {
-                                    context.contentResolver.openInputStream(avatarUri!!)?.use {
-                                        BitmapFactory.decodeStream(it)
-                                    }
-                                } catch (e: Exception) {
-                                    null
-                                }
-                            }
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "头像",
-                                    modifier = Modifier.fillMaxSize(),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Text("📷", fontSize = 32.sp)
-                            }
+                        if (croppedBitmap != null) {
+                            Image(
+                                bitmap = croppedBitmap!!.asImageBitmap(),
+                                contentDescription = "头像",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Crop
+                            )
                         } else {
                             Text("📷", fontSize = 32.sp)
                         }
@@ -2229,7 +2302,7 @@ fun AddContactScreen(
                     RoundedCornerShape(8.dp)
                 ).clickable(enabled = nickname.isNotBlank() && persona.isNotBlank()) {
                     if (nickname.isNotBlank() && persona.isNotBlank()) {
-                        contactDbHelper.addContact(nickname, wechatId, region, persona, avatarUri)
+                        contactDbHelper.addContact(nickname, wechatId, region, persona, croppedBitmap)
                         onContactAdded()
                     }
                 },
@@ -2259,16 +2332,45 @@ fun EditContactScreen(
     var region by remember { mutableStateOf(contactInfo?.region ?: "") }
     var persona by remember { mutableStateOf(contactInfo?.persona ?: "") }
     var avatarUri by remember { mutableStateOf<Uri?>(null) }
+    var croppedBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showCropScreen by remember { mutableStateOf(false) }
+    var tempImageUri by remember { mutableStateOf<Uri?>(null) }
     
     val avatarLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        avatarUri = uri
+        uri?.let {
+            tempImageUri = it
+            showCropScreen = true
+        }
     }
     
     val currentAvatarPath = remember(contactInfo?.avatarFileName) {
         contactInfo?.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
     }
     
-    BackHandler { onBack() }
+    BackHandler {
+        if (showCropScreen) {
+            showCropScreen = false
+        } else {
+            onBack()
+        }
+    }
+    
+    // 显示裁切界面
+    if (showCropScreen && tempImageUri != null) {
+        ImageCropScreen(
+            imageUri = tempImageUri!!,
+            onCropComplete = { bitmap ->
+                croppedBitmap = bitmap
+                avatarUri = tempImageUri
+                showCropScreen = false
+            },
+            onCancel = {
+                showCropScreen = false
+                tempImageUri = null
+            }
+        )
+        return
+    }
     
     Column(modifier = Modifier.fillMaxSize().background(WeTheme.Background).statusBarsPadding()) {
         Box(modifier = Modifier.fillMaxWidth().height(50.dp).background(WeTheme.Background), contentAlignment = Alignment.Center) {
@@ -2292,20 +2394,9 @@ fun EditContactScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         when {
-                            avatarUri != null -> {
-                                val bitmap = remember(avatarUri) {
-                                    try {
-                                        context.contentResolver.openInputStream(avatarUri!!)?.use {
-                                            BitmapFactory.decodeStream(it)
-                                        }
-                                    } catch (e: Exception) { null }
-                                }
-                                if (bitmap != null) {
-                                    Image(bitmap = bitmap.asImageBitmap(), contentDescription = "头像",
-                                        modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-                                } else {
-                                    Text("📷", fontSize = 32.sp)
-                                }
+                            croppedBitmap != null -> {
+                                Image(bitmap = croppedBitmap!!.asImageBitmap(), contentDescription = "头像",
+                                    modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             }
                             currentAvatarPath != null -> {
                                 val bitmap = remember(currentAvatarPath) { BitmapFactory.decodeFile(currentAvatarPath) }
@@ -2395,7 +2486,7 @@ fun EditContactScreen(
                     RoundedCornerShape(8.dp)
                 ).clickable(enabled = nickname.isNotBlank() && persona.isNotBlank()) {
                     if (nickname.isNotBlank() && persona.isNotBlank()) {
-                        contactDbHelper.updateContact(contactId, nickname, wechatId, region, persona, avatarUri)
+                        contactDbHelper.updateContact(contactId, nickname, wechatId, region, persona, croppedBitmap)
                         onContactUpdated()
                     }
                 },
