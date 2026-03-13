@@ -1693,12 +1693,12 @@ fun ChatDetailScreen(
                     }
                 } else {
                     list.add(ChatMessage("time", text = "今天 10:00"))
+                    list.add(ChatMessage("received", chatName, chatAvatar, "我是${chatName}，我已通过你的好友申请"))
                 }
             } else {
                 list.addAll(mockChatMessages[chatId] ?: listOf(
                     ChatMessage("time", text = "今天 10:00"),
-                    ChatMessage("received", chatName, chatAvatar, "你好！"),
-                    ChatMessage("sent", text = "你好，有什么事吗？"),
+                    ChatMessage("received", chatName, chatAvatar, "我是${chatName}，我已通过你的好友申请"),
                 ))
             }
         }
