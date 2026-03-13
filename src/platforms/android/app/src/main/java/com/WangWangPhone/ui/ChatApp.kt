@@ -2042,12 +2042,20 @@ fun ContactDetailScreen(
                 Column(modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell).padding(16.dp)) {
                     Text("人设信息", fontSize = 13.sp, color = WeTheme.TextSecondary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.height(8.dp))
-                    Text(
-                        contactInfo?.persona ?: "",
-                        fontSize = 15.sp,
-                        color = WeTheme.TextPrimary,
-                        lineHeight = 22.sp
-                    )
+                    // 限制最大高度为4行，超出部分可滚动
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 88.dp) // 4行的高度 (22sp * 4 ≈ 88dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            contactInfo?.persona ?: "",
+                            fontSize = 15.sp,
+                            color = WeTheme.TextPrimary,
+                            lineHeight = 22.sp
+                        )
+                    }
                 }
             }
             
