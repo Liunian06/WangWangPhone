@@ -1860,10 +1860,10 @@ fun ChatDetailScreen(
                                   scope.launch {
                                       val llmService = LlmApiService()
                                       
-                                      // 获取位置和天气信息（如果可用）
-                                      val userProfile = UserProfileDbHelper(context).getUserProfile()
-                                      val location = userProfile?.location
-                                      val weather = userProfile?.weather
+                                      // TODO: 获取位置和天气信息（待实现）
+                                      // 可以从WeatherCacheDbHelper或其他数据源获取
+                                      val location: String? = null
+                                      val weather: String? = null
                                       
                                       val aiResponse = llmService.sendChatRequest(
                                           context = context,

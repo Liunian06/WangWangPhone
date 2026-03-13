@@ -197,23 +197,17 @@ class LlmApiService {
         weather: String? = null
     ): String? = withContext(Dispatchers.IO) {
         try {
-            // 构建分层系统提示词（包含聊天历史）
+            // 构建分层系统提示词
             val systemPrompt = buildLayeredSystemPrompt(
                 context = context,
                 aiPersona = aiPersona,
                 userPersona = userPersona,
-                messages = messages,
                 location = location,
                 weather = weather
             )
             
-            // 只构建当前用户消息（历史已在system prompt中）
-            val messageHistory = listOf(
-                JSONObject().apply {
-                    put("role", "user")
-                    put("content", userMessage)
-                }
-            )
+            // 构建消息历史
+            val messageHistory = buildMessageHistory(messages, userMessage)
             
             // 根据提供商构建请求
             when (preset.provider) {
@@ -233,14 +227,13 @@ class LlmApiService {
     /**
      * 构建分层系统提示词
      * 第一层：系统信息层（日期时间、位置天气）
-     * 第二层：Roleplay层（引用roleplay_prompt_v4_optimized.txt + 人设）
-     * 第三层：场景层（聊天记录历史）
+     * 第二层：Roleplay层（引用roleplay_prompt_v4_optimized.txt）
+     * 第三层：人设层（AI人设和用户人设）
      */
     private fun buildLayeredSystemPrompt(
         context: Context,
         aiPersona: String,
         userPersona: String,
-        messages: List<MessageData>,
         location: String?,
         weather: String?
     ): String {
@@ -250,20 +243,15 @@ class LlmApiService {
         val systemInfo = buildSystemInfoLayer(location, weather)
         layers.add(systemInfo)
         
-        // ===== 第二层：Roleplay层（包含人设） =====
+        // ===== 第二层：Roleplay层 =====
         val roleplayPrompt = loadRoleplayPrompt(context)
         if (roleplayPrompt.isNotEmpty()) {
             layers.add(roleplayPrompt)
         }
         
+        // ===== 第三层：人设层 =====
         val personaLayer = buildPersonaLayer(aiPersona, userPersona)
         layers.add(personaLayer)
-        
-        // ===== 第三层：场景层（聊天记录） =====
-        if (messages.isNotEmpty()) {
-            val chatHistoryLayer = buildChatHistoryLayer(messages)
-            layers.add(chatHistoryLayer)
-        }
         
         return layers.joinToString("\n\n" + "=".repeat(80) + "\n\n")
     }
@@ -321,7 +309,7 @@ class LlmApiService {
     }
     
     /**
-     * 第二层：构建人设层
+     * 第三层：构建人设层
      */
     private fun buildPersonaLayer(aiPersona: String, userPersona: String): String {
         return """
@@ -337,26 +325,6 @@ class LlmApiService {
             
             请严格按照以上人设进行角色扮演，保持角色的真实性和一致性。
         """.trimIndent()
-    }
-    
-    /**
-     * 第三层：构建聊天记录层
-     */
-    private fun buildChatHistoryLayer(messages: List<MessageData>): String {
-        val sb = StringBuilder()
-        sb.append("# 场景层 (Context Layer) - 聊天记录\n\n")
-        sb.append("以下是你们之前的对话历史，请基于这些上下文继续对话：\n\n")
-        
-        for ((index, msg) in messages.withIndex()) {
-            val speaker = if (msg.isFromUser) "用户" else "你"
-            val timestamp = SimpleDateFormat("HH:mm:ss", Locale.CHINA).format(Date(msg.timestamp))
-            sb.append("[$timestamp] $speaker: ${msg.content}\n")
-        }
-        
-        sb.append("\n---\n")
-        sb.append("请基于以上对话历史，以角色身份自然地回复用户的最新消息。")
-        
-        return sb.toString()
     }
     
     /**
