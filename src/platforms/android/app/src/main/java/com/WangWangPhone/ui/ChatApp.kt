@@ -419,7 +419,6 @@ fun ChatSettingsScreen(
                 modifier = Modifier.fillMaxWidth().padding(16.dp, 12.dp)
                     .clickable {
                         // 跳转到API预设选择界面
-                        onBack()
                         onApiPresetChanged()
                     }
             ) {
