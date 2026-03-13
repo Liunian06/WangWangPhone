@@ -471,11 +471,12 @@ fun getConversations(contactDbHelper: ContactDbHelper, chatDbHelper: ChatDbHelpe
     allConvs.forEach { conv ->
         val contactInfo = contactDbHelper.getContactById(conv.aiRoleId)
         if (contactInfo != null) {
+            // 使用联系人ID作为avatar字段，用于后续加载真实头像
             conversations.add(
                 Conversation(
                     id = conv.id,
                     name = contactInfo.nickname,
-                    avatar = contactInfo.persona.firstOrNull()?.toString() ?: "👤",
+                    avatar = contactInfo.id, // 存储联系人ID，用于加载头像
                     lastMsg = conv.lastMessage,
                     time = formatTime(conv.lastMessageTime),
                     unread = conv.unreadCount,
@@ -1046,40 +1047,34 @@ fun MessagesTab(onOpenChat: (String) -> Unit, conversations: List<Conversation>,
                     modifier = Modifier.size(52.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    // 如果是联系人会话，显示真实头像
-                    if (conv.id.startsWith("contact_")) {
-                        val contactId = conv.id.removePrefix("contact_")
-                        val contactInfo = remember(contactId) { contactDbHelper.getContactById(contactId) }
-                        val avatarPath = remember(contactInfo?.avatarFileName) {
-                            contactInfo?.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
-                        }
-                        
-                        if (avatarPath != null) {
-                            val bitmap = remember(avatarPath) { BitmapFactory.decodeFile(avatarPath) }
-                            if (bitmap != null) {
-                                Image(
-                                    bitmap = bitmap.asImageBitmap(),
-                                    contentDescription = "头像",
-                                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                            } else {
-                                Box(
-                                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
-                                    contentAlignment = Alignment.Center
-                                ) { Text(conv.avatar, fontSize = 24.sp) }
-                            }
+                    // 显示联系人头像（avatar字段存储的是联系人ID）
+                    val contactInfo = remember(conv.avatar) { contactDbHelper.getContactById(conv.avatar) }
+                    val avatarPath = remember(contactInfo?.avatarFileName) {
+                        contactInfo?.avatarFileName?.let { contactDbHelper.getAvatarFilePath(it) }
+                    }
+                    
+                    if (avatarPath != null) {
+                        val bitmap = remember(avatarPath) { BitmapFactory.decodeFile(avatarPath) }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "头像",
+                                modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)),
+                                contentScale = ContentScale.Crop
+                            )
                         } else {
+                            // 头像文件不存在，显示默认头像
                             Box(
                                 modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
                                 contentAlignment = Alignment.Center
-                            ) { Text(conv.avatar, fontSize = 24.sp) }
+                            ) { Text("👤", fontSize = 24.sp) }
                         }
                     } else {
+                        // 没有设置头像，显示默认头像
                         Box(
                             modifier = Modifier.size(48.dp).clip(RoundedCornerShape(4.dp)).background(conv.iconBg),
                             contentAlignment = Alignment.Center
-                        ) { Text(conv.avatar, fontSize = 24.sp) }
+                        ) { Text("👤", fontSize = 24.sp) }
                     }
                     
                     Box(
