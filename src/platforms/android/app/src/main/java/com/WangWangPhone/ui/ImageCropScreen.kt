@@ -2,28 +2,24 @@ package com.WangWangPhone.ui
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -32,11 +28,14 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.layout.ContentScale
 import kotlin.math.max
 import kotlin.math.min
 
 /**
- * 图片裁切界面
+ * 图片裁切界面 - 固定1:1裁切框，支持拖动和缩放图片
  * @param imageUri 要裁切的图片 Uri
  * @param onCropComplete 裁切完成回调，返回裁切后的 Bitmap
  * @param onCancel 取消回调
@@ -63,58 +62,50 @@ fun ImageCropScreen(
     }
     
     if (originalBitmap == null) {
-        // 加载失败，直接返回
         LaunchedEffect(Unit) {
             onCancel()
         }
         return
     }
     
-    // 图片显示区域的尺寸
+    // 容器尺寸
     var containerSize by remember { mutableStateOf(IntSize.Zero) }
     
-    // 计算图片在容器中的实际显示尺寸和位置（保持宽高比）
-    val imageDisplayInfo = remember(originalBitmap, containerSize) {
-        if (containerSize.width == 0 || containerSize.height == 0) {
-            ImageDisplayInfo(0f, 0f, 0f, 0f)
+    // 图片变换状态：缩放、偏移
+    var scale by remember { mutableStateOf(1f) }
+    var offsetX by remember { mutableStateOf(0f) }
+    var offsetY by remember { mutableStateOf(0f) }
+    
+    // 计算固定的1:1裁切框（居中，占容器80%）
+    val cropBoxSize = remember(containerSize) {
+        if (containerSize.width > 0 && containerSize.height > 0) {
+            min(containerSize.width, containerSize.height) * 0.8f
         } else {
-            val containerRatio = containerSize.width.toFloat() / containerSize.height
-            val imageRatio = originalBitmap.width.toFloat() / originalBitmap.height
-            
-            val (displayWidth, displayHeight) = if (imageRatio > containerRatio) {
-                // 图片更宽，以宽度为准
-                containerSize.width.toFloat() to containerSize.width / imageRatio
-            } else {
-                // 图片更高，以高度为准
-                containerSize.height * imageRatio to containerSize.height.toFloat()
-            }
-            
-            val offsetX = (containerSize.width - displayWidth) / 2
-            val offsetY = (containerSize.height - displayHeight) / 2
-            
-            ImageDisplayInfo(displayWidth, displayHeight, offsetX, offsetY)
+            0f
         }
     }
     
-    // 裁切框的位置和大小（相对于容器）
-    var cropRect by remember {
-        mutableStateOf(
-            Rect(
-                left = 0f,
-                top = 0f,
-                right = 0f,
-                bottom = 0f
-            )
-        )
+    val cropBoxLeft = remember(containerSize, cropBoxSize) {
+        (containerSize.width - cropBoxSize) / 2
     }
     
-    // 初始化裁切框（居中的正方形）
-    LaunchedEffect(imageDisplayInfo) {
-        if (imageDisplayInfo.width > 0 && imageDisplayInfo.height > 0) {
-            val size = min(imageDisplayInfo.width, imageDisplayInfo.height) * 0.8f
-            val left = imageDisplayInfo.offsetX + (imageDisplayInfo.width - size) / 2
-            val top = imageDisplayInfo.offsetY + (imageDisplayInfo.height - size) / 2
-            cropRect = Rect(left, top, left + size, top + size)
+    val cropBoxTop = remember(containerSize, cropBoxSize) {
+        (containerSize.height - cropBoxSize) / 2
+    }
+    
+    // 初始化图片缩放，使其适配裁切框
+    LaunchedEffect(originalBitmap, cropBoxSize) {
+        if (cropBoxSize > 0) {
+            val imageRatio = originalBitmap.width.toFloat() / originalBitmap.height
+            // 计算初始缩放，确保图片能覆盖裁切框
+            val minScale = if (imageRatio > 1f) {
+                // 横图
+                cropBoxSize / originalBitmap.height
+            } else {
+                // 竖图
+                cropBoxSize / originalBitmap.width
+            }
+            scale = minScale * 1.2f // 稍微放大一点
         }
     }
     
@@ -155,11 +146,15 @@ fun ImageCropScreen(
                     .align(Alignment.CenterEnd)
                     .padding(end = 16.dp)
                     .clickable {
-                        // 执行裁切
                         val croppedBitmap = cropBitmap(
                             originalBitmap,
-                            cropRect,
-                            imageDisplayInfo
+                            scale,
+                            offsetX,
+                            offsetY,
+                            cropBoxLeft,
+                            cropBoxTop,
+                            cropBoxSize,
+                            containerSize
                         )
                         if (croppedBitmap != null) {
                             onCropComplete(croppedBitmap)
@@ -182,137 +177,84 @@ fun ImageCropScreen(
                     containerSize = coordinates.size
                 }
         ) {
-            // 显示图片
-            if (imageDisplayInfo.width > 0) {
+            if (containerSize.width > 0 && containerSize.height > 0) {
+                // 显示图片（可拖动和缩放）
                 Image(
-                    bitmap = originalBitmap.asImageBitmap(),
+                    painter = BitmapPainter(originalBitmap.asImageBitmap()),
                     contentDescription = "待裁切图片",
                     modifier = Modifier
-                        .size(
-                            with(density) { imageDisplayInfo.width.toDp() },
-                            with(density) { imageDisplayInfo.height.toDp() }
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = scale,
+                            scaleY = scale,
+                            translationX = offsetX,
+                            translationY = offsetY
                         )
-                        .offset(
-                            with(density) { imageDisplayInfo.offsetX.toDp() },
-                            with(density) { imageDisplayInfo.offsetY.toDp() }
-                        ),
+                        .pointerInput(Unit) {
+                            detectTransformGestures { _, pan, zoom, _ ->
+                                // 更新缩放
+                                val newScale = (scale * zoom).coerceIn(0.5f, 5f)
+                                scale = newScale
+                                
+                                // 更新偏移
+                                offsetX += pan.x
+                                offsetY += pan.y
+                            }
+                        },
                     contentScale = ContentScale.Fit
                 )
                 
                 // 绘制裁切框和遮罩
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectDragGestures { change, dragAmount ->
-                                change.consume()
-                                
-                                // 移动裁切框
-                                val newLeft = cropRect.left + dragAmount.x
-                                val newTop = cropRect.top + dragAmount.y
-                                val newRight = cropRect.right + dragAmount.x
-                                val newBottom = cropRect.bottom + dragAmount.y
-                                
-                                // 限制在图片范围内
-                                if (newLeft >= imageDisplayInfo.offsetX &&
-                                    newRight <= imageDisplayInfo.offsetX + imageDisplayInfo.width &&
-                                    newTop >= imageDisplayInfo.offsetY &&
-                                    newBottom <= imageDisplayInfo.offsetY + imageDisplayInfo.height
-                                ) {
-                                    cropRect = Rect(newLeft, newTop, newRight, newBottom)
-                                }
-                            }
-                        }
-                        .pointerInput(Unit) {
-                            detectTransformGestures { _, _, zoom, _ ->
-                                // 缩放裁切框
-                                val currentWidth = cropRect.width
-                                val currentHeight = cropRect.height
-                                val newWidth = (currentWidth * zoom).coerceIn(
-                                    100f,
-                                    imageDisplayInfo.width
-                                )
-                                val newHeight = (currentHeight * zoom).coerceIn(
-                                    100f,
-                                    imageDisplayInfo.height
-                                )
-                                
-                                val centerX = cropRect.center.x
-                                val centerY = cropRect.center.y
-                                
-                                var newLeft = centerX - newWidth / 2
-                                var newTop = centerY - newHeight / 2
-                                var newRight = centerX + newWidth / 2
-                                var newBottom = centerY + newHeight / 2
-                                
-                                // 限制在图片范围内
-                                if (newLeft < imageDisplayInfo.offsetX) {
-                                    newLeft = imageDisplayInfo.offsetX
-                                    newRight = newLeft + newWidth
-                                }
-                                if (newRight > imageDisplayInfo.offsetX + imageDisplayInfo.width) {
-                                    newRight = imageDisplayInfo.offsetX + imageDisplayInfo.width
-                                    newLeft = newRight - newWidth
-                                }
-                                if (newTop < imageDisplayInfo.offsetY) {
-                                    newTop = imageDisplayInfo.offsetY
-                                    newBottom = newTop + newHeight
-                                }
-                                if (newBottom > imageDisplayInfo.offsetY + imageDisplayInfo.height) {
-                                    newBottom = imageDisplayInfo.offsetY + imageDisplayInfo.height
-                                    newTop = newBottom - newHeight
-                                }
-                                
-                                cropRect = Rect(newLeft, newTop, newRight, newBottom)
-                            }
-                        }
-                ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
                     // 绘制半透明遮罩（裁切框外的区域）
+                    // 上方
                     drawRect(
                         color = Color.Black.copy(alpha = 0.5f),
                         topLeft = Offset.Zero,
-                        size = Size(size.width, cropRect.top)
+                        size = Size(size.width, cropBoxTop)
                     )
+                    // 下方
                     drawRect(
                         color = Color.Black.copy(alpha = 0.5f),
-                        topLeft = Offset(0f, cropRect.bottom),
-                        size = Size(size.width, size.height - cropRect.bottom)
+                        topLeft = Offset(0f, cropBoxTop + cropBoxSize),
+                        size = Size(size.width, size.height - cropBoxTop - cropBoxSize)
                     )
+                    // 左侧
                     drawRect(
                         color = Color.Black.copy(alpha = 0.5f),
-                        topLeft = Offset(0f, cropRect.top),
-                        size = Size(cropRect.left, cropRect.height)
+                        topLeft = Offset(0f, cropBoxTop),
+                        size = Size(cropBoxLeft, cropBoxSize)
                     )
+                    // 右侧
                     drawRect(
                         color = Color.Black.copy(alpha = 0.5f),
-                        topLeft = Offset(cropRect.right, cropRect.top),
-                        size = Size(size.width - cropRect.right, cropRect.height)
+                        topLeft = Offset(cropBoxLeft + cropBoxSize, cropBoxTop),
+                        size = Size(size.width - cropBoxLeft - cropBoxSize, cropBoxSize)
                     )
                     
                     // 绘制裁切框边框
                     drawRect(
                         color = Color.White,
-                        topLeft = Offset(cropRect.left, cropRect.top),
-                        size = Size(cropRect.width, cropRect.height),
+                        topLeft = Offset(cropBoxLeft, cropBoxTop),
+                        size = Size(cropBoxSize, cropBoxSize),
                         style = Stroke(width = 2f)
                     )
                     
                     // 绘制九宫格辅助线
-                    val gridWidth = cropRect.width / 3
-                    val gridHeight = cropRect.height / 3
+                    val gridSize = cropBoxSize / 3
                     for (i in 1..2) {
                         // 垂直线
                         drawLine(
                             color = Color.White.copy(alpha = 0.5f),
-                            start = Offset(cropRect.left + gridWidth * i, cropRect.top),
-                            end = Offset(cropRect.left + gridWidth * i, cropRect.bottom),
+                            start = Offset(cropBoxLeft + gridSize * i, cropBoxTop),
+                            end = Offset(cropBoxLeft + gridSize * i, cropBoxTop + cropBoxSize),
                             strokeWidth = 1f
                         )
                         // 水平线
                         drawLine(
                             color = Color.White.copy(alpha = 0.5f),
-                            start = Offset(cropRect.left, cropRect.top + gridHeight * i),
-                            end = Offset(cropRect.right, cropRect.top + gridHeight * i),
+                            start = Offset(cropBoxLeft, cropBoxTop + gridSize * i),
+                            end = Offset(cropBoxLeft + cropBoxSize, cropBoxTop + gridSize * i),
                             strokeWidth = 1f
                         )
                     }
@@ -338,34 +280,68 @@ fun ImageCropScreen(
 }
 
 /**
- * 图片显示信息
- */
-private data class ImageDisplayInfo(
-    val width: Float,
-    val height: Float,
-    val offsetX: Float,
-    val offsetY: Float
-)
-
-/**
  * 裁切图片
  */
 private fun cropBitmap(
     originalBitmap: Bitmap,
-    cropRect: Rect,
-    imageDisplayInfo: ImageDisplayInfo
+    scale: Float,
+    offsetX: Float,
+    offsetY: Float,
+    cropBoxLeft: Float,
+    cropBoxTop: Float,
+    cropBoxSize: Float,
+    containerSize: IntSize
 ): Bitmap? {
     return try {
-        // 计算裁切区域在原始图片中的位置
-        val scaleX = originalBitmap.width / imageDisplayInfo.width
-        val scaleY = originalBitmap.height / imageDisplayInfo.height
+        // 计算图片在容器中的实际显示尺寸
+        val imageRatio = originalBitmap.width.toFloat() / originalBitmap.height
+        val containerRatio = containerSize.width.toFloat() / containerSize.height
         
-        val x = ((cropRect.left - imageDisplayInfo.offsetX) * scaleX).toInt().coerceIn(0, originalBitmap.width)
-        val y = ((cropRect.top - imageDisplayInfo.offsetY) * scaleY).toInt().coerceIn(0, originalBitmap.height)
-        val width = (cropRect.width * scaleX).toInt().coerceIn(1, originalBitmap.width - x)
-        val height = (cropRect.height * scaleY).toInt().coerceIn(1, originalBitmap.height - y)
+        val (displayWidth, displayHeight) = if (imageRatio > containerRatio) {
+            containerSize.width.toFloat() to containerSize.width / imageRatio
+        } else {
+            containerSize.height * imageRatio to containerSize.height.toFloat()
+        }
         
-        Bitmap.createBitmap(originalBitmap, x, y, width, height)
+        val displayOffsetX = (containerSize.width - displayWidth) / 2
+        val displayOffsetY = (containerSize.height - displayHeight) / 2
+        
+        // 计算裁切框在缩放和平移后的图片上的位置
+        val scaledWidth = displayWidth * scale
+        val scaledHeight = displayHeight * scale
+        val scaledOffsetX = displayOffsetX + offsetX
+        val scaledOffsetY = displayOffsetY + offsetY
+        
+        // 裁切框相对于缩放后图片的位置
+        val cropX = (cropBoxLeft - scaledOffsetX) / scale
+        val cropY = (cropBoxTop - scaledOffsetY) / scale
+        val cropSize = cropBoxSize / scale
+        
+        // 转换到原始图片坐标
+        val scaleToOriginal = originalBitmap.width / displayWidth
+        val originalCropX = (cropX * scaleToOriginal).toInt().coerceIn(0, originalBitmap.width)
+        val originalCropY = (cropY * scaleToOriginal).toInt().coerceIn(0, originalBitmap.height)
+        val originalCropSize = (cropSize * scaleToOriginal).toInt()
+            .coerceIn(1, min(originalBitmap.width - originalCropX, originalBitmap.height - originalCropY))
+        
+        // 裁切并缩放到正方形
+        val croppedBitmap = Bitmap.createBitmap(
+            originalBitmap,
+            originalCropX,
+            originalCropY,
+            originalCropSize,
+            originalCropSize
+        )
+        
+        // 如果裁切后的尺寸过大，缩放到合理大小（例如800x800）
+        val maxSize = 800
+        if (croppedBitmap.width > maxSize || croppedBitmap.height > maxSize) {
+            Bitmap.createScaledBitmap(croppedBitmap, maxSize, maxSize, true).also {
+                croppedBitmap.recycle()
+            }
+        } else {
+            croppedBitmap
+        }
     } catch (e: Exception) {
         e.printStackTrace()
         null
