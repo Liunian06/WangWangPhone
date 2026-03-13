@@ -43,6 +43,7 @@ import com.WangWangPhone.core.ConversationData
 import com.WangWangPhone.core.MessageData
 import com.WangWangPhone.core.ApiPresetDbHelper
 import com.WangWangPhone.core.LlmApiService
+import com.WangWangPhone.core.WeatherCacheDbHelper
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -1860,10 +1861,20 @@ fun ChatDetailScreen(
                                   scope.launch {
                                       val llmService = LlmApiService()
                                       
-                                      // TODO: 获取位置和天气信息（待实现）
-                                      // 可以从WeatherCacheDbHelper或其他数据源获取
-                                      val location: String? = null
-                                      val weather: String? = null
+                                      // 获取位置和天气信息
+                                      val weatherCacheDbHelper = WeatherCacheDbHelper(context)
+                                      
+                                      // 优先使用手动设置的位置，否则使用缓存的定位
+                                      val location = weatherCacheDbHelper.getManualLocation()
+                                          ?: weatherCacheDbHelper.getCachedLocation()
+                                      
+                                      // 如果有位置信息，尝试获取天气
+                                      val weather = if (!location.isNullOrEmpty()) {
+                                          val weatherCache = weatherCacheDbHelper.getTodayWeatherCache(location)
+                                          if (weatherCache != null) {
+                                              "${weatherCache.description} ${weatherCache.temp} ${weatherCache.range}"
+                                          } else null
+                                      } else null
                                       
                                       val aiResponse = llmService.sendChatRequest(
                                           context = context,
