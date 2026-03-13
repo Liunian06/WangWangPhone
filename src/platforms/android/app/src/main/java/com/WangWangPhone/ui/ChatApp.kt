@@ -162,7 +162,7 @@ fun ApiPresetSelectionScreen(
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(chatPresets) { preset ->
-                    Box(
+                    Column(
                         modifier = Modifier.fillMaxWidth().background(WeTheme.BackgroundCell)
                             .clickable { onPresetSelected(preset.id) }
                             .padding(16.dp, 12.dp)
@@ -533,6 +533,7 @@ fun ChatAppScreen(onClose: () -> Unit) {
     var selectedContact2Id by remember { mutableStateOf<String?>(null) }
 
     var showChatSettings by remember { mutableStateOf(false) }
+    var isFromChatSettings by remember { mutableStateOf(false) }
 
     // 用户资料状态 - 在顶层管理，传递给子组件
     val context = LocalContext.current
@@ -555,7 +556,15 @@ fun ChatAppScreen(onClose: () -> Unit) {
             "edit-contact" -> { currentView = "contact-detail"; editingContactId = null }
             "service" -> { currentView = "main"; currentTab = "me" }
             "select-contacts" -> { currentView = "main"; showContactSelection = false }
-            "select-api-preset" -> { currentView = "select-contacts"; showApiPresetSelection = false }
+            "select-api-preset" -> {
+                if (isFromChatSettings) {
+                    currentView = "chat-settings"
+                    isFromChatSettings = false
+                } else {
+                    currentView = "select-contacts"
+                }
+                showApiPresetSelection = false
+            }
             "chat-settings" -> { currentView = "chat-detail"; showChatSettings = false }
             else -> onClose()
         }
@@ -586,37 +595,39 @@ fun ChatAppScreen(onClose: () -> Unit) {
              )
          }
        "select-api-preset" -> ApiPresetSelectionScreen(
-           onBack = {
-               if (currentView == "chat-settings") {
-                   currentView = "chat-settings"
-               } else {
-                   currentView = "select-contacts"
-               }
-               showApiPresetSelection = false
-           },
-           onPresetSelected = { presetId ->
-               if (currentView == "chat-settings" && currentChatId != null) {
-                   // 更新现有聊天的API预设
-                   if (chatDbHelper.updateApiPresetId(currentChatId!!, presetId)) {
-                       currentView = "chat-detail"
-                       showApiPresetSelection = false
-                       chatsRefreshTrigger++
-                   }
-               } else {
-                   // 创建新聊天
-                   if (selectedContact1Id != null && selectedContact2Id != null) {
-                       val chatId = chatDbHelper.createConversation(selectedContact1Id!!, selectedContact2Id!!, presetId)
-                       if (chatId != null) {
-                           currentChatId = chatId
-                           currentView = "chat-detail"
-                           showApiPresetSelection = false
-                           chatsRefreshTrigger++
-                       }
-                   }
-               }
-           },
-           apiPresetDbHelper = ApiPresetDbHelper(context)
-       )
+            onBack = {
+                if (isFromChatSettings) {
+                    currentView = "chat-settings"
+                    isFromChatSettings = false
+                } else {
+                    currentView = "select-contacts"
+                }
+                showApiPresetSelection = false
+            },
+            onPresetSelected = { presetId ->
+                if (isFromChatSettings && currentChatId != null) {
+                    // 更新现有聊天的API预设
+                    if (chatDbHelper.updateApiPresetId(currentChatId!!, presetId)) {
+                        currentView = "chat-detail"
+                        showApiPresetSelection = false
+                        isFromChatSettings = false
+                        chatsRefreshTrigger++
+                    }
+                } else {
+                    // 创建新聊天
+                    if (selectedContact1Id != null && selectedContact2Id != null) {
+                        val chatId = chatDbHelper.createConversation(selectedContact1Id!!, selectedContact2Id!!, presetId)
+                        if (chatId != null) {
+                            currentChatId = chatId
+                            currentView = "chat-detail"
+                            showApiPresetSelection = false
+                            chatsRefreshTrigger++
+                        }
+                    }
+                }
+            },
+            apiPresetDbHelper = ApiPresetDbHelper(context)
+        )
         "chat-detail" -> ChatDetailScreen(
             chatId = currentChatId ?: "",
             onBack = {
@@ -671,6 +682,7 @@ fun ChatAppScreen(onClose: () -> Unit) {
             apiPresetDbHelper = apiPresetDbHelper,
             onApiPresetChanged = {
                 // 跳转到API预设选择界面用于更改现有聊天的API预设
+                isFromChatSettings = true
                 currentView = "select-api-preset"
                 showApiPresetSelection = true
             }
