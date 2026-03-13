@@ -192,13 +192,58 @@ fun ImageCropScreen(
                         )
                         .pointerInput(Unit) {
                             detectTransformGestures { _, pan, zoom, _ ->
-                                // 更新缩放
-                                val newScale = (scale * zoom).coerceIn(0.5f, 5f)
+                                // 计算图片在容器中的实际显示尺寸
+                                val imageRatio = originalBitmap.width.toFloat() / originalBitmap.height
+                                val containerRatio = containerSize.width.toFloat() / containerSize.height
+                                
+                                val (displayWidth, displayHeight) = if (imageRatio > containerRatio) {
+                                    containerSize.width.toFloat() to containerSize.width / imageRatio
+                                } else {
+                                    containerSize.height * imageRatio to containerSize.height.toFloat()
+                                }
+                                
+                                val displayOffsetX = (containerSize.width - displayWidth) / 2
+                                val displayOffsetY = (containerSize.height - displayHeight) / 2
+                                
+                                // 更新缩放，确保图片能完全覆盖裁切框
+                                val minScale = cropBoxSize / min(displayWidth, displayHeight)
+                                val newScale = (scale * zoom).coerceIn(minScale, 5f)
                                 scale = newScale
                                 
+                                // 计算缩放后的图片尺寸和位置
+                                val scaledWidth = displayWidth * scale
+                                val scaledHeight = displayHeight * scale
+                                
                                 // 更新偏移
-                                offsetX += pan.x
-                                offsetY += pan.y
+                                var newOffsetX = offsetX + pan.x
+                                var newOffsetY = offsetY + pan.y
+                                
+                                // 计算图片边界
+                                val imageLeft = displayOffsetX + newOffsetX
+                                val imageRight = imageLeft + scaledWidth
+                                val imageTop = displayOffsetY + newOffsetY
+                                val imageBottom = imageTop + scaledHeight
+                                
+                                // 限制偏移，确保裁切框不超出图片范围
+                                // 左边界：图片左边不能超过裁切框左边
+                                if (imageLeft > cropBoxLeft) {
+                                    newOffsetX = cropBoxLeft - displayOffsetX
+                                }
+                                // 右边界：图片右边不能超过裁切框右边
+                                if (imageRight < cropBoxLeft + cropBoxSize) {
+                                    newOffsetX = (cropBoxLeft + cropBoxSize) - displayOffsetX - scaledWidth
+                                }
+                                // 上边界：图片上边不能超过裁切框上边
+                                if (imageTop > cropBoxTop) {
+                                    newOffsetY = cropBoxTop - displayOffsetY
+                                }
+                                // 下边界：图片下边不能超过裁切框下边
+                                if (imageBottom < cropBoxTop + cropBoxSize) {
+                                    newOffsetY = (cropBoxTop + cropBoxSize) - displayOffsetY - scaledHeight
+                                }
+                                
+                                offsetX = newOffsetX
+                                offsetY = newOffsetY
                             }
                         },
                     contentScale = ContentScale.Fit
