@@ -333,8 +333,8 @@ private fun cropBitmap(
             originalCropSize
         )
         
-        // 如果裁切后的尺寸过大，缩放到合理大小（例如800x800）
-        val maxSize = 800
+        // 如果裁切后的尺寸过大，缩放到合理大小（1024x1024）
+        val maxSize = 1024
         if (croppedBitmap.width > maxSize || croppedBitmap.height > maxSize) {
             Bitmap.createScaledBitmap(croppedBitmap, maxSize, maxSize, true).also {
                 croppedBitmap.recycle()
