@@ -157,20 +157,79 @@ fun ApiPresetListScreen(type: String, title: String, onBack: () -> Unit) {
             } else {
                 LazyColumn(modifier = Modifier.fillMaxSize().padding(vertical = 20.dp)) {
                     items(presets) { preset ->
-                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp)).background(card)
+                        Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp).fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp)).background(card)
                             .clickable {
                                 editingPreset = preset
                                 showEditScreen = true
                             }.padding(16.dp)) {
-                            Column {
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text(preset.name, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = txt)
-                                    Text(preset.provider.uppercase(), fontSize = 12.sp, color = accent)
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                // 标题行
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = preset.name,
+                                        fontSize = 17.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = txt,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(6.dp))
+                                            .background(accent.copy(alpha = 0.15f))
+                                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = preset.provider.uppercase(),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = accent
+                                        )
+                                    }
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("模型: ${preset.model}", fontSize = 12.sp, color = Color.Gray)
-                                Text("地址: ${preset.baseUrl}", fontSize = 12.sp, color = Color.Gray, maxLines = 1)
+                                
+                                Spacer(modifier = Modifier.height(10.dp))
+                                
+                                // 模型信息
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "模型",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray.copy(alpha = 0.7f),
+                                        modifier = Modifier.width(40.dp)
+                                    )
+                                    Text(
+                                        text = preset.model,
+                                        fontSize = 13.sp,
+                                        color = txt.copy(alpha = 0.8f),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                                
+                                Spacer(modifier = Modifier.height(6.dp))
+                                
+                                // 地址信息
+                                Row(verticalAlignment = Alignment.Top) {
+                                    Text(
+                                        text = "地址",
+                                        fontSize = 12.sp,
+                                        color = Color.Gray.copy(alpha = 0.7f),
+                                        modifier = Modifier.width(40.dp)
+                                    )
+                                    Text(
+                                        text = preset.baseUrl,
+                                        fontSize = 12.sp,
+                                        color = Color.Gray,
+                                        maxLines = 2,
+                                        lineHeight = 16.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
                         }
                     }
