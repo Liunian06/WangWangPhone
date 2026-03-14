@@ -1676,7 +1676,7 @@ fun ChatDetailScreen(
         contactDbHelper?.getContactById(contactId)
     } else null
     
-    val chatName = contactInfo?.nickname ?: "聊天"
+    val chatName = contactInfo?.nickname?.takeIf { it.isNotEmpty() } ?: "未命名联系人"
     val chatAvatar = contactInfo?.persona?.firstOrNull()?.toString() ?: "👤"
     // 每次都重新获取联系人头像路径以确保同步
     val contactAvatarPath = contactInfo?.avatarFileName?.let {
