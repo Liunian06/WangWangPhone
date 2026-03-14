@@ -1666,18 +1666,21 @@ fun ChatDetailScreen(
 ) {
     val context = LocalContext.current
     
-    // 如果是联系人会话，获取联系人信息
-    val contactInfo = remember(chatId) {
-        if (chatId.startsWith("contact_")) {
-            val contactId = chatId.removePrefix("contact_")
-            contactDbHelper?.getContactById(contactId)
-        } else null
-    }
+    // 每次都重新获取用户头像路径以确保同步
+    val profileDbHelper = remember { UserProfileDbHelper(context) }
+    val userAvatarPath = profileDbHelper.getAvatarFilePath()
+    
+    // 如果是联系人会话，获取联系人信息 - 每次都重新获取以确保头像同步
+    val contactInfo = if (chatId.startsWith("contact_")) {
+        val contactId = chatId.removePrefix("contact_")
+        contactDbHelper?.getContactById(contactId)
+    } else null
     
     val chatName = contactInfo?.nickname ?: "聊天"
     val chatAvatar = contactInfo?.persona?.firstOrNull()?.toString() ?: "👤"
-    val contactAvatarPath = remember(contactInfo?.avatarFileName) {
-        contactInfo?.avatarFileName?.let { contactDbHelper?.getAvatarFilePath(it) }
+    // 每次都重新获取联系人头像路径以确保同步
+    val contactAvatarPath = contactInfo?.avatarFileName?.let {
+        contactDbHelper?.getAvatarFilePath(it)
     }
     
     // 从数据库加载历史消息
@@ -1756,9 +1759,9 @@ fun ChatDetailScreen(
                                 ) { Text(msg.text, fontSize = 16.sp, lineHeight = 24.sp, color = WeTheme.TextPrimary) }
                             }
                             Spacer(Modifier.width(10.dp))
-                            // 发送消息的头像使用用户头像
+                            // 发送消息的头像使用用户头像 - 使用动态获取的userAvatarPath
                             UserAvatarImage(
-                                avatarPath = avatarPath,
+                                avatarPath = userAvatarPath,
                                 size = 40.dp,
                                 cornerRadius = 4.dp,
                                 defaultEmoji = "🐱",
