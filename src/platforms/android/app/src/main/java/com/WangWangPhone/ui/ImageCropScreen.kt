@@ -173,6 +173,7 @@ fun ImageCropScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                .clipToBounds()
                 .onGloballyPositioned { coordinates ->
                     containerSize = coordinates.size
                 }
