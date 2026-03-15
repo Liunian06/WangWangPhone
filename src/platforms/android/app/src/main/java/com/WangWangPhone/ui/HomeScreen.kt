@@ -3036,5 +3036,20 @@ fun BadgeWidgetSettingCard(
                 BadgeWidget(imagePath = previewPath, modifier = Modifier.fillMaxSize())
             }
         }
+        
+        @Composable
+        fun KeepAliveAppLayer(
+            visible: Boolean,
+            keepAlive: Boolean,
+            content: @Composable () -> Unit
+        ) {
+            if (visible) {
+                content()
+            } else if (keepAlive) {
+                Box(modifier = Modifier.fillMaxSize().graphicsLayer { alpha = 0f }) {
+                    content()
+                }
+            }
+        }
     }
 }

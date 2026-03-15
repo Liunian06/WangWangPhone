@@ -43,6 +43,7 @@ import com.WangWangPhone.core.ConversationData
 import com.WangWangPhone.core.MessageData
 import com.WangWangPhone.core.ApiPresetDbHelper
 import com.WangWangPhone.core.LlmApiService
+import com.WangWangPhone.core.AppLogger
 import com.WangWangPhone.core.WeatherCacheDbHelper
 import kotlinx.coroutines.launch
 import java.io.File
@@ -1614,6 +1615,9 @@ fun MeTab(
             val action: (() -> Unit)? = null
         )
         
+        val context = LocalContext.current
+        var showLogExportDialog by remember { mutableStateOf(false) }
+        
         val menuGroups = listOf(
             listOf(
                 MenuItem("ic_pay_logo", "服务", Color(0xFF07C160), "✅", onOpenService)
@@ -1626,9 +1630,17 @@ fun MeTab(
                 MenuItem("ic_chat_emoji", "表情", Color(0xFFFFC300), "😊"),
             ),
             listOf(
-                MenuItem("ic_setting", "设置", Color(0xFF1976D2), "⚙️")
+                MenuItem("ic_setting", "设置", Color(0xFF1976D2), "⚙️"),
+                MenuItem("ic_setting", "开发者选项", Color(0xFFFF9800), "🔧", { showLogExportDialog = true })
             ),
         )
+        
+        // 日志导出对话框
+        if (showLogExportDialog) {
+            LogExportDialog(
+                onDismiss = { showLogExportDialog = false }
+            )
+        }
 
         menuGroups.forEach { group ->
             Spacer(Modifier.height(8.dp))
@@ -1673,10 +1685,14 @@ fun ChatDetailScreen(
     // 如果是联系人会话，获取联系人信息 - 每次都重新获取以确保头像同步
     val contactInfo = if (chatId.startsWith("contact_")) {
         val contactId = chatId.removePrefix("contact_")
-        contactDbHelper?.getContactById(contactId)
+        AppLogger.d("ChatDetailScreen", "chatId: $chatId, contactId: $contactId")
+        val info = contactDbHelper?.getContactById(contactId)
+        AppLogger.d("ChatDetailScreen", "contactInfo: $info, nickname: ${info?.nickname}")
+        info
     } else null
     
     val chatName = contactInfo?.nickname?.takeIf { it.isNotEmpty() } ?: "未命名联系人"
+    AppLogger.d("ChatDetailScreen", "Final chatName: $chatName")
     val chatAvatar = contactInfo?.persona?.firstOrNull()?.toString() ?: "👤"
     // 每次都重新获取联系人头像路径以确保同步
     val contactAvatarPath = contactInfo?.avatarFileName?.let {
@@ -2525,6 +2541,106 @@ fun EditContactScreen(
             }
         }
     }
-    
+}
 
+// ============================================
+// 日志导出对话框
+// ============================================
+@Composable
+fun LogExportDialog(onDismiss: () -> Unit) {
+        val context = LocalContext.current
+        var statusMessage by remember { mutableStateOf("") }
+        var isExporting by remember { mutableStateOf(false) }
+        
+        val logCount = remember { AppLogger.getLogCount() }
+        val logSize = remember { AppLogger.getLogSize() }
+        val logSizeKB = logSize / 1024.0
+        
+        // 文件分享launcher
+        val shareLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            statusMessage = if (result.resultCode == android.app.Activity.RESULT_OK) {
+                "日志已导出"
+            } else {
+                "导出已取消"
+            }
+        }
+        
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("开发者选项", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text("应用日志信息", fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.height(8.dp))
+                    Text("日志条数: $logCount", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                    Text("日志大小: ${"%.2f".format(logSizeKB)} KB", fontSize = 14.sp, color = WeTheme.TextSecondary)
+                    
+                    if (statusMessage.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            statusMessage,
+                            fontSize = 14.sp,
+                            color = if (statusMessage.contains("成功") || statusMessage.contains("已导出"))
+                                Color(0xFF4CAF50) else WeTheme.TextSecondary
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            AppLogger.clearLogs()
+                            statusMessage = "日志已清空"
+                        },
+                        enabled = !isExporting && logCount > 0
+                    ) {
+                        Text("清空日志", color = Color.Red)
+                    }
+                    
+                    TextButton(
+                        onClick = {
+                            isExporting = true
+                            try {
+                                val logFile = AppLogger.getLogFile()
+                                if (logFile != null && logFile.exists()) {
+                                    val uri = androidx.core.content.FileProvider.getUriForFile(
+                                        context,
+                                        "${context.packageName}.fileprovider",
+                                        logFile
+                                    )
+                                    
+                                    val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                        type = "application/json"
+                                        putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                                        putExtra(android.content.Intent.EXTRA_SUBJECT, "汪汪机应用日志")
+                                        addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    
+                                    val chooser = android.content.Intent.createChooser(shareIntent, "导出日志")
+                                    shareLauncher.launch(chooser)
+                                } else {
+                                    statusMessage = "日志文件不存在"
+                                }
+                            } catch (e: Exception) {
+                                statusMessage = "导出失败: ${e.message}"
+                                AppLogger.e("LogExportDialog", "Failed to export logs", e)
+                            } finally {
+                                isExporting = false
+                            }
+                        },
+                        enabled = !isExporting && logCount > 0
+                    ) {
+                        Text("导出日志", color = WeTheme.BrandGreen)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) {
+                    Text("关闭")
+                }
+            }
+        )
 }

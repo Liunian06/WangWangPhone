@@ -229,6 +229,7 @@ class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
 
     fun getContactById(id: String): ContactInfo? {
         return try {
+            AppLogger.d("ContactDbHelper", "getContactById called with id: $id")
             val db = readableDatabase
             val cursor = db.query(
                 TABLE_CONTACTS,
@@ -242,9 +243,11 @@ class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
             )
             cursor.use {
                 if (it.moveToFirst()) {
+                    val nickname = it.getString(it.getColumnIndexOrThrow(COLUMN_NICKNAME))
+                    AppLogger.d("ContactDbHelper", "Found contact with nickname: $nickname")
                     ContactInfo(
                         id = it.getString(it.getColumnIndexOrThrow(COLUMN_ID)),
-                        nickname = it.getString(it.getColumnIndexOrThrow(COLUMN_NICKNAME)),
+                        nickname = nickname,
                         wechatId = it.getString(it.getColumnIndexOrThrow(COLUMN_WECHAT_ID)) ?: "",
                         region = it.getString(it.getColumnIndexOrThrow(COLUMN_REGION)) ?: "",
                         persona = it.getString(it.getColumnIndexOrThrow(COLUMN_PERSONA)) ?: "",
@@ -252,9 +255,13 @@ class ContactDbHelper(private val context: Context) : SQLiteOpenHelper(
                         createdAt = it.getLong(it.getColumnIndexOrThrow(COLUMN_CREATED_AT)),
                         updatedAt = it.getLong(it.getColumnIndexOrThrow(COLUMN_UPDATED_AT))
                     )
-                } else null
+                } else {
+                    AppLogger.d("ContactDbHelper", "No contact found with id: $id")
+                    null
+                }
             }
         } catch (e: Exception) {
+            AppLogger.e("ContactDbHelper", "Error getting contact by id: $id", e)
             e.printStackTrace()
             null
         }
