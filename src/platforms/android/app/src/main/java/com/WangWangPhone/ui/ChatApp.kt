@@ -1682,14 +1682,24 @@ fun ChatDetailScreen(
     val profileDbHelper = remember { UserProfileDbHelper(context) }
     val userAvatarPath = profileDbHelper.getAvatarFilePath()
     
-    // 如果是联系人会话，获取联系人信息 - 每次都重新获取以确保头像同步
+    // 获取联系人信息 - 支持两种格式：会话ID和contact_前缀的ID
     val contactInfo = if (chatId.startsWith("contact_")) {
+        // 从通讯录跳转：contact_xxx格式
         val contactId = chatId.removePrefix("contact_")
-        AppLogger.d("ChatDetailScreen", "chatId: $chatId, contactId: $contactId")
-        val info = contactDbHelper?.getContactById(contactId)
-        AppLogger.d("ChatDetailScreen", "contactInfo: $info, nickname: ${info?.nickname}")
-        info
-    } else null
+        AppLogger.d("ChatDetailScreen", "From contacts, chatId: $chatId, contactId: $contactId")
+        contactDbHelper?.getContactById(contactId)
+    } else {
+        // 从聊天列表跳转：会话ID格式
+        AppLogger.d("ChatDetailScreen", "From chat list, chatId: $chatId")
+        val conversation = chatDbHelper?.getConversationById(chatId)
+        val aiRoleId = conversation?.aiRoleId
+        AppLogger.d("ChatDetailScreen", "Conversation aiRoleId: $aiRoleId")
+        if (aiRoleId != null) {
+            contactDbHelper?.getContactById(aiRoleId)
+        } else null
+    }
+    
+    AppLogger.d("ChatDetailScreen", "Final contactInfo: nickname=${contactInfo?.nickname}, id=${contactInfo?.id}")
     
     val chatName = contactInfo?.nickname?.takeIf { it.isNotEmpty() } ?: "未命名联系人"
     AppLogger.d("ChatDetailScreen", "Final chatName: $chatName")
@@ -1699,12 +1709,18 @@ fun ChatDetailScreen(
         contactDbHelper?.getAvatarFilePath(it)
     }
     
+    // 获取实际的联系人ID（用于消息操作）
+    val actualContactId = if (chatId.startsWith("contact_")) {
+        chatId.removePrefix("contact_")
+    } else {
+        contactInfo?.id
+    }
+    
     // 从数据库加载历史消息
     val messages = remember(chatId) {
         mutableStateListOf<ChatMessage>().also { list ->
-            if (chatId.startsWith("contact_")) {
-                val contactId = chatId.removePrefix("contact_")
-                val dbMessages = chatDbHelper?.getMessages(contactId) ?: emptyList()
+            if (actualContactId != null) {
+                val dbMessages = chatDbHelper?.getMessages(actualContactId) ?: emptyList()
                 
                 if (dbMessages.isNotEmpty()) {
                     dbMessages.forEach { msg ->
@@ -1722,10 +1738,8 @@ fun ChatDetailScreen(
                     list.add(ChatMessage("received", chatName, chatAvatar, "我是${chatName}，我已通过你的好友申请"))
                 }
             } else {
-                list.addAll(mockChatMessages[chatId] ?: listOf(
-                    ChatMessage("time", text = "今天 10:00"),
-                    ChatMessage("received", chatName, chatAvatar, "我是${chatName}，我已通过你的好友申请"),
-                ))
+                list.add(ChatMessage("time", text = "今天 10:00"))
+                list.add(ChatMessage("received", chatName, chatAvatar, "我是${chatName}，我已通过你的好友申请"))
             }
         }
     }
@@ -1855,10 +1869,8 @@ fun ChatDetailScreen(
                           messages.add(ChatMessage("sent", text = messageText))
                           
                           // 保存用户消息到数据库
-                          var conversationId = chatId
-                          if (chatId.startsWith("contact_")) {
-                              val contactId = chatId.removePrefix("contact_")
-                              chatDbHelper?.addMessage(contactId, true, messageText)
+                          if (actualContactId != null) {
+                              chatDbHelper?.addMessage(actualContactId, true, messageText)
                               
                               // 获取聊天API预设
                               val apiPresetDbHelper = ApiPresetDbHelper(context)
@@ -1873,11 +1885,9 @@ fun ChatDetailScreen(
                               }
                               
                               if (preset != null) {
-                                  
                                   // 获取AI角色和用户人设
                                   val aiContact = contactInfo
                                   // 从会话中获取用户人设ID
-                                  val conversation = chatDbHelper?.getConversationById(chatId)
                                   val userPersonaId = conversation?.userPersonaId ?: ""
                                   val userContact = contactDbHelper?.getContactById(userPersonaId)
                                   
@@ -1885,7 +1895,7 @@ fun ChatDetailScreen(
                                   val userPersona = userContact?.persona ?: ""
                                   
                                   // 获取历史消息
-                                  val historyMessages = chatDbHelper?.getMessages(contactId) ?: emptyList()
+                                  val historyMessages = chatDbHelper?.getMessages(actualContactId) ?: emptyList()
                                   
                                   // 调用LLM API获取AI回复
                                   scope.launch {
@@ -1922,7 +1932,7 @@ fun ChatDetailScreen(
                                           messages.add(ChatMessage("received", chatName, chatAvatar, aiResponse))
                                           
                                           // 保存AI回复到数据库
-                                          chatDbHelper?.addMessage(contactId, false, aiResponse)
+                                          chatDbHelper?.addMessage(actualContactId, false, aiResponse)
                                       } else {
                                           // API调用失败，显示错误消息
                                           messages.add(ChatMessage("received", chatName, chatAvatar, "抱歉，我无法处理您的请求。请检查API设置。"))
