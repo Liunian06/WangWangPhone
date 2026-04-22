@@ -185,6 +185,10 @@ const val TOTAL_CELLS = GRID_COLUMNS * GRID_ROWS
 
 data class WeatherInfo(val temp: String, val description: String, val icon: String, val range: String)
 
+private fun lerpFloat(start: Float, end: Float, progress: Float): Float {
+    return start + (end - start) * progress
+}
+
 private val launchableAppIds = setOf(
     "settings",
     "chat",
@@ -198,19 +202,6 @@ private val launchableAppIds = setOf(
     "widget_market"
 )
 
-private data class AppLaunchRequest(
-    val app: AppIcon,
-    val customIconPath: String?,
-    val startRect: Rect,
-    val nonce: Long = System.nanoTime()
-)
-
-private fun lerpFloat(start: Float, end: Float, progress: Float): Float {
-    return start + (end - start) * progress
-}
-
-private const val COLD_LAUNCH_OPEN_DELAY_MS = 100
-private const val COLD_LAUNCH_ANIMATION_MS = 260
 
 private val homeIconLabelTextStyle = TextStyle(
     platformStyle = PlatformTextStyle(includeFontPadding = true)
@@ -892,8 +883,6 @@ fun HomeScreen() {
     var expiryDate by remember { mutableStateOf(licenseManager.getExpirationDateString()) }
     var lockWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.LOCK)) }
     var homeWallpaperPath by remember { mutableStateOf(wallpaperDbHelper.getWallpaperFilePath(WallpaperType.HOME)) }
-    var pendingLaunch by remember { mutableStateOf<AppLaunchRequest?>(null) }
-    val launchProgress = remember { Animatable(0f) }
     val warmedAppStates = remember { mutableStateMapOf<String, Boolean>() }
     val keepAliveAppStates = remember { mutableStateMapOf<String, Boolean>() }
 
@@ -924,59 +913,21 @@ fun HomeScreen() {
         }
     }
 
-    LaunchedEffect(pendingLaunch?.nonce) {
-        val launchRequest = pendingLaunch ?: return@LaunchedEffect
-        launchProgress.snapTo(0f)
-
-        // 冷启动：100ms 后开始进入应用，其余动画继续覆盖，降低感知卡顿
-        val openJob = launch {
-            delay(COLD_LAUNCH_OPEN_DELAY_MS.toLong())
-            openAppById(launchRequest.app.id)
-            warmedAppStates[launchRequest.app.id] = true
-        }
-
-        launchProgress.animateTo(
-            targetValue = 1f,
-            animationSpec = tween(durationMillis = COLD_LAUNCH_ANIMATION_MS, easing = FastOutSlowInEasing)
-        )
-        openJob.join()
-        pendingLaunch = null
-    }
-
     val isDark = isSystemInDarkTheme()
     Box(modifier = Modifier.fillMaxSize()) {
         HomeScreenContent(
             isDark = isDark,
             isActivated = isActivated,
-            onAppLaunchRequest = { app, startRect, customIconPath ->
-                if (app.id in launchableAppIds && pendingLaunch == null) {
-                    val isWarmStart = warmedAppStates[app.id] == true
-                    if (isWarmStart) {
-                        // 热启动：直接进入，不再使用蒙版
-                        openAppById(app.id)
-                    } else {
-                        pendingLaunch = AppLaunchRequest(
-                            app = app,
-                            customIconPath = customIconPath,
-                            startRect = startRect
-                        )
-                    }
+            onAppLaunchRequest = { app, _, _ ->
+                if (app.id in launchableAppIds) {
+                    openAppById(app.id)
+                    warmedAppStates[app.id] = true
                 }
             },
             onActivationAlert = { showActivationAlert = true },
             homeWallpaperPath = homeWallpaperPath,
             layoutReloadTrigger = layoutReloadTrigger
         )
-
-        pendingLaunch?.let { launch ->
-            AppLaunchTransitionOverlay(
-                app = launch.app,
-                customIconPath = launch.customIconPath,
-                startRect = launch.startRect,
-                progress = launchProgress.value,
-                isDarkTheme = isDark
-            )
-        }
         
         if (showActivationAlert) {
              androidx.compose.material3.AlertDialog(
@@ -1203,64 +1154,6 @@ fun HomeScreen() {
         if (showActivation) ActivationScreen(onBack = { showActivation = false }, onActivated = {
             isActivated = licenseManager.isActivated(); expiryDate = licenseManager.getExpirationDateString()
         })
-    }
-}
-
-@Composable
-private fun AppLaunchTransitionOverlay(
-    app: AppIcon,
-    customIconPath: String?,
-    startRect: Rect,
-    progress: Float,
-    isDarkTheme: Boolean
-) {
-    val clamped = progress.coerceIn(0f, 1f)
-    val cornerRadius = lerpFloat(16f, 0f, clamped)
-    val iconAlpha = (1f - clamped * 1.15f).coerceIn(0f, 1f)
-    val iconScale = lerpFloat(1f, 1.2f, clamped)
-    val maskColor = if (isDarkTheme) Color.Black else Color.White
-    val panelColor = if (isDarkTheme) Color(0xFF111111) else Color(0xFFF8F8F8)
-
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .zIndex(9000f)
-    ) {
-        val density = LocalDensity.current
-        val endWidth = constraints.maxWidth.toFloat()
-        val endHeight = constraints.maxHeight.toFloat()
-        val left = lerpFloat(startRect.left, 0f, clamped)
-        val top = lerpFloat(startRect.top, 0f, clamped)
-        val width = lerpFloat(startRect.width, endWidth, clamped)
-        val height = lerpFloat(startRect.height, endHeight, clamped)
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(maskColor.copy(alpha = 0.14f * clamped))
-        )
-
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(left.roundToInt(), top.roundToInt()) }
-                .width(with(density) { width.toDp() })
-                .height(with(density) { height.toDp() })
-                .clip(RoundedCornerShape(cornerRadius.dp))
-                .background(panelColor),
-            contentAlignment = Alignment.Center
-        ) {
-            if (iconAlpha > 0f) {
-                LaunchIconPreview(
-                    app = app,
-                    customIconPath = customIconPath,
-                    modifier = Modifier.graphicsLayer {
-                        alpha = iconAlpha
-                        scaleX = iconScale
-                        scaleY = iconScale
-                    }
-                )
-            }
-        }
     }
 }
 
